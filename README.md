@@ -37,8 +37,9 @@ Plugin commands are namespaced, so the command is `/keelwright:kickoff` (shown a
 | `/kickoff status` | Shows each step, the next action, files you edited and open questions |
 | `/kickoff <step>` | Re-runs one step: `interview`, `prd`, `architecture`, `features`, `design`, `research`, `scaffold`, `generate`, `publish` |
 | `/kickoff research --refresh` | Re-researches the stack packs |
+| `/kickoff report` | Shows how the run went (time, re-runs, how much you edited each document) and asks you to rate each document |
 
-Pipeline state is kept in `.keelwright/state.json` in your project — commit it.
+Pipeline state is kept in `.keelwright/state.json` and run metrics in `.keelwright/metrics.json` in your project — commit both. Metrics never leave your machine.
 
 ## Repository layout
 

@@ -7,6 +7,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- Run metrics recorded automatically in `.keelwright/metrics.json`: runs and time per step, open questions at each gate, how much of each document the user edited at review, edits after approval, step counters.
+- `/keelwright:kickoff report`: scorecard and per-document ratings, written to `.keelwright/report.md`.
+- Spec section 8: test projects and evaluation (run metrics, evaluation suite, improvement loop).
 - `interview` step (web): project type detection, gap analysis against the input, short rounds of questions, `.keelwright/interview.md`.
 - `prd` step (web): document set from the catalog, frontend selection and right-sizing, live version resolution, PRD, ADR-0001 and stack ADRs; gate 1 approval finalises their status.
 - `scripts/versions.mjs`: latest stable versions from npm, Node.js LTS and GitHub releases, with a peer-dependency check across the set.

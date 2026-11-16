@@ -97,7 +97,7 @@ Every finding has a source. Nothing is assumed: if neither the input nor the use
 
 ## 6. Finish
 
-1. `STATE set project-type <type>`
+1. `STATE set project-type <type>`; record the interview size: `STATE metric interview questions <total asked>` and `STATE metric interview rounds <n>`.
 2. `STATE complete interview .keelwright/interview.md` (add `.keelwright/input.md` if it exists, so edits to it are detected too)
 3. Tell the user in one or two lines what was settled and how many questions remain open, then continue with `prd`.
 

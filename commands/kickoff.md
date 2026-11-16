@@ -1,6 +1,6 @@
 ---
 description: Start or continue a KeelWright project kickoff — interview, documents, stack research, scaffold and Claude setup, with review gates
-argument-hint: "[<project description or file> | status | <step> | research --refresh]"
+argument-hint: "[<project description or file> | status | report | <step> | research --refresh]"
 ---
 
 # /kickoff
@@ -44,6 +44,7 @@ Decide what was asked from `$ARGUMENTS`:
 | Arguments | Meaning | Go to |
 |---|---|---|
 | `status` | Show progress | Run `STATE status` and show the result in a short, readable form. Stop. |
+| `report` | Run report and document ratings | Section 8 |
 | a step name (`interview`, `prd`, `architecture`, `features`, `design`, `research`, `scaffold`, `generate`, `publish`) | Re-run that step | Section 4 |
 | `research --refresh` | Re-run research and force new stack packs | Section 4, passing the refresh flag to the step |
 | anything else, or nothing | Start a new kickoff, or continue the current one | Section 2 |
@@ -54,6 +55,7 @@ Decide what was asked from `$ARGUMENTS`:
 2. **If it doesn't exist** (new kickoff):
    - The project description is required. If `$ARGUMENTS` is a path to a file, that file is the description; if it is text, the text is the description. If there are no arguments, ask the user for the project description or specs (text or file paths) and stop until they answer.
    - Run `STATE init --input "<file path, or a one-line summary of the text>"`.
+   - If the folder is a git repository or has a `.gitignore`, add `.keelwright/snapshots/` to `.gitignore` (temporary copies used to measure review edits). The rest of `.keelwright/` is committed.
    - If the description was given as text, save it verbatim to `.keelwright/input.md` so later steps can re-read it.
 3. **If it exists**, check for edits first (section 3), then continue.
 4. Continue with the loop in section 5.
@@ -125,6 +127,15 @@ When `STATE next` returns a review:
 7. Run `STATE approve <N>`, then continue the loop (section 5).
 
 The step files can add gate-specific content to show in step 2 (e.g. the `prd` step's stack summary); include it.
+
+## 8. Report
+
+Run metrics are recorded automatically by `STATE` (`.keelwright/metrics.json`); steps add their own counters with `STATE metric <step> <name> <n|+n>`.
+
+1. Run `STATE report` and show the scorecard: steps, runs, time, open questions, and how much of each document the user changed at review.
+2. Ask the user to rate each generated document they reviewed (AskUserQuestion, up to 4 documents per question round), with the options **Used as-is**, **Small edits**, **Rewritten**, **Deleted**. Skip documents already rated unless the user wants to change a rating.
+3. Record each answer: `STATE rate <file> <as-is|small-edits|rewritten|deleted>`.
+4. Run `STATE report --write` and tell the user the report is in `.keelwright/report.md`. Suggest running `/kickoff report` again a few weeks into the project, to re-rate the documents once they've been used.
 
 ## Rules for every step
 
