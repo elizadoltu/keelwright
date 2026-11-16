@@ -232,6 +232,8 @@ describe('markers and setters', () => {
     S.mergeStack(state, { resolvedAt: '2026-11-16' });
     S.mergeStack(state, { versions: { node: '24.0.0' } });
     assert.deepEqual(state.stack, { resolvedAt: '2026-11-16', versions: { node: '24.0.0' } });
+    S.mergeStack(state, { versions: { astro: '7.4.12' } });
+    assert.deepEqual(state.stack.versions, { node: '24.0.0', astro: '7.4.12' }, 'nested objects merge key by key');
     assert.throws(() => S.mergeStack(state, [1]), /JSON object/);
   });
 });
