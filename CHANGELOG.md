@@ -7,6 +7,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- `generate` step: CLAUDE.md (under 200 lines), path-scoped `.claude/rules/` from the stack packs' review rules (duplicates merged, not-applicable rules left out), the `reviewer` (read-only), `tester` and `docs-keeper` subagents, the `implement-story`, `new-adr` and `new-component` skills, Claude Code hooks and settings, and CONTRIBUTING.md — all from the same facts.
+- Claude Code hook scripts for generated projects: `guard-files` (accepted ADRs, generated files, secrets via gitleaks), `format-on-edit` (Prettier + ESLint fix), `check-on-stop` (`npm run check`).
+- `scripts/generatecheck.mjs` and `templates/claude/`.
 - `scaffold` step (web): preflight, the framework's official generator pinned and non-interactive, exact versions, configuration from stack-pack rules (recorded in `.keelwright/scaffold.md`), theme from tokens, Husky + lint-staged + commitlint + gitleaks, CI with SHA-pinned actions, Dependabot, passing unit and E2E smoke tests.
 - `scripts/preflight.mjs`, `scripts/scaffoldcheck.mjs`, `scripts/tokens-to-css.mjs`; `reference/web-scaffold.md` with the standard npm script names.
 - `scripts/versions.mjs` resolves GitHub release tags to commit SHAs (and uses `GITHUB_TOKEN` when set).
