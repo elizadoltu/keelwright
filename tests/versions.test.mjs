@@ -131,6 +131,8 @@ describe('resolveAll', () => {
       versions: { '5.0.0': { peerDependencies: { astro: '^7.0.0' } } },
     },
     'https://api.github.com/repos/gitleaks/gitleaks/releases/latest': { tag_name: 'v8.30.0' },
+    'https://api.github.com/repos/gitleaks/gitleaks/git/ref/tags/v8.30.0': { object: { type: 'tag', url: 'https://api.github.com/repos/gitleaks/gitleaks/git/tags/abc' } },
+    'https://api.github.com/repos/gitleaks/gitleaks/git/tags/abc': { object: { sha: 'f'.repeat(40) } },
   };
   const fetchJson = async (url) => {
     if (!(url in responses)) throw new Error(`${url} → HTTP 404`);
@@ -145,6 +147,7 @@ describe('resolveAll', () => {
     assert.equal(r.resolvedAt, '2026-11-16');
     assert.deepEqual(r.packages.map((p) => `${p.name}@${p.version}`), ['node@26.13.1', 'astro@7.4.12', '@astrojs/mdx@5.0.0', 'gitleaks/gitleaks@8.30.0']);
     assert.equal(r.packages[0].lts, 'Lithium');
+    assert.equal(r.packages[3].sha, 'f'.repeat(40), 'annotated tag resolved to its commit');
     assert.deepEqual(r.peers.map((p) => [p.package, p.peer, p.status]), [
       ['astro', 'node (engines)', 'ok'],
       ['@astrojs/mdx', 'astro', 'ok'],

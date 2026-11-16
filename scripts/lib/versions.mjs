@@ -191,7 +191,15 @@ async function resolveGithub({ name }, fetchJson) {
   const release = await fetchJson(`https://api.github.com/repos/${name}/releases/latest`, { Accept: 'application/vnd.github+json' });
   const version = String(release.tag_name ?? '').replace(/^v/, '');
   if (!isStable(version)) throw new Error(`latest release of ${name} is not a stable version (${release.tag_name})`);
-  return { source: 'github', name, version, peerDependencies: {}, optionalPeers: [] };
+  // The commit the tag points to, for pinning GitHub Actions by SHA (annotated tags point to a tag object).
+  let sha = null;
+  try {
+    const ref = await fetchJson(`https://api.github.com/repos/${name}/git/ref/tags/${encodeURIComponent(release.tag_name)}`, { Accept: 'application/vnd.github+json' });
+    sha = ref.object?.type === 'tag' ? (await fetchJson(ref.object.url, { Accept: 'application/vnd.github+json' })).object?.sha : ref.object?.sha;
+  } catch {
+    sha = null;
+  }
+  return { source: 'github', name, version, tag: release.tag_name, ...(sha ? { sha } : {}), peerDependencies: {}, optionalPeers: [] };
 }
 
 const RESOLVERS = { npm: resolveNpm, node: resolveNode, github: resolveGithub };
@@ -239,7 +247,9 @@ export async function resolveAll(specs, { fetchJson, now = new Date() }) {
 }
 
 export async function httpFetchJson(url, headers = {}) {
-  const res = await fetch(url, { headers: { 'User-Agent': 'keelwright', ...headers } });
+  // A GitHub token, when present, raises the API rate limit (60 requests an hour without one).
+  const token = url.startsWith('https://api.github.com/') ? (process.env.GITHUB_TOKEN ?? process.env.GH_TOKEN) : null;
+  const res = await fetch(url, { headers: { 'User-Agent': 'keelwright', ...(token ? { Authorization: `Bearer ${token}` } : {}), ...headers } });
   if (!res.ok) throw new Error(`${url} → HTTP ${res.status}`);
   return res.json();
 }
