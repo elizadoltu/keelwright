@@ -1,0 +1,15 @@
+{
+  "description": "Packs shipped with the plugin (spec 5.4): the default web stack and Astro. Produce or refresh them with `node scripts/research-pack.mjs --shipped`.",
+  "packs": [
+    { "id": "tanstack-start", "name": "TanStack Start", "packages": ["@tanstack/react-start", "@tanstack/react-router"] },
+    { "id": "astro", "name": "Astro", "packages": ["astro", "@astrojs/*"] },
+    { "id": "express", "name": "Express", "packages": ["express"] },
+    { "id": "supabase", "name": "Supabase (PostgreSQL)", "packages": ["@supabase/supabase-js", "supabase"] },
+    { "id": "tailwind", "name": "Tailwind CSS", "packages": ["tailwindcss", "@tailwindcss/*"] },
+    { "id": "vitest", "name": "Vitest", "packages": ["vitest", "@vitest/*"] },
+    { "id": "playwright", "name": "Playwright", "packages": ["@playwright/test"] },
+    { "id": "typescript", "name": "TypeScript with ESLint and Prettier", "packages": ["typescript", "typescript-eslint", "eslint", "prettier"] },
+    { "id": "vercel", "name": "Vercel", "packages": ["vercel"] },
+    { "id": "git-hooks", "name": "Git hooks: Husky, lint-staged, commitlint and gitleaks", "packages": ["husky", "lint-staged", "@commitlint/cli"] }
+  ]
+}
