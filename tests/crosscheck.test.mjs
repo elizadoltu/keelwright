@@ -105,3 +105,20 @@ describe('Structurizr workspace', () => {
     assert.deepEqual(checkWorkspace(dsl), []);
   });
 });
+
+describe('doccheck CLI', () => {
+  test('recognises every check type, including c4', async () => {
+    const { execFileSync } = await import('node:child_process');
+    const cliPath = new URL('../scripts/doccheck.mjs', import.meta.url).pathname;
+    const dsl = new URL('../templates/c4-workspace.dsl', import.meta.url).pathname;
+    const out = execFileSync('node', [cliPath, `c4:${dsl}`], { encoding: 'utf8' });
+    assert.match(out, /^ok {3}c4:/);
+    let failed;
+    try {
+      execFileSync('node', [cliPath, 'nope:x.md'], { encoding: 'utf8' });
+    } catch (err) {
+      failed = err.stdout;
+    }
+    assert.match(failed, /unknown check type "nope"/);
+  });
+});

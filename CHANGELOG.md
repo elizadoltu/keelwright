@@ -7,6 +7,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- `architecture` step (web): architecture overview with routes, C4 workspace, ERD + schema when data is stored, further ADRs.
+- `features` step: story-map feature breakdown with a walking-skeleton MVP slice, and the deferred backlog (`BL-`, `TD-`).
+- `design` step: visual identity and W3C DTCG design tokens with light and dark modes.
+- `doccheck` checks for design tokens (structure, references, WCAG AA contrast), cross-document IDs and links, and the C4 workspace.
+- Architecture overview template: a Routes section for web projects.
 - Run metrics recorded automatically in `.keelwright/metrics.json`: runs and time per step, open questions at each gate, how much of each document the user edited at review, edits after approval, step counters.
 - `/keelwright:kickoff report`: scorecard and per-document ratings, written to `.keelwright/report.md`.
 - Spec section 8: test projects and evaluation (run metrics, evaluation suite, improvement loop).

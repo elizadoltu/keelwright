@@ -2,7 +2,7 @@
 
 A Claude Code plugin that takes a project from **idea or specs** to project documents, a scaffolded repository and a project-specific Claude setup, with review gates where you edit the documents before the pipeline continues.
 
-> Status: Phase 1 in progress. The pipeline, state and review gates work, and the `interview` and `prd` steps are built for web projects; the remaining steps are being added one by one (see `keelwright-spec.md`, section 9).
+> Status: Phase 1 in progress. The pipeline, state and review gates work, and the steps up to gate 2 (`interview`, `prd`, `architecture`, `features`, `design`) are built for web projects; the remaining steps are being added one by one (see `keelwright-spec.md`, section 9).
 
 ## Requirements
 
