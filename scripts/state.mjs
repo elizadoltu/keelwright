@@ -29,7 +29,7 @@ const HELP = `Usage: node state.mjs <command> [args] [--root <dir>] [--json]
   set project-type <t>
   set documents <key,key,...>
   set input <text>
-  set stack '<json object>'            Merged into state.stack`;
+  set stack '<json object>'            Merged into state.stack (nested objects key by key)`;
 
 const VALUE_FLAGS = new Set(['--root', '--type', '--input', '--reason']);
 

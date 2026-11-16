@@ -3,6 +3,9 @@
 
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
+import { flattenTokens } from './tokens.mjs';
+
+export { flattenTokens };
 
 // ---------------------------------------------------------------------------
 // Design tokens
@@ -10,18 +13,6 @@ import { dirname, join, relative, resolve } from 'node:path';
 
 const isObj = (v) => typeof v === 'object' && v !== null && !Array.isArray(v);
 const REF = /^\{([^{}]+)\}$/;
-
-// Flatten a DTCG tree into { path: { $type, $value } }, inheriting $type from groups.
-export function flattenTokens(tree, prefix = [], inheritedType = null, out = {}) {
-  const type = tree.$type ?? inheritedType;
-  for (const [key, value] of Object.entries(tree)) {
-    if (key.startsWith('$') || !isObj(value)) continue;
-    const path = [...prefix, key];
-    if ('$value' in value) out[path.join('.')] = { $type: value.$type ?? type, $value: value.$value };
-    else flattenTokens(value, path, type, out);
-  }
-  return out;
-}
 
 function resolveValue(tokens, value, seen = new Set()) {
   const m = typeof value === 'string' ? REF.exec(value) : null;

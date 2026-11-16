@@ -236,7 +236,12 @@ export function setInput(state, input) {
 
 export function mergeStack(state, patch) {
   if (typeof patch !== 'object' || patch === null || Array.isArray(patch)) fail('stack must be a JSON object');
-  state.stack = { ...state.stack, ...patch };
+  // Nested objects (versions, packs, layers) are merged key by key, so a step can add a few
+  // versions without restating the others.
+  const isObj = (v) => typeof v === 'object' && v !== null && !Array.isArray(v);
+  for (const [k, v] of Object.entries(patch)) {
+    state.stack[k] = isObj(v) && isObj(state.stack[k]) ? { ...state.stack[k], ...v } : v;
+  }
 }
 
 // ---------------------------------------------------------------------------

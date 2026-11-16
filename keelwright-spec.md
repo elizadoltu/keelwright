@@ -316,16 +316,22 @@ Rules, skills and commands are based on **researched, current** practices for th
 
 Creates a working repository for the chosen stack, using the versions resolved in the `prd` step (4.6).
 
-**Web projects** get:
-- The app, created with the framework's official generator and configured per the frontend rules (4.7), with the folder structure for the chosen conventions (4.2).
-- Exact versions in the manifest and a committed lockfile.
-- Tailwind theme generated from `design/tokens.json` (when visual identity is in the document set).
+**Before anything is created**, a preflight (`scripts/preflight.mjs`) checks the machine: the local Node.js must satisfy every resolved package's `engines.node` (required), should be the resolved LTS (recommended), and git, gitleaks and — with a database — the Supabase CLI and Docker must be installed. A missing requirement stops the step with instructions; a recommendation only warns.
+
+**Web projects** get (details in `reference/web-scaffold.md`):
+- The app, created with the framework's official generator pinned to its resolved version, non-interactive, then shaped to the architecture overview's code structure. It is a **walking skeleton**: every P1 route exists with its layout, title, `lang` and a placeholder heading; features come later.
+- npm by default (unless the user or an ADR chooses otherwise); exact versions in the manifest and a committed lockfile; `.nvmrc` pins the LTS, `engines.node` the strictest requirement of the installed packages. Tools the stack packs require (lint plugins, configs) are resolved at this point and added to the recorded versions.
+- Standard npm script names — `dev`, `build`, `preview`, `lint`, `format`, `format:check`, `typecheck`, `test`, `test:e2e`, `tokens`, `check` — which CONTRIBUTING.md, CLAUDE.md, the hooks and CI all rely on.
+- Configuration applying every stack-pack rule of kind `config`, `lint`, `format` and `types` that gate 3 left applicable; each applied (or skipped) rule is recorded in `.keelwright/scaffold.md` for the generator and for audits.
+- Tailwind theme generated from `design/tokens.json` by a script copied into the project (`scripts/tokens-to-css.mjs`), with a drift check in `npm run check`.
 - Husky with lint-staged, commitlint (Conventional Commits) and a gitleaks pre-commit hook.
-- GitHub Actions CI: lint, type check, unit tests, build, gitleaks, Playwright.
-- Renovate or Dependabot configuration.
-- A Vitest unit test and a Playwright smoke test that pass out of the box.
+- GitHub Actions CI — check, build, Playwright, gitleaks, commitlint — with every action pinned to a commit SHA (`scripts/versions.mjs` resolves release tags to SHAs).
+- Dependabot for npm and GitHub Actions (Renovate when chosen instead).
+- A Vitest unit test of a real helper and a Playwright smoke test over the P1 routes, passing out of the box.
 - When a database is used: Supabase local setup, with `docs/architecture/schema.sql` copied into the first migration (6.0, data model lifecycle).
 - `.env.example`; no secrets are ever written.
+
+The step must pass `npm run check`, `npm run build`, `npm run test:e2e` and `scripts/scaffoldcheck.mjs` (exact versions, scripts, hooks with gitleaks, pinned actions, dependency updates, theme in sync, migration present) before it completes. It records configuration files as its outputs, not source folders, so ordinary feature work doesn't count as an edit to the scaffold. It never commits for the user.
 
 **Other project types** are scaffolded only where an official command-line generator exists (e.g. Expo, Flutter, Godot, npm / uv / cargo packages). For engines whose projects are created through their editor (e.g. Unity, Unreal), the step produces written setup instructions instead, and the documents and Claude setup are generated as usual.
 

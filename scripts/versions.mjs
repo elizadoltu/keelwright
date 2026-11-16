@@ -30,7 +30,7 @@ if (json) {
 } else {
   console.log(`Resolved on ${result.resolvedAt}`);
   for (const p of result.packages) {
-    const note = p.lts ? ` (LTS ${p.lts})` : p.range ? ` (range ${p.range})` : '';
+    const note = p.lts ? ` (LTS ${p.lts})` : p.range ? ` (range ${p.range})` : p.sha ? ` (${p.tag} → ${p.sha})` : '';
     console.log(`  ${p.name.padEnd(36)} ${p.version}${note}`);
   }
   const notable = result.peers.filter((p) => p.status !== 'ok');
