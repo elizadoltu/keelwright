@@ -67,7 +67,7 @@ npm test
 claude plugin validate .
 ```
 
-Both must pass before a pull request is merged. New state logic needs tests; behaviour that lives in Markdown (commands, steps) is checked by running it as described above — say in the pull request what you ran.
+Both must pass before a pull request is merged; CI runs them on every pull request (tests on Node.js 22, 24 and 26). New state logic needs tests; behaviour that lives in Markdown (commands, steps) is checked by running it as described above — say in the pull request what you ran.
 
 ## Branches, commits and pull requests
 
