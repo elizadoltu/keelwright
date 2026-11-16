@@ -20,7 +20,7 @@ export function placeholders(text) {
     if (/^\s*```/.test(raw)) inFence = !inFence;
     if (inFence) return;
     const line = raw.replace(/`[^`\n]*`/g, '').replace(/\[NEEDS CLARIFICATION:[^\]]*\]/g, '');
-    if (/<!--/.test(line)) issues.push({ line: i + 1, issue: 'template comment left in' });
+    if (/<!--(?! keelwright:)/.test(line)) issues.push({ line: i + 1, issue: 'template comment left in' });
     const tag = line.match(/<(?!https?:)[a-z][^<>]*>/i);
     if (tag && !/^<\/?(a|br|img|details|summary|sup|sub|kbd|abbr)\b/i.test(tag[0])) issues.push({ line: i + 1, issue: `placeholder ${tag[0]}` });
     if (/YYYY-MM-DD|\bNNNN\b/.test(line)) issues.push({ line: i + 1, issue: 'date or number placeholder' });
