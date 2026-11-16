@@ -1,0 +1,11 @@
+{
+  "name": "keelwright",
+  "version": "0.1.0",
+  "description": "Bootstraps projects from an idea or specs: interview, PRD and architecture documents, stack research, scaffold, and a project-specific Claude setup, with review gates.",
+  "author": {
+    "name": "Eliza Doltu"
+  },
+  "license": "MIT",
+  "repository": "https://github.com/elizadoltu/keelwright",
+  "keywords": ["kickoff", "scaffold", "prd", "adr", "claude-md", "project-setup"]
+}
