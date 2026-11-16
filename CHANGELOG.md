@@ -7,6 +7,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- `scaffold` step (web): preflight, the framework's official generator pinned and non-interactive, exact versions, configuration from stack-pack rules (recorded in `.keelwright/scaffold.md`), theme from tokens, Husky + lint-staged + commitlint + gitleaks, CI with SHA-pinned actions, Dependabot, passing unit and E2E smoke tests.
+- `scripts/preflight.mjs`, `scripts/scaffoldcheck.mjs`, `scripts/tokens-to-css.mjs`; `reference/web-scaffold.md` with the standard npm script names.
+- `scripts/versions.mjs` resolves GitHub release tags to commit SHAs (and uses `GITHUB_TOKEN` when set).
 - `research` step and gate 3: one stack pack per technology, reused when fresh (under 90 days, same major version) or researched live with sources; packs are installed into the project for review and saved to `~/.keelwright/stack-packs/` after approval.
 - `scripts/packs.mjs` (plan, install, validate, save), `templates/stack-pack.md`, `steps/research-pack.md`.
 - `scripts/research-pack.mjs` and the first shipped packs in `stack-packs/`: the default web stack and Astro.
@@ -37,6 +40,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Changed
 
+- `STATE set stack` merges nested objects (versions, packs, layers) key by key.
 - `prd` step: the problem statement comes only from the input and interview; assumptions and risks stay in their table. Version hold-back ADRs are named `NNNN-hold-<package>-at-<version>.md`.
 
 [Unreleased]: https://github.com/elizadoltu/keelwright/commits/main
