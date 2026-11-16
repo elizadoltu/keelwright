@@ -25,3 +25,4 @@ Claude Code plugin that bootstraps projects (`/kickoff`, later `/adopt`). The sp
 
 - Conventional Commits; work on a branch, `main` stays releasable.
 - Bump `version` in `.claude-plugin/plugin.json` and `package.json` together.
+- Add user-visible changes under **Unreleased** in `CHANGELOG.md`. Contributor-facing process lives in `CONTRIBUTING.md`; keep the two consistent.

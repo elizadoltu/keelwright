@@ -3,6 +3,9 @@
   "owner": {
     "name": "Eliza Doltu"
   },
+  "metadata": {
+    "description": "KeelWright: a Claude Code plugin that bootstraps projects from an idea or specs."
+  },
   "plugins": [
     {
       "name": "keelwright",

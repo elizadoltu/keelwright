@@ -59,6 +59,10 @@ Pipeline state is kept in `.keelwright/state.json` in your project — commit it
 npm test
 ```
 
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for how the repository fits together, how to build or change a step, and how releases work. Changes are recorded in [CHANGELOG.md](CHANGELOG.md). Please report security issues privately as described in [SECURITY.md](SECURITY.md).
+
 ## License
 
 [MIT](LICENSE)
