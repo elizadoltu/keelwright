@@ -1,16 +1,21 @@
 #!/usr/bin/env node
 // Check generated documents against the template principles (spec 6.1).
 //
-//   node doccheck.mjs [--json] [--max-words <n>] <type>:<file>... | <file>...
+//   node doccheck.mjs [--json] [--max-words <n>] <target>...
 //
-//   prd:docs/prd.md                 PRD checks + 1,800-word limit
-//   adr:docs/decisions/0002-x.md    700-word limit
-//   docs/anything.md                placeholders only
+//   prd:docs/prd.md                        PRD checks + word limit
+//   adr:<file>  overview:<file>  features:<file>  visual-identity:<file>  erd:<file>
+//                                          word limit + placeholders
+//   tokens:design/tokens.json              W3C DTCG structure, references, WCAG AA text contrast
+//   c4:docs/architecture/c4/workspace.dsl  Structurizr workspace structure
+//   refs:docs                              every ID referenced is defined; no broken local links
+//   <file>                                 placeholders only
 //
-// Exits 1 when any document has issues.
+// Exits 1 when any target has issues.
 
 import { readFileSync } from 'node:fs';
-import { checkDocument } from './lib/doccheck.mjs';
+import { checkTokens, checkWorkspace, crossCheck } from './lib/crosscheck.mjs';
+import { DOC_TYPES, checkDocument } from './lib/doccheck.mjs';
 
 const args = process.argv.slice(2);
 const json = args.includes('--json');
@@ -19,25 +24,34 @@ const maxWords = maxIdx >= 0 ? Number(args[maxIdx + 1]) : null;
 const targets = args.filter((a, i) => a !== '--json' && a !== '--max-words' && (maxIdx < 0 || i !== maxIdx + 1));
 
 if (!targets.length) {
-  console.log('Usage: node doccheck.mjs [--json] [--max-words <n>] [<type>:]<file>...   (types: prd, adr)');
+  console.log(`Usage: node doccheck.mjs [--json] [--max-words <n>] [<type>:]<path>...   (types: ${DOC_TYPES.join(', ')}, tokens, c4, refs)`);
   process.exit(1);
 }
 
-const results = targets.map((t) => {
-  const m = /^(prd|adr):(.+)$/.exec(t);
-  const [type, file] = m ? [m[1], m[2]] : [null, t];
+function check(target) {
+  const m = /^([a-z-]+):(.+)$/.exec(target);
+  const [type, path] = m ? [m[1], m[2]] : [null, target];
   try {
-    return { file, type, ...checkDocument(readFileSync(file, 'utf8'), { type, maxWords }) };
+    if (type === 'tokens') return { file: path, type, issues: checkTokens(readFileSync(path, 'utf8')) };
+    if (type === 'c4') return { file: path, type, issues: checkWorkspace(readFileSync(path, 'utf8')) };
+    if (type === 'refs') {
+      const r = crossCheck(process.cwd(), [path]);
+      return { file: path, type, note: `${r.files} files, ${r.defined} IDs defined`, issues: r.issues };
+    }
+    if (type && !DOC_TYPES.includes(type)) throw new Error(`unknown check type "${type}"`);
+    const r = checkDocument(readFileSync(path, 'utf8'), { type, maxWords });
+    return { file: path, type, note: `${r.words} words${r.limit ? ` / ${r.limit}` : ''}`, issues: r.issues };
   } catch (err) {
-    return { file, type, ok: false, issues: [{ issue: err.message }] };
+    return { file: path, type, issues: [{ issue: err.message }] };
   }
-});
+}
+
+const results = targets.map(check).map((r) => ({ ...r, ok: r.issues.length === 0 }));
 
 if (json) console.log(JSON.stringify(results, null, 2));
 else {
   for (const r of results) {
-    const size = r.words !== undefined ? ` (${r.words} words${r.limit ? ` / ${r.limit}` : ''})` : '';
-    console.log(`${r.ok ? 'ok  ' : 'FAIL'} ${r.file}${size}`);
+    console.log(`${r.ok ? 'ok  ' : 'FAIL'} ${r.type ? `${r.type}:` : ''}${r.file}${r.note ? ` (${r.note})` : ''}`);
     for (const i of r.issues) console.log(`     - ${i.issue}`);
   }
 }

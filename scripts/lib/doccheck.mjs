@@ -2,7 +2,7 @@
 // acceptance-criteria form and ID traceability. Steps run these before completing; the same
 // checks can serve as eval graders.
 
-const LIMITS = { prd: 1800, adr: 700 };
+const LIMITS = { prd: 1800, adr: 700, overview: 1300, features: 1200, 'visual-identity': 1300, erd: 1000 };
 
 const stripCode = (text) => text.replace(/```[\s\S]*?```/g, '').replace(/`[^`\n]*`/g, '');
 const stripFrontMatter = (text) => text.replace(/^---\n[\s\S]*?\n---\n/, '');
@@ -74,6 +74,8 @@ function prdChecks(text) {
 }
 
 const TYPE_CHECKS = { prd: prdChecks };
+
+export const DOC_TYPES = Object.keys(LIMITS);
 
 export function checkDocument(text, { type = null, maxWords = null } = {}) {
   const limit = maxWords ?? (type ? LIMITS[type] : null) ?? null;
