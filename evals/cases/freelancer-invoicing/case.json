@@ -1,0 +1,17 @@
+{
+  "description": "Public marketing pages plus a logged-in app with stored data. Exercises frontend rule 3 (TanStack Start, SSR for public routes, client-only app routes), a database and the ERD.",
+  "stopAtGate": 2,
+  "answers": [
+    "Sign in with email and password, plus a magic link. Invoices in EUR only for now. English only. PDFs are generated on request from the stored invoice, not stored as files. Help articles are written by us in Markdown. Anything else: decide later."
+  ],
+  "expect": {
+    "projectType": "web",
+    "frontend": { "choice": "tanstack", "rule": 3 },
+    "documents": {
+      "include": ["prd", "adr", "backlog", "development-workflow", "architecture-overview", "c4", "erd", "visual-identity"],
+      "exclude": ["screen-flow", "release-checklist", "game-design-document", "asset-pipeline", "ai-system-design", "ai-eval-plan", "api-surface"]
+    },
+    "interviewQuestions": { "min": 1 }
+  },
+  "judges": ["invented-facts", "redundant-questions"]
+}

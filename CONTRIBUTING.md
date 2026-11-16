@@ -40,7 +40,8 @@ claude --plugin-dir /path/to/keelwright
 | `reference/` | Runtime copies of spec rules the steps read (stack rules, catalog) — keep in sync with the spec |
 | `scripts/versions.mjs` | Live version resolution and peer check |
 | `scripts/doccheck.mjs` | Mechanical document checks that steps must pass |
-| `tests/` | Tests for the state logic and CLI (`node:test`) |
+| `tests/` | Unit tests (`node:test`) |
+| `evals/` | Evaluation suite: cases, runner, graders, scoreboard |
 
 ## Making changes
 
@@ -73,6 +74,14 @@ claude plugin validate .
 
 Both must pass before a pull request is merged; CI runs them on every pull request (tests on Node.js 22, 24 and 26). New state logic needs tests; behaviour that lives in Markdown (commands, steps) is checked by running it as described above — say in the pull request what you ran.
 
+## Evals
+
+The eval suite (`evals/`, see `evals/README.md`) runs real Claude sessions and costs money, so it doesn't run on every pull request:
+
+- **Changing steps, templates, reference rules, document checks or eval cases?** Add the `evals` label to the pull request — CI runs a smoke eval (every case once, to gate 1, about $6–8). CI posts a reminder when such files changed.
+- **Before a release:** run the full suite (Actions → Evals → Run workflow, or `node evals/run.mjs --max-cost 50`) and add a row to `evals/scoreboard.md`.
+- **A finding from a real run** becomes an issue, and its fix adds a check — a `doccheck` rule, a grader or a case — so it can't come back unnoticed.
+
 ## Branches, commits and pull requests
 
 - Branch from `main`; `main` is always releasable. Branch names: `<type>/<short-description>`, e.g. `feat/interview-step`.
@@ -88,10 +97,11 @@ A **breaking change** is anything that breaks an existing project or user habit:
 
 To release:
 
-1. Move the **Unreleased** entries in `CHANGELOG.md` under the new version with today's date.
-2. Bump `version` in **both** `.claude-plugin/plugin.json` and `package.json`.
-3. Merge to `main`, then tag: `git tag vX.Y.Z && git push origin vX.Y.Z`.
-4. Create a GitHub release from the tag with the changelog entries.
+1. Run the full eval suite and add its row to `evals/scoreboard.md`.
+2. Move the **Unreleased** entries in `CHANGELOG.md` under the new version with today's date.
+3. Bump `version` in **both** `.claude-plugin/plugin.json` and `package.json`.
+4. Merge to `main`, then tag: `git tag vX.Y.Z && git push origin vX.Y.Z`.
+5. Create a GitHub release from the tag with the changelog entries.
 
 ## Reporting bugs and security issues
 

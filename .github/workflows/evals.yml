@@ -1,0 +1,93 @@
+name: Evals
+
+# The eval suite runs real Claude sessions, so it costs money and takes time. It runs:
+#   - on a pull request only when it has the "evals" label (smoke: 1 run per case, stop at gate 1)
+#   - every Monday on main (full: 3 runs per case, to each case's stop gate) — catches drift
+#     from model updates and registry changes even when the code didn't change
+#   - by hand (Actions → Evals → Run workflow), e.g. before a release
+# Needs the repository secret ANTHROPIC_API_KEY or CLAUDE_CODE_OAUTH_TOKEN (`claude setup-token`).
+
+on:
+  pull_request:
+    types: [labeled, synchronize]
+  schedule:
+    - cron: '0 5 * * 1'
+  workflow_dispatch:
+    inputs:
+      runs:
+        description: Runs per case
+        default: '3'
+      stop_at:
+        description: Stop gate for every case (empty = each case's own)
+        default: ''
+      max_cost:
+        description: Cost limit in USD
+        default: '50'
+      cases:
+        description: Space-separated case names (empty = all)
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: evals-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  evals:
+    if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'evals')
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    env:
+      CLAUDE_CODE_VERSION: 2.1.311
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+    steps:
+      - name: Check credentials
+        id: auth
+        run: |
+          if [ -z "$ANTHROPIC_API_KEY" ] && [ -z "$CLAUDE_CODE_OAUTH_TOKEN" ]; then
+            echo "::warning::No ANTHROPIC_API_KEY or CLAUDE_CODE_OAUTH_TOKEN secret — evals skipped."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: steps.auth.outputs.skip != 'true'
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        if: steps.auth.outputs.skip != 'true'
+        with:
+          node-version: 24
+      - name: Install Claude Code
+        if: steps.auth.outputs.skip != 'true'
+        run: npm install --global "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}"
+      - name: Run evals
+        if: steps.auth.outputs.skip != 'true'
+        env:
+          EVENT: ${{ github.event_name }}
+          IN_RUNS: ${{ inputs.runs }}
+          IN_STOP: ${{ inputs.stop_at }}
+          IN_COST: ${{ inputs.max_cost }}
+          IN_CASES: ${{ inputs.cases }}
+        run: |
+          args=(--out evals/results/ci)
+          if [ "$EVENT" = "pull_request" ]; then
+            args+=(--runs 1 --stop-at 1 --max-cost 10)
+          elif [ "$EVENT" = "workflow_dispatch" ]; then
+            args+=(--runs "${IN_RUNS:-3}" --max-cost "${IN_COST:-50}")
+            [ -n "$IN_STOP" ] && args+=(--stop-at "$IN_STOP")
+            for c in $IN_CASES; do args+=(--case "$c"); done
+          else
+            args+=(--runs 3 --max-cost 50)
+          fi
+          set +e
+          node evals/run.mjs "${args[@]}"
+          code=$?
+          cat evals/results/ci/summary.md >> "$GITHUB_STEP_SUMMARY" 2>/dev/null
+          exit $code
+      - name: Upload results
+        if: always() && steps.auth.outputs.skip != 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: eval-results
+          path: evals/results/ci
+          retention-days: 30

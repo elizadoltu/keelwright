@@ -77,5 +77,6 @@ Guard rules:
 
 - **ADR-0002 is always the frontend decision**, naming the rule that matched (even when it is the default).
 - Each other deviation from the defaults gets its own ADR: e.g. "No custom backend", "No database", "Use a form service for the contact form", a held-back version, a host other than Vercel.
+- A held-back version is named `NNNN-hold-<package>-at-<version>.md` and quotes the peer range that forced it; it needs no requirement IDs. Every other ADR cites the requirement IDs (`US-`, `FR-`, `NFR-`, `SC-`) that drive it.
 - Layers kept as default need no ADR.
 - ADRs written during `prd` are `proposed`; they become `accepted` when gate 1 is approved.

@@ -43,3 +43,22 @@ jobs:
           node-version: 24
       - run: npm install --global "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}"
       - run: claude plugin validate .
+
+  eval-reminder:
+    name: Eval reminder
+    if: github.event_name == 'pull_request' && !contains(github.event.pull_request.labels.*.name, 'evals')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Suggest the evals label when pipeline behaviour changed
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          changed=$(git diff --name-only "$BASE"...HEAD -- commands steps templates reference scripts/lib/doccheck.mjs scripts/lib/crosscheck.mjs scripts/lib/versions.mjs evals/cases evals/lib)
+          if [ -n "$changed" ]; then
+            echo "::notice::This PR changes files the eval suite covers. Add the 'evals' label to run a smoke eval (about \$6-8)."
+            { echo "### Eval reminder"; echo; echo "Changed files covered by the eval suite:"; echo; echo "$changed" | sed 's/^/- /'; echo; echo "Add the \`evals\` label to run a smoke eval."; } >> "$GITHUB_STEP_SUMMARY"
+          fi
