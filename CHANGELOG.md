@@ -7,6 +7,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- `research` step and gate 3: one stack pack per technology, reused when fresh (under 90 days, same major version) or researched live with sources; packs are installed into the project for review and saved to `~/.keelwright/stack-packs/` after approval.
+- `scripts/packs.mjs` (plan, install, validate, save), `templates/stack-pack.md`, `steps/research-pack.md`.
+- `scripts/research-pack.mjs` and the first shipped packs in `stack-packs/`: the default web stack and Astro.
 - Evaluation suite (`evals/`): three cases (frontend rules 1, 3 and 5), a runner that drives headless Claude sessions through the interview and gates, code graders and two model judges, pass rates per grader, cost limit.
 - CI: `Evals` workflow (smoke on PRs labelled `evals`, full suite weekly and on demand) and a reminder when a PR changes files the evals cover.
 

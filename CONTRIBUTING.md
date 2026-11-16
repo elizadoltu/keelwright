@@ -97,7 +97,7 @@ A **breaking change** is anything that breaks an existing project or user habit:
 
 To release:
 
-1. Run the full eval suite and add its row to `evals/scoreboard.md`.
+1. Refresh shipped stack packs older than 90 days (`node scripts/packs.mjs list`, then `node scripts/research-pack.mjs --shipped --only <id>…`), review the diff, and run the full eval suite; add its row to `evals/scoreboard.md`.
 2. Move the **Unreleased** entries in `CHANGELOG.md` under the new version with today's date.
 3. Bump `version` in **both** `.claude-plugin/plugin.json` and `package.json`.
 4. Merge to `main`, then tag: `git tag vX.Y.Z && git push origin vX.Y.Z`.
