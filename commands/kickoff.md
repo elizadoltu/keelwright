@@ -36,6 +36,7 @@ interview → prd → { architecture, features, design } → research → scaffo
 - `.keelwright/state.json` holds the pipeline state. **Only change it through `STATE`** — never edit the JSON yourself. Run `STATE help` for the full command list.
 - If a `STATE` command prints `error: …`, stop and tell the user what failed. Don't work around it.
 - Steps record their outputs with `STATE complete <step> <files…>`; this is how edits are detected later. Record a folder only when the step owns everything in it; otherwise list the files.
+- A step never edits a file an earlier, finished step produced — that counts as a user edit and triggers the edit question. If a step needs such a change, it tells the user which step to re-run.
 
 ## 1. Read the arguments
 
