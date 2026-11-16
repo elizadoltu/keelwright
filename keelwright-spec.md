@@ -124,7 +124,7 @@ For anything outside the defaults, `/kickoff` **recommends** a stack instead of 
 
 Every project starts on the **latest stable version** of each part of its stack.
 
-- **Resolved live on every run.** Versions are looked up from the package registries or official release channels at kickoff time (e.g. `npm view <pkg> version`), never from memory, templates or a cached stack pack.
+- **Resolved live on every run.** Versions are looked up from the package registries or official release channels at kickoff time, never from memory, templates or a cached stack pack. The plugin's `scripts/versions.mjs` does this for npm packages, the Node.js LTS line and GitHub releases, and reports peer-dependency conflicts across the set.
 - **Stable only.** No alpha, beta, RC, canary or nightly releases. For runtimes with release lines (e.g. Node.js), use the latest **LTS** release, not the "Current" line.
 - **Compatible as a set.** The newest version of one package may not yet support the newest version of another (e.g. a plugin lagging behind a major framework release). In that case, use the newest set that works together and record the held-back package and the reason in an ADR.
 - **Pinned and recorded.** Exact versions are written to the manifest and lockfile, and listed with the lookup date in the PRD's technical section.
@@ -200,6 +200,7 @@ All documents are plain Markdown / DSL files in the repository, so the user can 
 - If an edit changes an upstream decision (e.g. the stack in the PRD), the downstream steps are regenerated and any affected ADRs are updated.
 - Each step can also be re-run on its own (e.g. `/kickoff architecture`) after later edits.
 - Accepted ADRs are never edited, even when an upstream change affects them: a new ADR supersedes them.
+- Approving a gate finalises its documents: the PRD becomes `approved` and the ADRs written for it become `accepted` (each step defines what its gate approval changes).
 
 ### 5.1.2 Steps and state
 
@@ -385,6 +386,7 @@ All templates follow the same rules, based on research into PRD, ADR, GDD, eval 
 - **What vs how.** The PRD describes what and why; the stack and architecture live in ADRs and CLAUDE.md.
 - **Explicit non-goals and status.** Every document template has non-goals (or a cut list) where they apply and a `status` field in its front matter (`CONTRIBUTING.md` uses a hidden comment instead, see 6.0). Code-format templates (`schema.sql`, `workspace.dsl`) carry their rules in a header comment instead.
 - **Unknowns are marked, not guessed.** Open points are written as `[NEEDS CLARIFICATION: …]` and resolved at the review gates.
+- **Checked, not just requested.** The mechanical rules (length limits, leftover template placeholders, acceptance-criteria form, ID traceability) are enforced by the plugin's `scripts/doccheck.mjs`; a step must pass it before it completes.
 - **ADRs are immutable once accepted.** Changes are made by a new ADR that supersedes the old one. The `prd` step seeds `0001-record-architecture-decisions.md` from its fixed template, and the generator tells agents in CLAUDE.md where ADRs live.
 
 ### 6.2 Linked outputs

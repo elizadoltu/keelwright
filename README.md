@@ -2,7 +2,7 @@
 
 A Claude Code plugin that takes a project from **idea or specs** to project documents, a scaffolded repository and a project-specific Claude setup, with review gates where you edit the documents before the pipeline continues.
 
-> Status: Phase 1 in progress. The pipeline, state and review gates work; the individual steps are being added one by one (see `keelwright-spec.md`, section 9).
+> Status: Phase 1 in progress. The pipeline, state and review gates work, and the `interview` and `prd` steps are built for web projects; the remaining steps are being added one by one (see `keelwright-spec.md`, section 9).
 
 ## Requirements
 
@@ -51,6 +51,9 @@ Pipeline state is kept in `.keelwright/state.json` in your project — commit it
 | `scripts/state.mjs` | State CLI — the only way the pipeline reads or changes `state.json` |
 | `scripts/lib/` | Pipeline definition and state logic |
 | `templates/` | Document templates used by the steps |
+| `reference/` | Rules the steps read at runtime (web stack rules, document catalog) |
+| `scripts/versions.mjs` | Resolves the latest stable versions from the registries and checks peer compatibility |
+| `scripts/doccheck.mjs` | Checks generated documents: length, leftover placeholders, acceptance criteria, ID traceability |
 | `tests/` | Tests for the state logic and CLI |
 
 ## Development

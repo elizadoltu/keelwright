@@ -7,6 +7,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- `interview` step (web): project type detection, gap analysis against the input, short rounds of questions, `.keelwright/interview.md`.
+- `prd` step (web): document set from the catalog, frontend selection and right-sizing, live version resolution, PRD, ADR-0001 and stack ADRs; gate 1 approval finalises their status.
+- `scripts/versions.mjs`: latest stable versions from npm, Node.js LTS and GitHub releases, with a peer-dependency check across the set.
+- `scripts/doccheck.mjs`: document checks (length, placeholders, acceptance-criteria form, FR→story traceability) that steps must pass.
+- `reference/`: web stack rules and document catalog for the steps to read at runtime.
 - Plugin skeleton: manifest, marketplace entry, MIT license.
 - `/keelwright:kickoff` command with the pipeline loop, review gates, edit detection after approval and single-step re-runs.
 - State CLI (`scripts/state.mjs`) for `.keelwright/state.json`.
