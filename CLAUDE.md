@@ -9,7 +9,8 @@ Claude Code plugin that bootstraps projects (`/kickoff`, later `/adopt`). The sp
 - `scripts/state.mjs` + `scripts/lib/` — state CLI; `scripts/lib/pipeline.mjs` is the single definition of steps, order, gates, project types and document keys
 - `templates/` — document templates; generated documents keep their structure and IDs
 - `reference/` — runtime copies of spec rules the steps need (stack rules, catalog); **keep them in sync with the spec**
-- `scripts/versions.mjs` (live version resolution) and `scripts/doccheck.mjs` (mechanical document checks) — used by steps
+- `scripts/versions.mjs` (live version resolution), `scripts/doccheck.mjs` (mechanical document checks) and `scripts/packs.mjs` (stack packs: plan, install, validate, save) — used by steps
+- `stack-packs/` — shipped stack packs, produced with `scripts/research-pack.mjs` (costs money); `shipped.json` lists them
 
 ## Rules
 

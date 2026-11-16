@@ -21,7 +21,7 @@ Exit codes: `0` every grader at or above the threshold (default 67%), `1` below 
 
 | Case | What it exercises | Stops at |
 |---|---|---|
-| `personal-website` | Content-first site with two audiences, a blog and one form → Astro (rule 1), no backend server or database, i18n | Gate 2 |
+| `personal-website` | Content-first site with two audiences, a blog and one form → Astro (rule 1), no backend server or database, i18n, stack packs chosen to match | Gate 3 |
 | `freelancer-invoicing` | Public marketing pages + logged-in app with stored data → TanStack Start (rule 3), database, ERD | Gate 2 |
 | `support-dashboard` | Entirely behind a login, reads an existing API → TanStack Start SPA mode (rule 5), nothing stored | Gate 1 |
 
@@ -37,6 +37,7 @@ A case is a folder in `cases/` with:
 | `project-type`, `frontend` | code | The state records the expected type, framework and rule |
 | `documents-include`, `documents-exclude` | code | The document set contains / leaves out the expected keys |
 | `documents-written` | code | Every listed document whose step ran exists |
+| `packs` | code | The research step chose the expected stack packs and left out the unexpected ones |
 | `interview-asked` | code | The interview asked at least the expected number of questions (from the step's `questions` metric) |
 | `doccheck` | code | Every generated document passes `scripts/doccheck.mjs`, including tokens, C4 and cross-document IDs and links |
 | `adr-traceability` | code | Every ADR after 0001 (except version hold-backs) cites requirement IDs |

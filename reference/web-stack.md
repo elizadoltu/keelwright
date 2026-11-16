@@ -73,6 +73,24 @@ Guard rules:
   - `unknown` → check the range by hand.
 - **Recorded:** exact versions and the lookup date go in the PRD's technical constraints and `STATE set stack`. The scaffold step pins them.
 
+## Stack packs
+
+The `research` step uses one pack per technology. Ids and packages (primary package first) for the web technologies:
+
+| Technology | Pack id | Packages |
+|---|---|---|
+| TanStack Start | `tanstack-start` | `@tanstack/react-start`, `@tanstack/react-router` |
+| Astro | `astro` | `astro`, `@astrojs/*` |
+| Next.js | `nextjs` | `next` |
+| Express | `express` | `express` |
+| Supabase / PostgreSQL | `supabase` | `@supabase/supabase-js`, `supabase` |
+| Tailwind CSS | `tailwind` | `tailwindcss`, `@tailwindcss/*` |
+| Vitest | `vitest` | `vitest`, `@vitest/*` |
+| Playwright | `playwright` | `@playwright/test` |
+| TypeScript, ESLint, Prettier | `typescript` | `typescript`, `typescript-eslint`, `eslint`, `prettier` |
+| Vercel | `vercel` | `vercel` |
+| Husky, lint-staged, commitlint, gitleaks | `git-hooks` | `husky`, `lint-staged`, `@commitlint/cli` |
+
 ## ADRs for the stack
 
 - **ADR-0002 is always the frontend decision**, naming the rule that matched (even when it is the default).
