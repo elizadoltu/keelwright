@@ -7,6 +7,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- Evaluation suite (`evals/`): three cases (frontend rules 1, 3 and 5), a runner that drives headless Claude sessions through the interview and gates, code graders and two model judges, pass rates per grader, cost limit.
+- CI: `Evals` workflow (smoke on PRs labelled `evals`, full suite weekly and on demand) and a reminder when a PR changes files the evals cover.
+
 - `architecture` step (web): architecture overview with routes, C4 workspace, ERD + schema when data is stored, further ADRs.
 - `features` step: story-map feature breakdown with a walking-skeleton MVP slice, and the deferred backlog (`BL-`, `TD-`).
 - `design` step: visual identity and W3C DTCG design tokens with light and dark modes.
@@ -28,5 +31,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - Specification (`keelwright-spec.md`).
 - CI: tests on Node.js 22 / 24 / 26 and plugin validation on every pull request; Dependabot for GitHub Actions.
 - Contributor documentation: contributing guide, code of conduct, security policy, issue and pull request templates.
+
+### Changed
+
+- `prd` step: the problem statement comes only from the input and interview; assumptions and risks stay in their table. Version hold-back ADRs are named `NNNN-hold-<package>-at-<version>.md`.
 
 [Unreleased]: https://github.com/elizadoltu/keelwright/commits/main

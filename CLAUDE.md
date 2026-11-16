@@ -21,6 +21,7 @@ Claude Code plugin that bootstraps projects (`/kickoff`, later `/adopt`). The sp
 ## Commands
 
 - Test: `npm test`
+- Evals (cost money — always set a limit): `node evals/run.mjs --runs 1 --stop-at 1 --max-cost 10`; see `evals/README.md`
 - Try the plugin locally: `claude --plugin-dir .` (run it from a scratch project folder, not this repo)
 
 ## Conventions

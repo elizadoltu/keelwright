@@ -485,14 +485,25 @@ Snapshots for the edit comparison live in `.keelwright/snapshots/` only until th
 
 ### 8.3 Evaluation suite
 
-An automated suite in the plugin's `evals/` folder, run with `claude plugin eval`:
+An automated suite in the plugin's `evals/` folder (`node evals/run.mjs`; details in `evals/README.md`):
 
-- **Cases:** a project description plus scripted interview answers, run against one or more steps. Start with the test project, then add deliberately different ones (a SaaS app with logins, a dashboard behind a login, a docs site, and later the other project types).
-- **Runs per case:** at least 3, because outputs vary between runs; the score is the pass rate.
-- **Code graders (deterministic):** `doccheck` passes; the expected frontend rule and document set for the case; versions match the registries; valid state transitions; cross-document IDs resolve.
-- **LLM judges (binary, one failure mode each):** invented facts (every claim traceable to the input or interview); interview questions the input already answered; ADRs justified by requirement IDs.
-- **Baseline arm:** the same case without the plugin, to show what KeelWright adds.
-- **When it runs:** before each release and on pull requests that change steps, templates or reference rules — not on every pull request, because runs cost money.
+- **Runner:** each run starts a headless Claude Code session (`claude -p`) with the plugin, in a temporary folder outside the repository; it answers the interview from the case and approves gates up to the case's stop gate.
+- **Cases:** a project description, scripted interview answers, a stop gate and the expected results. The first three cover frontend rules 1, 3 and 5: the personal website test project, a SaaS app with logins and stored data, and an internal dashboard behind a login. Later project types add their own.
+- **Runs per case:** 3 by default, because outputs vary between runs; each grader's score is its pass rate, compared with a threshold (default 67%).
+- **Code graders (deterministic):** `doccheck` passes for every document; the expected project type, frontend rule and document set; listed documents are written; ADRs cite requirement IDs; versions are stable, published and either the newest or explained in an ADR; the run reached its stop gate.
+- **Model judges (one pass / fail question each, 3 votes, majority wins):** invented facts in the PRD; interview questions the input already answered. Earlier results can be re-graded without new runs (`--regrade`), so grader changes cost only the judge calls.
+- **Why a custom runner, not `claude plugin eval`:** at Claude Code 2.1.325 `claude plugin eval` runs a single prompt and has no script or exit-code grader, while KeelWright needs several turns (interview answers, gate approvals) and deterministic graders. A no-plugin baseline arm through `claude plugin eval` can be added later.
+
+**When it runs** — runs cost money (about $1.60 per run to gate 1), so the suite is tiered:
+
+| When | What |
+|---|---|
+| Every pull request | Unit tests only (free) |
+| Pull requests with the `evals` label | Smoke: every case once, to gate 1. CI suggests the label when steps, templates, reference rules, document checks or eval cases changed |
+| Weekly, on `main` | Full suite — catches drift from model updates and registry changes even when the code didn't change |
+| Before a release | Full suite, recorded in `evals/scoreboard.md` |
+
+Every run has a cost limit (`--max-cost`); CI needs `ANTHROPIC_API_KEY` or `CLAUDE_CODE_OAUTH_TOKEN` as a secret and skips the evals without one.
 
 ### 8.4 The improvement loop
 
@@ -501,7 +512,11 @@ An automated suite in the plugin's `evals/` folder, run with `claude plugin eval
 3. Each fix adds a check: a `doccheck` rule when it can be checked mechanically, otherwise an eval case or judge — so the same problem can't return unnoticed.
 4. Scores per release are tracked in `evals/scoreboard.md`.
 
-Example from building the `prd` step: three runs produced PRDs of 2,950, 2,450 and 2,350 words against a 1–3 page target; prose guidance didn't fix it, so the length limit became a `doccheck` rule the step must pass (1,798 words on the next run).
+Examples from building the steps:
+- Three runs produced PRDs of 2,950, 2,450 and 2,350 words against a 1–3 page target; prose guidance didn't fix it, so the length limit became a `doccheck` rule the step must pass (1,798 words on the next run).
+- The first eval run's invented-facts judge caught the PRD inventing a backstory for the problem statement; the `prd` step now takes the problem only from the input and marks missing evidence as an open question.
+- The judges then caught invented user context in 2 of 3 cases ("mostly desktop, a few sessions per month") — the template's Context column invited guessing; the `prd` step now fills it only from the input and writes `—` otherwise. The next run passed.
+- A single judge vote once concluded "pass" in its reasoning but returned "fail"; judges now reason first and vote three times.
 
 ## 9. Roadmap
 

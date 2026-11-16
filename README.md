@@ -55,7 +55,8 @@ Pipeline state is kept in `.keelwright/state.json` and run metrics in `.keelwrig
 | `reference/` | Rules the steps read at runtime (web stack rules, document catalog) |
 | `scripts/versions.mjs` | Resolves the latest stable versions from the registries and checks peer compatibility |
 | `scripts/doccheck.mjs` | Checks generated documents: length, leftover placeholders, acceptance criteria, ID traceability |
-| `tests/` | Tests for the state logic and CLI |
+| `tests/` | Unit tests |
+| `evals/` | Evaluation suite — see `evals/README.md` |
 
 ## Development
 

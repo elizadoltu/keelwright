@@ -12,12 +12,14 @@ The input and the interview are the source of truth. If the user edited `.keelwr
 
 Draft the PRD's content in your head before choosing anything technical — the stack must follow from the requirements, not the other way round:
 
-- **Users** — one row per audience. Separate audiences with separate needs get separate stories.
+- **Problem and why now** — only what the input or interview says. Don't invent a backstory, a current pain or evidence; if the input gives none, state the need plainly and add `[NEEDS CLARIFICATION: what prompted this, and how it's handled today]`.
+- **Users** — one row per audience. Separate audiences with separate needs get separate stories. Need and context only as far as the input or interview says — don't guess who the visitors are, which devices they use or how often they come; write `—` for what isn't known, or `[NEEDS CLARIFICATION: …]` when it changes a requirement.
 - **Goals and success criteria (`SC-`)** — measurable. If the user gave no number, propose a sensible target and list it as "proposed by KeelWright" in the gate summary.
 - **User stories (`US-`)** with priorities: **P1 = MVP**, P2 = next, P3 = later. Each P1 story is shippable and testable on its own. Acceptance criteria in `WHEN … THE SYSTEM SHALL …` or Given / When / Then — concrete enough to become an E2E test.
 - **Functional requirements (`FR-`)** — each traces to a story.
 - **Non-functional requirements (`NFR-`)** — measurable: performance (e.g. LCP < 2.5 s on 4G), accessibility (WCAG 2.2 AA), SEO / AI-search (content in the initial HTML, sitemap, metadata), security and privacy. Only those that apply.
 - **Non-goals** — the input's out-of-scope items, plus anything the interview ruled out.
+- **Assumptions and risks** — labelled as such in their table, each with how to verify or mitigate it; never stated as facts elsewhere in the PRD.
 - **Open questions** — every unresolved point as `[NEEDS CLARIFICATION: …]`. An open question that blocks a stack decision is called out at the gate.
 
 **Length: 1–3 pages — at most about 1,800 words, tables included.** To stay within it:

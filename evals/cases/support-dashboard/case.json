@@ -1,0 +1,16 @@
+{
+  "description": "Entirely behind a login, reads an existing API, stores nothing. Exercises frontend rule 5 (TanStack Start in SPA mode), removing backend and database, no ERD.",
+  "stopAtGate": 1,
+  "answers": [
+    "The single sign-on is OpenID Connect. Times are shown in the team's timezone, Europe/Bucharest. English only. Anything else: decide later."
+  ],
+  "expect": {
+    "projectType": "web",
+    "frontend": { "choice": "tanstack", "rule": 5 },
+    "documents": {
+      "include": ["prd", "adr", "backlog", "development-workflow"],
+      "exclude": ["erd", "screen-flow", "release-checklist", "game-design-document", "asset-pipeline", "ai-system-design", "ai-eval-plan", "api-surface"]
+    }
+  },
+  "judges": ["invented-facts"]
+}
