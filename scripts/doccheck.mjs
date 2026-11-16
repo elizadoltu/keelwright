@@ -29,7 +29,7 @@ if (!targets.length) {
 }
 
 function check(target) {
-  const m = /^([a-z-]+):(.+)$/.exec(target);
+  const m = /^([a-z0-9-]+):(.+)$/.exec(target);
   const [type, path] = m ? [m[1], m[2]] : [null, target];
   try {
     if (type === 'tokens') return { file: path, type, issues: checkTokens(readFileSync(path, 'utf8')) };

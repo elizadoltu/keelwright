@@ -44,6 +44,14 @@ Versions resolved on: YYYY-MM-DD
 - Context (level 1): <one sentence: the system, its users and external systems>
 - Containers (level 2): <one line per container: purpose and technology>
 
+## Routes
+
+<!-- Web projects: the page map. Delete for other project types. Rendering: static (prerendered) | server (on request) | client (SPA). -->
+
+| Route | Page | Rendering | Story |
+|---|---|---|---|
+| `/` | <page> | static | US-1 |
+
 ## Code structure
 
 <!-- How Clean Architecture (or the chosen convention) maps to folders. -->
