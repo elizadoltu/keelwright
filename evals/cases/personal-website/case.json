@@ -1,17 +1,54 @@
 {
-  "description": "Content-first personal site with two audiences, a blog and one form. Exercises frontend rule 1 (Astro), right-sizing (no backend server, no database) and i18n.",
-  "stopAtGate": 2,
+  "description": "Content-first personal site with two audiences, a blog and one form. Exercises frontend rule 1 (Astro), right-sizing (no backend server, no database) i18n, and stack-pack selection (no express or supabase pack).",
+  "stopAtGate": 3,
   "answers": [
-    "1a — one domain, two paths (/ and /ski) with a small link between them. 2a — Markdown files in the repository. 3c — a contact form on the ski page only; email and social links on the professional page. The form only sends an email, nothing is stored. 4b — English and Romanian, on both pages. Look: one shared look, the ski page with its own accent colour. Anything else: decide later."
+    "1a \u2014 one domain, two paths (/ and /ski) with a small link between them. 2a \u2014 Markdown files in the repository. 3c \u2014 a contact form on the ski page only; email and social links on the professional page. The form only sends an email, nothing is stored. 4b \u2014 English and Romanian, on both pages. Look: one shared look, the ski page with its own accent colour. Anything else: decide later."
   ],
   "expect": {
     "projectType": "web",
-    "frontend": { "choice": "astro", "rule": 1 },
-    "documents": {
-      "include": ["prd", "adr", "backlog", "development-workflow", "visual-identity"],
-      "exclude": ["erd", "screen-flow", "release-checklist", "game-design-document", "asset-pipeline", "ai-system-design", "ai-eval-plan", "api-surface"]
+    "frontend": {
+      "choice": "astro",
+      "rule": 1
     },
-    "interviewQuestions": { "min": 1 }
+    "documents": {
+      "include": [
+        "prd",
+        "adr",
+        "backlog",
+        "development-workflow",
+        "visual-identity"
+      ],
+      "exclude": [
+        "erd",
+        "screen-flow",
+        "release-checklist",
+        "game-design-document",
+        "asset-pipeline",
+        "ai-system-design",
+        "ai-eval-plan",
+        "api-surface"
+      ]
+    },
+    "interviewQuestions": {
+      "min": 1
+    },
+    "packs": {
+      "include": [
+        "astro",
+        "tailwind",
+        "vitest",
+        "playwright",
+        "typescript"
+      ],
+      "exclude": [
+        "express",
+        "supabase",
+        "tanstack-start"
+      ]
+    }
   },
-  "judges": ["invented-facts", "redundant-questions"]
+  "judges": [
+    "invented-facts",
+    "redundant-questions"
+  ]
 }

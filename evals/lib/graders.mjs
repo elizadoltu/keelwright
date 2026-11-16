@@ -5,6 +5,7 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { checkTokens, checkWorkspace, crossCheck } from '../../scripts/lib/crosscheck.mjs';
 import { checkDocument } from '../../scripts/lib/doccheck.mjs';
+import { validatePack } from '../../scripts/lib/packs.mjs';
 import { next } from '../../scripts/lib/state.mjs';
 import { isStable, pickNpmVersion } from '../../scripts/lib/versions.mjs';
 
@@ -60,6 +61,15 @@ export const GRADERS = {
     return result(!extra.length, extra.length ? `unexpected: ${extra.join(', ')}` : '');
   },
 
+  packs: (run, expect) => {
+    if (!expect.packs) return null;
+    const packs = Object.keys(run.state?.stack?.packs ?? {});
+    const missing = (expect.packs.include ?? []).filter((id) => !packs.includes(id));
+    const extra = (expect.packs.exclude ?? []).filter((id) => packs.includes(id));
+    const detail = [missing.length && `missing: ${missing.join(', ')}`, extra.length && `unexpected: ${extra.join(', ')}`].filter(Boolean).join('; ');
+    return result(!missing.length && !extra.length, detail || packs.join(', '));
+  },
+
   'interview-asked': (run, expect) => {
     if (!expect.interviewQuestions) return null;
     // The step records the count in metrics.json; the interview record is the fallback (Q:, Q1:, …).
@@ -97,6 +107,13 @@ export const GRADERS = {
     if (dsl !== null) {
       const issues = checkWorkspace(dsl);
       if (issues.length) failures.push(`workspace.dsl: ${issues.map((i) => i.issue).join('; ')}`);
+    }
+    const packDir = join(run.dir, '.keelwright/stack-packs');
+    if (existsSync(packDir)) {
+      for (const f of readdirSync(packDir).filter((n) => n.endsWith('.md'))) {
+        const issues = validatePack(readFileSync(join(packDir, f), 'utf8'));
+        if (issues.length) failures.push(`stack pack ${f}: ${issues.join('; ')}`);
+      }
     }
     if (existsSync(join(run.dir, 'docs'))) {
       const refs = crossCheck(run.dir, ['docs']);

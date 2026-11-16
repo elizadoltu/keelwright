@@ -163,3 +163,11 @@ describe('interview-asked grader', () => {
     assert.deepEqual(GRADERS['interview-asked'](run, expect), { pass: false, detail: '1 questions (metrics)' });
   });
 });
+
+describe('packs grader', () => {
+  test('expected packs chosen, removed technologies left out', () => {
+    const expect = { packs: { include: ['astro'], exclude: ['express'] } };
+    assert.equal(GRADERS.packs({ state: { stack: { packs: { astro: 'd', tailwind: 'd' } } } }, expect).pass, true);
+    assert.deepEqual(GRADERS.packs({ state: { stack: { packs: { express: 'd' } } } }, expect), { pass: false, detail: 'missing: astro; unexpected: express' });
+  });
+});
