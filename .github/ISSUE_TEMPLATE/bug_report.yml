@@ -1,0 +1,43 @@
+name: Bug report
+description: Something in KeelWright doesn't work as described
+labels: ["bug"]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you saw, and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: How to reproduce
+      description: The command you ran (e.g. `/keelwright:kickoff prd`), the step it was on, and a short version of the project description if relevant.
+    validations:
+      required: true
+  - type: textarea
+    id: state
+    attributes:
+      label: Pipeline status
+      description: Output of `/keelwright:kickoff status` (or `node <plugin>/scripts/state.mjs status`). Remove anything private.
+      render: text
+  - type: input
+    id: keelwright-version
+    attributes:
+      label: KeelWright version
+      placeholder: "0.1.0"
+    validations:
+      required: true
+  - type: input
+    id: claude-version
+    attributes:
+      label: Claude Code version
+      description: Output of `claude --version`.
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: OS and Node.js version
+      placeholder: "macOS 15, Node.js 22.17"

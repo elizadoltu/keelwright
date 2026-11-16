@@ -5,7 +5,7 @@
 | **Name** | KeelWright (package / plugin id: `keelwright`) |
 | **Type** | Claude Code plugin (later: visual app) |
 | **Status** | Spec agreed / Phase 1 not started |
-| **Commands** | `/kickoff` (greenfield), `/adopt` (brownfield) |
+| **Commands** | `/kickoff` (greenfield), `/adopt` (brownfield) — invoked as `/keelwright:kickoff` and `/keelwright:adopt`, since plugin commands are namespaced |
 | **Last updated** | 2026-11-16 |
 
 > **Context for a new session:** this document is the full specification for a Claude Code plugin that bootstraps projects. The document templates it references live in `templates/` next to this file. Start from section 9 (Roadmap) to begin implementation; sections 5.1.2 (steps and state), 5.3 (generator) and 5.5 (scaffold) define how the pipeline runs.
@@ -259,7 +259,8 @@ The pipeline state is kept in `.keelwright/state.json` in the generated project.
 }
 ```
 
-- Step statuses: `pending` · `in_progress` · `awaiting_review` · `approved` (or `done` for steps without a gate) · `stale`.
+- The state is changed only through the plugin's state CLI (`scripts/state.mjs`), never by editing the JSON; the CLI is the single place that knows the step order, gates and valid transitions. The plugin needs Node.js 22 or newer for it.
+- Step statuses: `pending` · `in_progress` · `awaiting_review` · `approved` (or `done` for steps without a gate) · `skipped` (nothing to produce, with a reason) · `stale`.
 - `outputs` stores a hash of every file a step produced, recorded when the step is approved.
 - **Edit detection:** on every call, the pipeline re-hashes the outputs of approved steps. If a file changed, the edited file is the source of truth (5.1.1); the pipeline lists the downstream steps that will be regenerated and asks before regenerating them.
 

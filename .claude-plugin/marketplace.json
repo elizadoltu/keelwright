@@ -1,0 +1,16 @@
+{
+  "name": "keelwright",
+  "owner": {
+    "name": "Eliza Doltu"
+  },
+  "metadata": {
+    "description": "KeelWright: a Claude Code plugin that bootstraps projects from an idea or specs."
+  },
+  "plugins": [
+    {
+      "name": "keelwright",
+      "source": "./",
+      "description": "Bootstraps projects from an idea or specs: documents, stack research, scaffold and a project-specific Claude setup."
+    }
+  ]
+}
