@@ -35,7 +35,7 @@ interview → prd → { architecture, features, design } → research → scaffo
 
 - `.keelwright/state.json` holds the pipeline state. **Only change it through `STATE`** — never edit the JSON yourself. Run `STATE help` for the full command list.
 - If a `STATE` command prints `error: …`, stop and tell the user what failed. Don't work around it.
-- Steps record their outputs with `STATE complete <step> <files…>`; this is how edits are detected later.
+- Steps record their outputs with `STATE complete <step> <files…>`; this is how edits are detected later. Record a folder only when the step owns everything in it; otherwise list the files.
 
 ## 1. Read the arguments
 
@@ -121,7 +121,10 @@ When `STATE next` returns a review:
    - **I'll edit the files first** — stop; the user runs `/kickoff` again when ready.
 4. Before approving, **re-read every file under review from disk** — the user may have edited them. If the edits change a decision that other documents in the same gate depend on (e.g. the stack in the PRD), update those documents to match first.
 5. If markers are still open, say so and ask for explicit confirmation; approved markers stay as open questions in their documents.
-6. Run `STATE approve <N>`, then continue the loop (section 5).
+6. For each step in the gate, if its step file has an **"On approval"** section, do what it says (e.g. set document statuses to approved / accepted).
+7. Run `STATE approve <N>`, then continue the loop (section 5).
+
+The step files can add gate-specific content to show in step 2 (e.g. the `prd` step's stack summary); include it.
 
 ## Rules for every step
 

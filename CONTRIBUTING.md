@@ -37,6 +37,9 @@ claude --plugin-dir /path/to/keelwright
 | `scripts/lib/pipeline.mjs` | Single definition of steps, order, gates, project types and document keys |
 | `scripts/lib/state.mjs` | State transitions, edit detection, markers |
 | `templates/` | Document templates used by the steps |
+| `reference/` | Runtime copies of spec rules the steps read (stack rules, catalog) — keep in sync with the spec |
+| `scripts/versions.mjs` | Live version resolution and peer check |
+| `scripts/doccheck.mjs` | Mechanical document checks that steps must pass |
 | `tests/` | Tests for the state logic and CLI (`node:test`) |
 
 ## Making changes
@@ -52,7 +55,8 @@ claude --plugin-dir /path/to/keelwright
 
 1. Replace the "Not implemented yet" notice in `steps/<step>.md` with the step's instructions: what to read, what to produce, when to ask the user, and how to finish (`STATE complete …` or `STATE skip …`).
 2. Keep the rules in `commands/kickoff.md` ("Rules for every step") — a step adds detail, it doesn't override them.
-3. Try the step end to end in a scratch folder (see Setup), including a review gate with an edited document and a re-run of the step.
+3. Enforce what can be checked mechanically: add it to `scripts/lib/doccheck.mjs` (with tests) and have the step run the check before completing, rather than only asking for it in prose.
+4. Try the step end to end in a scratch folder (see Setup), including a review gate with an edited document and a re-run of the step. Run it more than once — outputs vary between runs.
 
 To test a later step without running the real earlier ones, copy the plugin to a scratch folder and replace the earlier `steps/*.md` with short test doubles that write a fixed file and complete the step.
 
