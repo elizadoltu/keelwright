@@ -1,0 +1,279 @@
+import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { after, beforeEach, describe, test } from 'node:test';
+import { fileURLToPath } from 'node:url';
+import { downstreamOf } from '../scripts/lib/pipeline.mjs';
+import * as S from '../scripts/lib/state.mjs';
+
+const NOW = '2026-11-16T10:00:00.000Z';
+const CLI = fileURLToPath(new URL('../scripts/state.mjs', import.meta.url));
+const roots = [];
+
+function project() {
+  const root = mkdtempSync(join(tmpdir(), 'keelwright-test-'));
+  roots.push(root);
+  return root;
+}
+
+function write(root, file, content = 'x') {
+  const abs = join(root, file);
+  mkdirSync(join(abs, '..'), { recursive: true });
+  writeFileSync(abs, content);
+}
+
+// Runs a step from start to complete with one output file.
+function runStep(state, root, step, file = `docs/${step}.md`, content = step) {
+  S.start(state, step, { now: NOW });
+  write(root, file, content);
+  S.complete(state, step, [file], { root, now: NOW });
+}
+
+after(() => roots.forEach((r) => rmSync(r, { recursive: true, force: true })));
+
+describe('pipeline', () => {
+  test('downstream of prd is everything after it', () => {
+    assert.deepEqual(downstreamOf('prd'), ['architecture', 'features', 'design', 'research', 'scaffold', 'generate', 'publish']);
+  });
+
+  test('gate 2 siblings are not downstream of each other', () => {
+    assert.deepEqual(downstreamOf('features'), ['research', 'scaffold', 'generate', 'publish']);
+  });
+
+  test('unknown step is rejected', () => {
+    assert.throws(() => downstreamOf('deploy'), /unknown step/);
+  });
+});
+
+describe('state transitions', () => {
+  let root;
+  let state;
+  beforeEach(() => {
+    root = project();
+    state = S.create({ version: '0.1.0', now: NOW });
+  });
+
+  test('a new state starts with the interview and the always documents', () => {
+    assert.deepEqual(S.next(state), { action: 'run', step: 'interview', optional: false });
+    assert.deepEqual(state.documents, ['prd', 'adr', 'backlog', 'development-workflow']);
+  });
+
+  test('a step cannot start before its dependencies', () => {
+    assert.throws(() => S.start(state, 'prd', { now: NOW }), /waiting for interview/);
+  });
+
+  test('a step without a gate is done and hashed; a gated step waits for review', () => {
+    runStep(state, root, 'interview');
+    assert.equal(state.steps.interview.status, 'done');
+    assert.match(state.steps.interview.outputs['docs/interview.md'], /^sha256:/);
+
+    runStep(state, root, 'prd');
+    assert.equal(state.steps.prd.status, 'awaiting_review');
+    assert.deepEqual(S.next(state), { action: 'review', gate: 1, steps: ['prd'] });
+  });
+
+  test('gate 2 is reviewed only after all three of its steps ran', () => {
+    runStep(state, root, 'interview');
+    runStep(state, root, 'prd');
+    S.approve(state, 1, { root, now: NOW });
+    runStep(state, root, 'architecture');
+    assert.equal(S.next(state).step, 'features');
+    runStep(state, root, 'features');
+    S.start(state, 'design', { now: NOW });
+    S.skip(state, 'design', 'no user-facing UI', { now: NOW });
+    assert.deepEqual(S.next(state), { action: 'review', gate: 2, steps: ['architecture', 'features', 'design'] });
+    assert.deepEqual(S.approve(state, 2, { root, now: NOW }), ['architecture', 'features']);
+    assert.equal(S.next(state).step, 'research');
+  });
+
+  test('approving hashes the files as edited during the review', () => {
+    runStep(state, root, 'interview');
+    runStep(state, root, 'prd');
+    write(root, 'docs/prd.md', 'edited by the user during review');
+    S.approve(state, 1, { root, now: NOW });
+    assert.equal(state.steps.prd.outputs['docs/prd.md'], S.hashPath(root, 'docs/prd.md'));
+    assert.deepEqual(S.changes(state, root).changed, []);
+  });
+
+  test('a gate that is not waiting cannot be approved', () => {
+    assert.throws(() => S.approve(state, 1, { root, now: NOW }), /not waiting/);
+    assert.throws(() => S.approve(state, 9, { root, now: NOW }), /unknown gate/);
+  });
+
+  test('re-running a step marks the steps after it stale, not its siblings', () => {
+    runStep(state, root, 'interview');
+    runStep(state, root, 'prd');
+    S.approve(state, 1, { root, now: NOW });
+    runStep(state, root, 'architecture');
+    runStep(state, root, 'features');
+    runStep(state, root, 'design');
+    S.approve(state, 2, { root, now: NOW });
+    runStep(state, root, 'research');
+    S.approve(state, 3, { root, now: NOW });
+
+    const r = S.start(state, 'features', { now: NOW });
+    assert.equal(r.rerun, true);
+    assert.deepEqual(r.stale, ['research']);
+    assert.equal(state.steps.architecture.status, 'approved');
+    assert.equal(state.steps.scaffold.status, 'pending');
+  });
+
+  test('a stale step runs again in pipeline order', () => {
+    runStep(state, root, 'interview');
+    runStep(state, root, 'prd');
+    S.approve(state, 1, { root, now: NOW });
+    S.start(state, 'interview', { now: NOW });
+    assert.equal(state.steps.prd.status, 'stale');
+    write(root, 'docs/interview.md', 'new notes');
+    S.complete(state, 'interview', ['docs/interview.md'], { root, now: NOW });
+    assert.equal(S.next(state).step, 'prd');
+  });
+
+  test('skipping needs a reason', () => {
+    runStep(state, root, 'interview');
+    assert.throws(() => S.skip(state, 'prd', '', { now: NOW }), /reason/);
+  });
+
+  test('outputs must exist and stay inside the project', () => {
+    S.start(state, 'interview', { now: NOW });
+    assert.throws(() => S.complete(state, 'interview', ['missing.md'], { root, now: NOW }), /does not exist/);
+    assert.throws(() => S.complete(state, 'interview', ['../outside.md'], { root, now: NOW }), /outside the project/);
+    assert.throws(() => S.complete(state, 'interview', [], { root, now: NOW }), /at least one/);
+  });
+
+  test('completing a step that is not in progress fails', () => {
+    write(root, 'a.md');
+    assert.throws(() => S.complete(state, 'interview', ['a.md'], { root, now: NOW }), /not in_progress/);
+  });
+});
+
+describe('edit detection', () => {
+  let root;
+  let state;
+  beforeEach(() => {
+    root = project();
+    state = S.create({ version: '0.1.0', now: NOW });
+    runStep(state, root, 'interview');
+    runStep(state, root, 'prd');
+    S.approve(state, 1, { root, now: NOW });
+    runStep(state, root, 'architecture');
+    runStep(state, root, 'features');
+    runStep(state, root, 'design');
+  });
+
+  test('an edited approved file is reported with the steps it would regenerate', () => {
+    write(root, 'docs/prd.md', 'stack changed to Astro');
+    const c = S.changes(state, root);
+    assert.deepEqual(c.changed, [{ step: 'prd', file: 'docs/prd.md', change: 'modified' }]);
+    assert.deepEqual(c.affected, ['architecture', 'features', 'design']);
+  });
+
+  test('a deleted file is reported as deleted', () => {
+    rmSync(join(root, 'docs/prd.md'));
+    assert.equal(S.changes(state, root).changed[0].change, 'deleted');
+  });
+
+  test('files of steps still under review are not reported', () => {
+    write(root, 'docs/architecture.md', 'edited during review');
+    assert.deepEqual(S.changes(state, root).changed, []);
+  });
+
+  test('accepting edits rebases the hashes and marks downstream stale', () => {
+    write(root, 'docs/prd.md', 'stack changed');
+    const r = S.acceptChanges(state, root);
+    assert.deepEqual(r.stale, ['architecture', 'features', 'design']);
+    assert.deepEqual(S.changes(state, root).changed, []);
+    assert.equal(S.next(state).step, 'architecture');
+  });
+
+  test('accepting edits can keep downstream as it is', () => {
+    write(root, 'docs/prd.md', 'typo fix');
+    const r = S.acceptChanges(state, root, { keepDownstream: true });
+    assert.deepEqual(r.stale, []);
+    assert.equal(state.steps.architecture.status, 'awaiting_review');
+  });
+
+  test('directories are hashed by content and file names', () => {
+    const before = (write(root, 'src/a.ts', '1'), S.hashPath(root, 'src'));
+    write(root, 'src/b.ts', '2');
+    assert.notEqual(S.hashPath(root, 'src'), before);
+    write(root, 'src/node_modules/x.js', 'ignored');
+    const withDeps = S.hashPath(root, 'src');
+    rmSync(join(root, 'src/node_modules'), { recursive: true });
+    assert.equal(S.hashPath(root, 'src'), withDeps);
+  });
+});
+
+describe('markers and setters', () => {
+  test('open clarification markers are found in files under review', () => {
+    const root = project();
+    const state = S.create({ version: '0.1.0', now: NOW });
+    runStep(state, root, 'interview');
+    runStep(state, root, 'prd', 'docs/prd.md', '# PRD\n\n- [NEEDS CLARIFICATION: languages?]\n');
+    assert.deepEqual(S.markers(state, root), [
+      { step: 'prd', file: 'docs/prd.md', line: 3, text: '- [NEEDS CLARIFICATION: languages?]' },
+    ]);
+  });
+
+  test('the document set is validated against the catalog', () => {
+    const state = S.create({ version: '0.1.0', now: NOW });
+    assert.throws(() => S.setDocuments(state, ['prd', 'adr', 'backlog', 'development-workflow', 'wiki']), /unknown document keys: wiki/);
+    assert.throws(() => S.setDocuments(state, ['prd', 'erd']), /always/);
+    S.setDocuments(state, ['erd', 'prd', 'adr', 'backlog', 'development-workflow', 'c4']);
+    assert.deepEqual(state.documents, ['prd', 'adr', 'backlog', 'development-workflow', 'c4', 'erd']);
+  });
+
+  test('project type and stack are validated', () => {
+    const state = S.create({ version: '0.1.0', now: NOW });
+    assert.throws(() => S.setProjectType(state, 'desktop'), /unknown project type/);
+    S.setProjectType(state, 'web');
+    S.mergeStack(state, { resolvedAt: '2026-11-16' });
+    S.mergeStack(state, { versions: { node: '24.0.0' } });
+    assert.deepEqual(state.stack, { resolvedAt: '2026-11-16', versions: { node: '24.0.0' } });
+    assert.throws(() => S.mergeStack(state, [1]), /JSON object/);
+  });
+});
+
+describe('CLI', () => {
+  const cli = (root, ...args) => execFileSync('node', [CLI, ...args, '--root', root], { encoding: 'utf8' });
+  const cliFails = (root, ...args) => {
+    try {
+      cli(root, ...args);
+    } catch (err) {
+      return err.stderr;
+    }
+    assert.fail('expected the command to fail');
+  };
+
+  test('runs a step and a gate end to end', () => {
+    const root = project();
+    cli(root, 'init', '--input', 'A booking site');
+    assert.match(cli(root, 'next'), /run step "interview"/);
+    cli(root, 'start', 'interview');
+    write(root, '.keelwright/interview.md', 'notes');
+    cli(root, 'complete', 'interview', '.keelwright/interview.md');
+    cli(root, 'set', 'project-type', 'web');
+    cli(root, 'start', 'prd');
+    write(root, 'docs/prd.md', '[NEEDS CLARIFICATION: x]');
+    cli(root, 'complete', 'prd', 'docs/prd.md');
+    const status = cli(root, 'status');
+    assert.match(status, /review gate 1/);
+    assert.match(status, /docs\/prd.md:1/);
+    assert.match(cli(root, 'approve', '1'), /Gate 1 approved: prd/);
+    const json = JSON.parse(cli(root, 'status', '--json'));
+    assert.equal(json.projectType, 'web');
+    assert.equal(json.input, 'A booking site');
+    assert.equal(json.next.step, 'architecture');
+  });
+
+  test('errors are short messages with exit code 1', () => {
+    const root = project();
+    assert.match(cliFails(root, 'status'), /^error: no KeelWright state/);
+    cli(root, 'init');
+    assert.match(cliFails(root, 'init'), /already exists/);
+    assert.match(cliFails(root, 'start', 'deploy'), /unknown step/);
+    assert.match(cliFails(root, 'set', 'stack', '{bad'), /valid JSON/);
+  });
+});
