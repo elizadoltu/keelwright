@@ -232,6 +232,7 @@ Each step only produces the documents in the chosen document set; a step with no
 | `/kickoff <step>` | Re-runs one step and marks every step after it as `stale` |
 | `/kickoff status` | Shows each step's status, open gates, and files changed since they were approved |
 | `/kickoff research --refresh` | Re-researches the stack packs even if they are current |
+| `/kickoff report` | Shows the run metrics as a scorecard and records the user's rating of each document (8.2) |
 
 **State file**
 
@@ -448,20 +449,65 @@ Documents are generated from each other, so they stay consistent:
 - Run drift checks in **CI** or as a hook after large merges.
 - Audit `/kickoff` output a few weeks into a project; recurring findings feed back into the generator.
 
-## 8. Test-case criteria
+## 8. Test projects and evaluation
 
-The first MVP run should use a project that is:
+KeelWright is improved by running it on real projects and measuring how well each step does. Two loops feed each other: **real runs** show where users have to correct the output; the **evaluation suite** turns each finding into a repeatable check, so it stays fixed.
+
+### 8.1 Test-case criteria
+
+The first Phase 1 run uses a project that is:
 
 - Small enough to complete end to end in a short time.
 - Mostly static with a few optional dynamic features — to test stack right-sizing (4.3).
 - UI-centric — to exercise Atomic Design, Playwright and Vercel deployment.
 - Documented through the PRD and ADR templates.
 
+The first test project is a personal website with a professional page and a ski instructor page (`test-project-personal-website.md`, kept outside the plugin repository).
+
+### 8.2 Run metrics
+
+Every `/kickoff` run records metrics automatically in `.keelwright/metrics.json`, through the state CLI — the steps don't have to remember to do it. Nothing leaves the project folder.
+
+| Metric | Recorded when | What it shows |
+|---|---|---|
+| Runs per step (first run + re-runs) | step started | Steps the user had to redo |
+| Time per step and time at each gate | step started / completed, gate approved | Where the run is slow or the review is heavy |
+| **Edit size per document at each gate** — lines added / removed between what the step generated and what the user approved | gate approved (compared with a snapshot taken at completion) | **The main quality signal**: how much the user had to rewrite |
+| Open `[NEEDS CLARIFICATION]` markers at review and at approval | step completed, gate approved | Open questions left, and how many the gate resolved |
+| Edits accepted after approval, and steps regenerated because of them | accept-changes | Upstream decisions that didn't hold |
+| Step-specific counters (e.g. questions asked, interview rounds, document-check failures before passing) | reported by the step | Step behaviour worth tracking |
+
+Snapshots for the edit comparison live in `.keelwright/snapshots/` only until the gate is approved.
+
+**Report.** `/kickoff report` summarises the metrics as a scorecard and asks the user to rate each generated document: **used as-is**, **small edits**, **rewritten**, or **deleted**. The report is written to `.keelwright/report.md`.
+
+**Follow-up.** A few weeks into the project, the user re-rates the documents (still current and used, or stale / ignored) — the same check `/adopt` audit mode later automates (7.6).
+
+### 8.3 Evaluation suite
+
+An automated suite in the plugin's `evals/` folder, run with `claude plugin eval`:
+
+- **Cases:** a project description plus scripted interview answers, run against one or more steps. Start with the test project, then add deliberately different ones (a SaaS app with logins, a dashboard behind a login, a docs site, and later the other project types).
+- **Runs per case:** at least 3, because outputs vary between runs; the score is the pass rate.
+- **Code graders (deterministic):** `doccheck` passes; the expected frontend rule and document set for the case; versions match the registries; valid state transitions; cross-document IDs resolve.
+- **LLM judges (binary, one failure mode each):** invented facts (every claim traceable to the input or interview); interview questions the input already answered; ADRs justified by requirement IDs.
+- **Baseline arm:** the same case without the plugin, to show what KeelWright adds.
+- **When it runs:** before each release and on pull requests that change steps, templates or reference rules — not on every pull request, because runs cost money.
+
+### 8.4 The improvement loop
+
+1. Each real run gets a record in `evals/runs/YYYY-MM-DD-<project>.md`: the report, the ratings and the findings.
+2. Each finding becomes a GitHub issue.
+3. Each fix adds a check: a `doccheck` rule when it can be checked mechanically, otherwise an eval case or judge — so the same problem can't return unnoticed.
+4. Scores per release are tracked in `evals/scoreboard.md`.
+
+Example from building the `prd` step: three runs produced PRDs of 2,950, 2,450 and 2,350 words against a 1–3 page target; prose guidance didn't fix it, so the length limit became a `doccheck` rule the step must pass (1,798 words on the next run).
+
 ## 9. Roadmap
 
 | Phase | Scope |
 |---|---|
-| **1 — MVP** | The complete `/kickoff` pipeline (5.1): all steps, review gates and the state file (5.1.2); every project type (4.4) with stack recommendation (4.5) and live version resolution (4.6); the full document catalog (6.0); research step with stack packs, shipping the default web stack and Astro first (5.4); scaffold (5.5); generator with CLAUDE.md, rules, skills, hooks, CONTRIBUTING.md and the three subagents (5.3); optional Jira / Confluence output. Validated by a run on one real project (section 8). |
+| **1 — MVP** | The complete `/kickoff` pipeline (5.1): all steps, review gates and the state file (5.1.2); every project type (4.4) with stack recommendation (4.5) and live version resolution (4.6); the full document catalog (6.0); research step with stack packs, shipping the default web stack and Astro first (5.4); scaffold (5.5); generator with CLAUDE.md, rules, skills, hooks, CONTRIBUTING.md and the three subagents (5.3); optional Jira / Confluence output. Run metrics and the evaluation suite (8.2–8.4). Validated by a run on one real project (8.1). |
 | **2** | `/adopt` create mode. |
 | **3** | `/adopt` audit mode — drift checks, then quality & security; CI integration. |
 | **4** | Visual app on top of the plugin engine (headless Claude Code / Agent SDK). |
@@ -471,16 +517,18 @@ The first MVP run should use a project that is:
 1. Plugin skeleton, loadable locally (`claude --plugin-dir`), with the repository under git.
 2. `/kickoff` entry point, state file, step order and review gates.
 3. `interview` and `prd` — web first, including the frontend rules (4.7) and version resolution.
+   - 3.1 Run metrics and `/kickoff report` (8.2).
 4. `architecture`, `features`, `design` for web.
+   - 4.1 Evaluation suite (8.3), starting with cases for `interview` through `design`.
 5. `research` and the first stack packs.
 6. `scaffold` for web.
 7. `generate`.
 8. Other project types: type detection, stack recommendation, type-specific documents and scaffolding.
 9. `publish` (Jira / Confluence).
-10. Run on the real test project; record what was used and what wasn't, and feed it back.
+10. Run on the real test project; record it in `evals/runs/` and feed the findings back (8.4).
 
 ## 10. Open questions
 
-- **Test project for the Phase 1 run:** description to be provided; it must meet the criteria in section 8.
+None at the moment.
 
 Name decided: **KeelWright** — a wright is a builder; a keel is what keeps a vessel stable and on course.

@@ -73,6 +73,7 @@ Before writing a file that already exists (a re-run), read it and keep the user'
 1. Run the document check and fix every issue it reports, then run it again until it passes:
    `node "<plugin root>/scripts/doccheck.mjs" prd:docs/prd.md adr:<each ADR file>`
    It checks length, leftover template placeholders, acceptance-criteria form and that every `FR-` traces to an existing story. To get under the word limit, tighten — merge stories, shorten requirements, cut repetition — never drop requirements or open questions.
+   Count each failed run: `STATE metric prd doccheck-failures +1`.
    Then check by hand: every version in the PRD matches the script output, and every ADR linked from the PRD exists.
 2. `STATE complete prd docs/prd.md docs/decisions/0001-record-architecture-decisions.md <every other ADR file this step wrote>` — list the ADR files individually, not the `docs/decisions` folder: later steps add ADRs there, and that must not count as an edit to this step's output.
 3. The review gate follows. In the gate summary, besides the generic gate content, show:

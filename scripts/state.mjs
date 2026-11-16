@@ -2,10 +2,11 @@
 // KeelWright state CLI — the only way /kickoff reads or changes .keelwright/state.json.
 // Run `node state.mjs help` for usage.
 
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { STEPS, downstreamOf } from './lib/pipeline.mjs';
+import * as M from './lib/metrics.mjs';
 import * as S from './lib/state.mjs';
 
 const HELP = `Usage: node state.mjs <command> [args] [--root <dir>] [--json]
@@ -22,6 +23,9 @@ const HELP = `Usage: node state.mjs <command> [args] [--root <dir>] [--json]
   changes                              Approved files edited since approval
   accept-changes [--keep-downstream]   Take the edits as the new baseline
   markers                              Open [NEEDS CLARIFICATION] markers in files under review
+  metric <step> <name> <n|+n>          Set (or add to) a step-specific counter in metrics.json
+  rate <file> <rating>                 Rate a document: as-is | small-edits | rewritten | deleted
+  report [--write]                     Run report from metrics.json (--write: also .keelwright/report.md)
   set project-type <t>
   set documents <key,key,...>
   set input <text>
@@ -86,6 +90,15 @@ function describeNext(n) {
   return 'all steps finished';
 }
 
+// Turn validation errors from the metrics module into short CLI errors.
+function wrap(fn) {
+  try {
+    return fn();
+  } catch (err) {
+    throw new S.StateError(err.message);
+  }
+}
+
 function run(argv) {
   const { positional, flags } = parse(argv);
   const [command, ...args] = positional;
@@ -101,6 +114,17 @@ function run(argv) {
     S.save(root, state);
     return result;
   };
+  // Metrics never block the pipeline: a failure is reported and the command still succeeds.
+  const measure = (fn) => {
+    try {
+      const metrics = M.loadMetrics(root);
+      fn(metrics);
+      M.saveMetrics(root, metrics);
+    } catch (err) {
+      console.error(`warning: metrics not recorded: ${err.message}`);
+    }
+  };
+  const markerCount = (state, step) => S.markers(state, root).filter((m) => m.step === step).length;
 
   switch (command) {
     case undefined:
@@ -144,25 +168,43 @@ function run(argv) {
     case 'start': {
       need(1, 'start <step>');
       const r = mutate((state) => S.start(state, args[0], { now }));
+      measure((m) => M.recordStart(m, args[0], { now, ...r }));
       return out(`Started ${args[0]}${r.stale.length ? `; marked stale: ${r.stale.join(', ')}` : ''}`, r);
     }
 
     case 'complete': {
       need(2, 'complete <step> <file|dir>...');
-      const entry = mutate((state) => S.complete(state, args[0], args.slice(1), { root, now }));
+      let markers = 0;
+      const entry = mutate((state) => {
+        const e = S.complete(state, args[0], args.slice(1), { root, now });
+        markers = markerCount(state, args[0]);
+        return e;
+      });
+      measure((m) => M.recordComplete(m, root, args[0], entry, { now, markers }));
       return out(`${args[0]}: ${entry.status}`, entry);
     }
 
     case 'skip': {
       need(1, 'skip <step> --reason <text>');
       const entry = mutate((state) => S.skip(state, args[0], flags.reason, { now }));
+      measure((m) => M.recordSkip(m, args[0], { now, reason: entry.reason }));
       return out(`${args[0]}: skipped (${entry.reason})`, entry);
     }
 
     case 'approve': {
       need(1, 'approve <gate>');
       const gate = Number(args[0]);
-      const approved = mutate((state) => S.approve(state, gate, { root, now }));
+      const markersByStep = {};
+      const outputsByStep = {};
+      const approved = mutate((state) => {
+        for (const step of Object.keys(state.steps)) {
+          if (state.steps[step].status !== 'awaiting_review') continue;
+          markersByStep[step] = markerCount(state, step);
+          outputsByStep[step] = Object.keys(state.steps[step].outputs ?? {});
+        }
+        return S.approve(state, gate, { root, now });
+      });
+      measure((m) => M.recordApprove(m, root, gate, approved, { now, markersByStep, outputsByStep }));
       return out(`Gate ${gate} approved: ${approved.join(', ')}`, { gate, approved });
     }
 
@@ -175,13 +217,41 @@ function run(argv) {
     }
 
     case 'accept-changes': {
-      const r = mutate((state) => S.acceptChanges(state, root, { keepDownstream: Boolean(flags['keep-downstream']) }));
+      const keepDownstream = Boolean(flags['keep-downstream']);
+      const r = mutate((state) => S.acceptChanges(state, root, { keepDownstream }));
+      measure((m) => M.recordAcceptChanges(m, { now, ...r, keepDownstream }));
       return out(`Accepted edits in: ${r.accepted.join(', ') || 'nothing'}; marked stale: ${r.stale.join(', ') || 'nothing'}`, r);
     }
 
     case 'markers': {
       const m = S.markers(S.load(root), root);
       return out(m.length ? m.map((x) => `${x.file}:${x.line}  ${x.text}`).join('\n') : 'No open markers.', m);
+    }
+
+    case 'metric': {
+      need(3, 'metric <step> <name> <n|+n>');
+      S.load(root);
+      const metrics = M.loadMetrics(root);
+      const value = wrap(() => M.recordCounter(metrics, args[0], args[1], args[2]));
+      M.saveMetrics(root, metrics);
+      return out(`${args[0]}.${args[1]} = ${value}`, { step: args[0], name: args[1], value });
+    }
+
+    case 'rate': {
+      need(2, 'rate <file> <as-is|small-edits|rewritten|deleted>');
+      S.load(root);
+      const metrics = M.loadMetrics(root);
+      wrap(() => M.recordRating(metrics, args[0], args[1], { now }));
+      M.saveMetrics(root, metrics);
+      return out(`Rated ${args[0]}: ${args[1]}`, { file: args[0], rating: args[1] });
+    }
+
+    case 'report': {
+      const state = S.load(root);
+      const metrics = M.loadMetrics(root);
+      const text = M.report(metrics, state);
+      if (flags.write) writeFileSync(join(root, S.STATE_DIR, 'report.md'), text);
+      return out(text, metrics);
     }
 
     case 'set': {
