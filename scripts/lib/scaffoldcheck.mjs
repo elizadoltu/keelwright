@@ -120,6 +120,9 @@ export function checkScaffold(root, { versions = {}, toolchain = null, projectTy
   }
   if (workflows.length) {
     if (!/gitleaks/.test(ci)) add('ci', 'CI doesn\'t run gitleaks');
+    // With restricted permissions the gitleaks action gets a 403 on pull requests unless it may read them.
+    if (/gitleaks\/gitleaks-action/.test(ci) && /^\s*permissions:/m.test(ci) && !/pull-requests:\s*(read|write)/.test(ci))
+      add('ci', 'the gitleaks job needs `pull-requests: read` — the workflow restricts permissions, and the action lists a pull request\'s commits');
     const check = taskCommand(tc, 'check');
     if (tc === 'node') {
       if (!/run\s+check\b|npm run check/.test(ci)) add('ci', 'CI doesn\'t run the "check" script');

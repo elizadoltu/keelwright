@@ -69,7 +69,7 @@ This pack covers the local quality gate that runs before code leaves a developer
 
 - **Disable hook installation in CI and Docker**: set `HUSKY=0` in the environment [S2]. When only production `dependencies` are installed, `"prepare": "husky"` fails because the binary is missing. Use `"prepare": "husky || true"`, or use a `.husky/install.mjs` that exits when `NODE_ENV === 'production'` or `CI === 'true'`, with `"prepare": "node .husky/install.mjs"` [S2].
 - **Commit messages in CI**: check out with `fetch-depth: 0`. On `push`, run `npx commitlint --last --verbose`. On `pull_request`, run `npx commitlint --from ${{ github.event.pull_request.base.sha }} --to ${{ github.event.pull_request.head.sha }} --verbose` [S9]. On GitLab, set `GIT_DEPTH: 0` [S9].
-- **Secrets in CI**: use `gitleaks/gitleaks-action@v3` on `push` and `pull_request`, and optionally on a daily `schedule` [S15].
+- **Secrets in CI**: use `gitleaks/gitleaks-action@v3` on `push` and `pull_request`, and optionally on a daily `schedule` [S15]. On pull requests the action lists the PR's commits through the GitHub API, so when the workflow restricts `permissions` the gitleaks job needs `pull-requests: read` besides `contents: read`; set `GITLEAKS_ENABLE_COMMENTS: 'false'` unless the job may write PR comments (found in a real run, 2026-11-17: a 403 on every pull request).
 - **Lint and format in CI**: run the same linters over the whole repository, because lint-staged only sees staged files.
 - Conventional Commits let release tooling derive the version bump from `fix`, `feat` and breaking changes [S16].
 

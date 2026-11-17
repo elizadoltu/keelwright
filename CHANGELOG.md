@@ -12,6 +12,7 @@ From the first real run (`evals/runs/2026-11-17-portfolio-26.md`):
 - Web scaffold: the `check` script runs the framework's type generation first (`astro sync`), so CI passes on a fresh checkout; `scaffoldcheck` reports an Astro `check` that doesn't.
 - Web scaffold: folders of the code structure that the skeleton leaves empty get a `.gitkeep`; `generatecheck` reports an empty folder named in `CLAUDE.md` or the rules, since git wouldn't keep it.
 - Generated `tokens.css`: dark colours also apply under `[data-theme='dark']`, and the system setting is ignored under `[data-theme='light']`, so a Dark / Light toggle works without hand-written CSS.
+- CI: the gitleaks job gets `pull-requests: read` when the workflow restricts permissions (it failed with a 403 on pull requests); `scaffoldcheck` reports it.
 - Run metrics: the `status:` line that approval sets is no longer counted as a user edit; a step whose work happened before `STATE start` is reported as "not measured" instead of a near-zero time, and `complete` warns.
 
 ### Added
