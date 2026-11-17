@@ -16,7 +16,7 @@ function project(overrides = {}) {
   dirs.push(root);
   const files = {
     'package.json': JSON.stringify({
-      scripts: { dev: 'astro dev', build: 'astro build', lint: 'eslint .', 'format:check': 'prettier --check .', typecheck: 'astro check', test: 'vitest run', 'test:e2e': 'playwright test', check: 'npm run lint', tokens: 'node scripts/tokens.mjs', prepare: 'husky' },
+      scripts: { dev: 'astro dev', build: 'astro build', lint: 'eslint .', 'format:check': 'prettier --check .', typecheck: 'astro check', test: 'vitest run', 'test:e2e': 'playwright test', check: 'astro sync && npm run lint', tokens: 'node scripts/tokens.mjs', prepare: 'husky' },
       dependencies: { astro: '7.4.12' },
       devDependencies: { typescript: 'npm:@typescript/typescript6@6.0.3', vitest: '5.1.0' },
       engines: { node: '>=26' },
@@ -52,6 +52,13 @@ const areas = (issues) => issues.map((i) => `${i.area}: ${i.issue}`);
 describe('scaffold check', () => {
   test('a complete scaffold passes', () => {
     assert.deepEqual(areas(checkScaffold(project(), { versions: { astro: '7.4.12', typescript: '6.0.3', node: '26.13.1' } })), []);
+  });
+
+  test('an Astro check that skips astro sync fails on a fresh CI checkout', () => {
+    const pkg = (check, extra = {}) => JSON.stringify({ scripts: { dev: 'x', build: 'x', lint: 'x', 'format:check': 'x', typecheck: 'x', test: 'x', 'test:e2e': 'x', tokens: 'x', prepare: 'husky', check, ...extra }, dependencies: { astro: '7.4.12' } });
+    const has = (root) => areas(checkScaffold(root, { versions: { astro: '7.4.12' } })).some((i) => i.includes('astro sync'));
+    assert.ok(has(project({ 'package.json': pkg('npm run lint && npm run test') })));
+    assert.ok(!has(project({ 'package.json': pkg('npm run sync && npm run lint', { sync: 'astro sync' }) })));
   });
 
   test('ranges, version drift, missing scripts and lockfile', () => {

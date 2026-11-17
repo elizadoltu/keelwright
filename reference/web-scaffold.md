@@ -36,14 +36,14 @@ These names are the contract for CONTRIBUTING.md, CLAUDE.md, the hooks and CI â€
 | `test` | Unit tests (Vitest), single run |
 | `test:e2e` | Playwright |
 | `tokens` | Regenerate the theme from `design/tokens.json` (only when the project has tokens) |
-| `check` | Everything fast, in order: `lint`, `format:check`, `typecheck`, `test`, and the tokens drift check |
+| `check` | Everything fast, in order: the framework's type generation when it writes into an ignored folder (e.g. `astro sync`, which creates `.astro/`), `lint`, `format:check`, `typecheck`, `test`, and the tokens drift check. CI runs it on a fresh checkout, so it must not rely on files only a local `dev` or `build` created |
 | `prepare` | `husky` |
 
 ## Files
 
 | Area | Files |
 |---|---|
-| Application | From the framework's official generator, then shaped to the architecture overview's code structure |
+| Application | From the framework's official generator, then shaped to the architecture overview's code structure. A folder of that structure the skeleton leaves empty (e.g. `src/components/atoms/`) gets a `.gitkeep`, so a fresh clone matches what CLAUDE.md describes |
 | Config | Framework config, `tsconfig.json`, `eslint.config.*`, Prettier config, Vitest config, `playwright.config.*` â€” each applying the stack packs' `config`, `lint`, `format` and `types` rules |
 | Theme | `scripts/tokens-to-css.mjs` + `scripts/lib/tokens.mjs` copied from the plugin; the generated CSS (e.g. `src/styles/tokens.css`) imported by the global stylesheet |
 | Hooks | `.husky/pre-commit` (lint-staged, then gitleaks on staged changes), `.husky/commit-msg` (commitlint), `commitlint.config.*`, lint-staged config |

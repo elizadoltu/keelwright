@@ -5,6 +5,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Fixed
+
+From the first real run (`evals/runs/2026-11-17-portfolio-26.md`):
+
+- Web scaffold: the `check` script runs the framework's type generation first (`astro sync`), so CI passes on a fresh checkout; `scaffoldcheck` reports an Astro `check` that doesn't.
+- Web scaffold: folders of the code structure that the skeleton leaves empty get a `.gitkeep`; `generatecheck` reports an empty folder named in `CLAUDE.md` or the rules, since git wouldn't keep it.
+- Generated `tokens.css`: dark colours also apply under `[data-theme='dark']`, and the system setting is ignored under `[data-theme='light']`, so a Dark / Light toggle works without hand-written CSS.
+- Run metrics: the `status:` line that approval sets is no longer counted as a user edit; a step whose work happened before `STATE start` is reported as "not measured" instead of a near-zero time, and `complete` warns.
+
 ### Added
 
 - `publish` step: features become Jira epics, stories become stories under them (with acceptance criteria and requirements), deferred items and technical debt optionally become tasks; every document in `docs/` becomes a Confluence page under one root page. Through the Atlassian Rovo MCP server (v2) with the user's own login; the plan is shown and approved before anything is written; re-runs update instead of duplicating, and nothing is deleted.
