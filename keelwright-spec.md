@@ -112,6 +112,8 @@ Where each type-specific output lives — most are folded into existing document
 
 Documents that don't fit a project type are skipped rather than forced (e.g. no ERD for a game with no saved data).
 
+**Toolchains.** How a project is built and checked is a second axis, independent of its type: an Expo app and a TypeScript library are both `node`; a Python AI service and a Python library are both `python`. The toolchains are `node`, `python`, `dart` (Flutter), `rust`, `godot` and `editor` (engines and IDEs whose projects are created in their editor: Unity, Unreal, native Xcode / Android Studio apps). Each defines its task runner, manifest and lockfile, git hooks, Dependabot ecosystem and the commands the Claude Code hooks run (5.5); the `prd` step records it with the stack.
+
 ### 4.5 Stack recommendation
 
 For anything outside the defaults, `/kickoff` **recommends** a stack instead of assuming one:
@@ -120,14 +122,26 @@ For anything outside the defaults, `/kickoff` **recommends** a stack instead of 
 - One recommended option, with the reasoning.
 - The choice is written into the **PRD** (technical constraints section) and recorded as an **ADR**. The data model in the ERD is then built for the chosen database.
 
+Each project type has its own rules for the **main decision**, kept in the plugin's `reference/<type>-stack.md` and checked in order like the web frontend rules (4.7), stopping at the first match:
+
+| Type | Main decision | Candidates, in order (the last is the default) |
+|---|---|---|
+| Web | Frontend framework | The frontend rules (4.7): Astro, Next.js, TanStack Start (one app, SSR, or SPA mode) |
+| Mobile | App framework | Native (SwiftUI / Jetpack Compose) for one-platform apps built on platform-only features or by a native team → Flutter for pixel-identical custom UI or a Dart team → **Expo (React Native) + TypeScript** |
+| Game | Engine | Unreal for consoles / high-end 3D → Unity for its ecosystem or a C# team → Phaser 4 + TypeScript for browser-first games → **Godot 4 with GDScript** |
+| AI / LLM | Language and model provider | TypeScript when it lives in a TypeScript product or team → **Python**; the provider and model compared on quality for the task, cost, latency, context, tool use and data handling, looked up live |
+| Library / CLI / API | Language and distribution | The users' language for a library → Rust for a single-binary CLI → TypeScript for an `npx` CLI → Python for data-work CLIs → Node.js + Express (or FastAPI) for a standalone HTTP API |
+
+ADR-0002 is always this main decision, naming the rule that matched and the alternatives compared. Each type's rules also give its default layers, conventions, document set, version specs and stack pack ids.
+
 ### 4.6 Version policy: latest stable
 
 Every project starts on the **latest stable version** of each part of its stack.
 
-- **Resolved live on every run.** Versions are looked up from the package registries or official release channels at kickoff time, never from memory, templates or a cached stack pack. The plugin's `scripts/versions.mjs` does this for npm packages, the Node.js LTS line and GitHub releases, and reports peer-dependency conflicts across the set.
+- **Resolved live on every run.** Versions are looked up from the package registries or official release channels at kickoff time, never from memory, templates or a cached stack pack. The plugin's `scripts/versions.mjs` does this for npm, PyPI, crates.io and pub.dev packages, the Node.js LTS line, CPython, Flutter (with its Dart SDK), Rust, Godot, Unity LTS and GitHub releases, and reports conflicts across the set: npm peers and `engines.node`, `requires-python`, a crate's `rust-version` and a Dart package's SDK constraint. Software without a machine-readable release feed (Unreal Engine, Xcode, Android Studio) is looked up on its official release notes, and the URL is recorded next to the version.
 - **Stable only.** No alpha, beta, RC, canary or nightly releases. For runtimes with release lines (e.g. Node.js), use the latest **LTS** release, not the "Current" line.
 - **Compatible as a set.** The newest version of one package may not yet support the newest version of another (e.g. a plugin lagging behind a major framework release). In that case, use the newest set that works together and record the held-back package and the reason in an ADR.
-- **Pinned and recorded.** Exact versions are written to the manifest and lockfile, and listed with the lookup date in the PRD's technical section.
+- **Pinned and recorded.** Exact versions are written to the manifest and lockfile, and listed with the lookup date in the PRD's technical section. Two exceptions follow the ecosystem's convention: a **library** declares what its users install as a range with the resolved version as the lower bound (exact pins would conflict with the users' own dependencies), and **Dart and Rust** manifests use caret requirements with the lockfile as the exact record.
 - **Kept current afterwards.** The generated CI includes automated dependency updates (Renovate or Dependabot), and `/adopt` audit mode flags outdated versions (7.1).
 - **Docs match the version.** The research step (5.4) checks that each stack pack matches the resolved major version; if the pack was researched for an older major version, it is refreshed before generating rules.
 
@@ -255,6 +269,8 @@ The pipeline state is kept in `.keelwright/state.json` in the generated project.
   },
   "stack": {
     "resolvedAt": "2026-11-16",
+    "toolchain": "node",
+    "primary": { "choice": "TanStack Start", "rule": 4, "compared": ["Next.js"] },
     "versions": { "node": "<x.y.z>", "@tanstack/react-start": "<x.y.z>" },
     "packs": { "web-tanstack-start": "2026-11-16" }
   }
@@ -289,16 +305,18 @@ Rules, skills and hooks are built from the stack packs (5.4). The generator neve
 
 **CLAUDE.md** stays under 200 lines (Claude Code's guidance): what the project is, where the documents are, the commands, the stack, the structure, a few concrete working rules, the workflow and the agents — linking instead of repeating.
 
-**Skills:** `implement-story` (acceptance criteria → tests → code → checks → review → docs) and `new-adr` (numbering, superseding) always; `new-component` (Atomic Design level, theme classes only) when there is a UI; `new-migration` when there is a database.
+**Skills:** `implement-story` (acceptance criteria → tests → code → checks → review → docs) and `new-adr` (numbering, superseding) always; `new-component` (Atomic Design level, theme tokens only) when there is a UI; `new-migration` when there is a database; `change-prompt` (prompt or tool by its `P-` / `T-` ID, eval cases, the `EV-` thresholds) for AI projects; `change-public-api` (breaking or not, the API surface, deprecation, the commit type that sets the version bump) for libraries.
 
 **Claude Code hooks** (scripts shipped with the plugin, copied unchanged into `.claude/hooks/`):
 - `guard-files` (before Edit / Write): blocks changes to accepted ADRs except superseding their status, edits to generated files (the theme), and new content gitleaks flags as a secret.
-- `format-on-edit` (after Edit / Write): Prettier and ESLint `--fix` on the file; remaining lint errors go back to Claude.
-- `check-on-stop` (Stop): `npm run check` when files changed; failures go back to Claude, once per stop.
+- `format-on-edit` (after Edit / Write): the toolchain's formatter and linter on the file (Prettier and ESLint; Ruff; `dart format` and `dart analyze`; rustfmt; gdformat and gdlint); remaining lint errors go back to Claude.
+- `check-on-stop` (Stop): the `check` task when files changed; failures go back to Claude, once per stop.
 
-**Settings:** `.claude/settings.json` allows only the project's own npm scripts and read-only git commands, denies force-push, `--no-verify` commits and reading `.env` files; `.claude/settings.local.json` is git-ignored.
+The hooks read which commands to run from `.claude/hooks/config.json`, which the generator writes for the project's toolchain (without it they use the Node.js defaults), so the same scripts serve every toolchain.
 
-**Checked:** the step passes the project's own `npm run check` and `scripts/generatecheck.mjs` — CLAUDE.md size, commands and paths that exist, no placeholders, the three agents with explicit tools and a read-only reviewer, skill descriptions, rule front matter, every applicable review rule covered and no unknown rule IDs, safe permissions, hook scripts present, `.gitignore`, and CONTRIBUTING.md agreeing with commitlint.
+**Settings:** `.claude/settings.json` allows only the project's own tasks and read-only git commands, denies force-push, `--no-verify` commits and reading `.env` files; `.claude/settings.local.json` is git-ignored.
+
+**Checked:** the step passes the project's own `check` task and `scripts/generatecheck.mjs` — CLAUDE.md size, commands that exist and use the project's task runner, paths that exist, no placeholders, the three agents with explicit tools and a read-only reviewer, skill descriptions, rule front matter, every applicable review rule covered and no unknown rule IDs, safe permissions, hook scripts present, `.gitignore`, the hook configuration for the toolchain, and CONTRIBUTING.md agreeing with the Conventional Commits check (commitlint or the pre-commit commit-msg hook).
 
 **Generated subagents**
 
@@ -348,7 +366,14 @@ Creates a working repository for the chosen stack, using the versions resolved i
 
 The step must pass `npm run check`, `npm run build`, `npm run test:e2e` and `scripts/scaffoldcheck.mjs` (exact versions, scripts, hooks with gitleaks, pinned actions, dependency updates, theme in sync, migration present) before it completes. It records configuration files as its outputs, not source folders, so ordinary feature work doesn't count as an edit to the scaffold. It never commits for the user.
 
-**Other project types** are scaffolded only where an official command-line generator exists (e.g. Expo, Flutter, Godot, npm / uv / cargo packages). For engines whose projects are created through their editor (e.g. Unity, Unreal), the step produces written setup instructions instead, and the documents and Claude setup are generated as usual.
+**Other project types** follow the same steps with their toolchain's tools (details in `reference/toolchains.md`; the mechanical parts are in `scripts/lib/toolchains.mjs`, shared by preflight, `scaffoldcheck` and `generatecheck`):
+
+- **Generator:** the official one, pinned and non-interactive — `create-expo-app` (with `--no-agents-md`, since the generator owns the agent files), `flutter create --empty`, `uv init --app|--lib`, `cargo new`. Where no non-interactive generator exists, an official template pinned to a commit (Phaser) or the minimal files by hand (Godot's `project.godot`, an npm library).
+- **The task contract:** the same task names in every project — `dev`, `build`, `lint`, `format`, `format:check`, `typecheck`, `test`, `test:e2e`, `tokens`, `eval` (AI projects: offline evals, which cost money and are never part of `check`), `check` — run as npm scripts, poethepoet tasks (`uv run poe <task>`) or `just` recipes (`just <task>`; dashes instead of colons).
+- **Git hooks:** Husky for Node.js projects; the pre-commit framework for the others, with gitleaks and a Conventional Commits commit-msg hook, revisions pinned to commit SHAs.
+- **Walking skeleton per type:** mobile — every P1 screen of the screen flow; game — the GDD's scenes wired from start to quit and one game rule with a test; AI — one prompt file per `P-` ID, typed tool stubs per `T-` ID, the model adapter and the `eval` task over the seed dataset; library — the P1 `API-` items as typed stubs, `--help` / `--version` for a CLI, and the package build.
+- **Theme:** `design/tokens.json` also generates a TypeScript object (React Native / Expo) or a Dart constants class (Flutter); the output file's extension picks the target.
+- **Editor-based engines** (Unity, Unreal, native IDE apps) have no command-line generator for KeelWright to run, so the step writes `docs/setup.md` (engine version, how to create the project in this folder, packages, where code goes, how to run tests) and still creates everything that doesn't need the engine: `.gitignore`, Git LFS patterns, git hooks, CI with gitleaks, Dependabot. The documents and the Claude setup are generated as usual.
 
 ## 6. Document catalog
 
@@ -375,7 +400,7 @@ Each document has a **key** — the name of its template — used in the PRD's `
 | `c4` | C4 diagrams | same as architecture overview | `docs/architecture/c4/workspace.dsl` (Structurizr DSL) | `templates/c4-workspace.dsl` |
 | `erd` | ERD + SQL DDL | the project stores data | `docs/architecture/erd.md` (Mermaid `erDiagram`) + `docs/architecture/schema.sql` | `templates/erd.md`, `templates/schema.sql` |
 | `feature-breakdown` | Feature breakdown | more than ~5 features, or delivery in several slices | `docs/features.md` | `templates/feature-breakdown.md` |
-| `visual-identity` | Visual identity | the project has a user-facing UI | `docs/design/visual-identity.md` + `design/tokens.json` | `templates/visual-identity.md` |
+| `visual-identity` | Visual identity | the project has a user-facing UI — for a game only when its UI is built with a UI framework | `docs/design/visual-identity.md` + `design/tokens.json` | `templates/visual-identity.md` |
 | `screen-flow` | Mobile screen flow | project type is mobile | `docs/design/screen-flow.md` | `templates/screen-flow.md` |
 | `release-checklist` | Store release checklist | project type is mobile and ships to app stores | `docs/release-checklist.md` | `templates/release-checklist.md` |
 | `game-design-document` | Game design document (incl. scene / state diagram) | project type is game | `docs/gdd.md` + `design/<system>.md` one-pagers | `templates/game-design-document.md` |
@@ -511,9 +536,9 @@ Snapshots for the edit comparison live in `.keelwright/snapshots/` only until th
 An automated suite in the plugin's `evals/` folder (`node evals/run.mjs`; details in `evals/README.md`):
 
 - **Runner:** each run starts a headless Claude Code session (`claude -p`) with the plugin, in a temporary folder outside the repository; it answers the interview from the case and approves gates up to the case's stop gate.
-- **Cases:** a project description, scripted interview answers, a stop gate and the expected results. The first three cover frontend rules 1, 3 and 5: the personal website test project, a SaaS app with logins and stored data, and an internal dashboard behind a login. Later project types add their own.
+- **Cases:** a project description, scripted interview answers, a stop gate and the expected results. The first three cover frontend rules 1, 3 and 5: the personal website test project, a SaaS app with logins and stored data, and an internal dashboard behind a login. One case per other project type follows — a mobile app with offline use, a browser game, an AI assistant with tools, and a command-line tool — each checking the type, the main decision, the toolchain and the type-specific documents.
 - **Runs per case:** 3 by default, because outputs vary between runs; each grader's score is its pass rate, compared with a threshold (default 67%).
-- **Code graders (deterministic):** `doccheck` passes for every document; the expected project type, frontend rule and document set; listed documents are written; ADRs cite requirement IDs; versions are stable, published and either the newest or explained in an ADR; the run reached its stop gate.
+- **Code graders (deterministic):** `doccheck` passes for every document; the expected project type, main stack decision and rule, toolchain and document set; listed documents are written; ADRs cite requirement IDs; versions are stable, published on the toolchain's registry and either the newest or explained in an ADR; the run reached its stop gate.
 - **Model judges (one pass / fail question each, 3 votes, majority wins):** invented facts in the PRD; interview questions the input already answered. Earlier results can be re-graded without new runs (`--regrade`), so grader changes cost only the judge calls.
 - **Why a custom runner, not `claude plugin eval`:** at Claude Code 2.1.325 `claude plugin eval` runs a single prompt and has no script or exit-code grader, while KeelWright needs several turns (interview answers, gate approvals) and deterministic graders. A no-plugin baseline arm through `claude plugin eval` can be added later.
 
