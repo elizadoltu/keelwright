@@ -7,6 +7,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- `publish` step: features become Jira epics, stories become stories under them (with acceptance criteria and requirements), deferred items and technical debt optionally become tasks; every document in `docs/` becomes a Confluence page under one root page. Through the Atlassian Rovo MCP server (v2) with the user's own login; the plan is shown and approved before anything is written; re-runs update instead of duplicating, and nothing is deleted.
+- `scripts/publish.mjs` (plan, config, record, status) and the record `.keelwright/publish.json`.
+
 - Every project type: mobile, game, AI / LLM and library / CLI / API, alongside web. Each has stack rules in `reference/<type>-stack.md` (the main decision checked in order and compared with 2–3 alternatives — Expo / Flutter / native; Godot / Phaser / Unity / Unreal; Python or TypeScript with a model provider comparison; the users' language for libraries, Rust for single-binary CLIs), type-specific interview topics, and its documents: screen flow, store release checklist and an offline / sync ADR for mobile; GDD and asset pipeline for games; AI system design and eval plan (with cost and latency budgets) for AI; public API surface for libraries.
 - Toolchains (`node`, `python`, `dart`, `rust`, `godot`, `editor`): `reference/toolchains.md` and `scripts/lib/toolchains.mjs` define the task runner (npm scripts, poethepoet, just), lockfiles, runtime pins, git hooks (Husky, or pre-commit with gitleaks and Conventional Commits), Dependabot ecosystems and hook commands. Scaffolding for each, with written setup instructions (`docs/setup.md`) for editor-based engines.
 - `scripts/versions.mjs`: PyPI, crates.io and pub.dev packages, CPython, Flutter (with its Dart SDK), Rust, Godot and Unity LTS; checks `requires-python`, a crate's `rust-version` and a Dart package's SDK constraint.

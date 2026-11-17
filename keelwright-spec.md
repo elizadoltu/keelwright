@@ -297,7 +297,7 @@ Generates an agent workflow **tailored to the project** — derived from its PRD
 - **Subagents** (below)
 - **Hooks** (e.g. lint/test on edit, block secrets with gitleaks — Husky pre-commit plus a GitHub Actions step)
 - `CONTRIBUTING.md` — generated here, after scaffold, from the same choices as `CLAUDE.md` and the hooks, so all of them use the real commands and never disagree (6.0)
-- Optional (`publish` step): **Jira** epics/stories and **Confluence** pages via the Atlassian integration
+- Optional (`publish` step, 5.6): **Jira** epics/stories and **Confluence** pages via the Atlassian Rovo MCP server
 
 Rules, skills and hooks are built from the stack packs (5.4). The generator never references something it didn't create: a line in a template that points to a missing part (e.g. E2E tests in a project without them) is removed, not left as a placeholder.
 
@@ -375,6 +375,17 @@ The step must pass `npm run check`, `npm run build`, `npm run test:e2e` and `scr
 - **Walking skeleton per type:** mobile — every P1 screen of the screen flow; game — the GDD's scenes wired from start to quit and one game rule with a test; AI — one prompt file per `P-` ID, typed tool stubs per `T-` ID, the model adapter and the `eval` task over the seed dataset; library — the P1 `API-` items as typed stubs, `--help` / `--version` for a CLI, and the package build.
 - **Theme:** `design/tokens.json` also generates a TypeScript object (React Native / Expo) or a Dart constants class (Flutter); the output file's extension picks the target.
 - **Editor-based engines** (Unity, Unreal, native IDE apps) have no command-line generator for KeelWright to run, so the step writes `docs/setup.md` (engine version, how to create the project in this folder, packages, where code goes, how to run tests) and still creates everything that doesn't need the engine: `.gitignore`, Git LFS patterns, git hooks, CI with gitleaks, Dependabot. The documents and the Claude setup are generated as usual.
+
+### 5.6 Publish step: Jira and Confluence
+
+Optional, and only when the user asks for it (the `jira` and `confluence` catalog keys). It runs through the **Atlassian Rovo MCP server** with the user's own Atlassian login, so KeelWright never holds Atlassian credentials.
+
+**The repository stays the source of truth.** Requirements, decisions and documents are edited in `docs/` and published again; Jira holds the work's progress (status, assignee, sprint), which KeelWright never touches.
+
+- **Jira:** each feature (`F-`) becomes an epic; each story (`US-`) a story under its feature's epic, with the story sentence, the acceptance criteria and the functional requirements that trace to it; deferred backlog items (`BL-`) that no story covers, and technical debt (`TD-`), become tasks, if the user wants them. Labels: `keelwright`, `kw-<id>` (to find an item again) and `slice-now` / `slice-next` / `slice-later`.
+- **Confluence:** every Markdown file in `docs/` becomes a page, under one root page per project, with one parent page per folder (e.g. Decisions). Each page names its source file; links between documents point to their pages; Mermaid diagrams stay as code (Confluence doesn't render them).
+- **Re-runnable:** `scripts/publish.mjs` plans the publish from the documents and the record `.keelwright/publish.json` (the site, project and space, and per item its Jira key or page id and a hash of what was sent): new items are created, changed ones updated, unchanged ones left alone. Nothing is ever deleted: an item that is no longer in the documents is reported for the user to close or archive.
+- **Asked, not assumed:** before anything is written, the step shows the plan (how many epics, stories, tasks and pages to create or update, where) and waits for the user's go-ahead. An update overwrites only the summary / title and description / body; if a page was edited in Confluence since the last publish, the step asks before overwriting it.
 
 ## 6. Document catalog
 

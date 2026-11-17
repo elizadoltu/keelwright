@@ -2,7 +2,7 @@
 
 A Claude Code plugin that takes a project from **idea or specs** to project documents, a scaffolded repository and a project-specific Claude setup, with review gates where you edit the documents before the pipeline continues.
 
-> Status: Phase 1 in progress. The pipeline, state and review gates work, and every step except `publish` (Jira / Confluence) is built — for web, mobile, game, AI / LLM and library / CLI / API projects (see `keelwright-spec.md`, section 9).
+> Status: Phase 1 in progress. The whole `/kickoff` pipeline is built — from the interview to an optional publish to Jira and Confluence — for web, mobile, game, AI / LLM and library / CLI / API projects. What remains is a run on a real project (see `keelwright-spec.md`, section 9).
 
 ## Requirements
 
