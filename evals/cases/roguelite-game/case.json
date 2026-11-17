@@ -1,0 +1,18 @@
+{
+  "description": "Solo-developer 2D game for PC with local saves only. Exercises the game rules (Godot, the default rule 4), the godot toolchain, the GDD and asset pipeline, and leaving out the ERD and backend.",
+  "stopAtGate": 2,
+  "answers": [
+    "Keyboard and gamepad. Steam first; the web demo is a later release. Five relic types and three cave biomes in the first release. Save files are local JSON; Steam Cloud can come later. English only. Anything else: decide later."
+  ],
+  "expect": {
+    "projectType": "game",
+    "primary": { "choice": "godot", "rule": 4 },
+    "toolchain": "godot",
+    "documents": {
+      "include": ["prd", "adr", "backlog", "development-workflow", "game-design-document", "asset-pipeline"],
+      "exclude": ["erd", "screen-flow", "release-checklist", "ai-system-design", "ai-eval-plan", "api-surface"]
+    },
+    "interviewQuestions": { "min": 1 }
+  },
+  "judges": ["invented-facts", "redundant-questions"]
+}

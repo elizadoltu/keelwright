@@ -8,11 +8,12 @@ import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { placeholders } from './doccheck.mjs';
 import { parseFrontMatter, parsePack } from './packs.mjs';
+import { TASK_COMMAND, TOOLCHAIN, definedTasks, detectToolchain } from './toolchains.mjs';
 
 export const CLAUDE_MD_MAX_LINES = 200;
 export const REQUIRED_AGENTS = ['reviewer', 'tester', 'docs-keeper'];
 const WRITE_TOOLS = ['Write', 'Edit', 'MultiEdit', 'NotebookEdit'];
-const PATH_ROOTS = /^(?:docs|src|design|tests|scripts|supabase|public|\.claude|\.github|\.husky)\//;
+const PATH_ROOTS = /^(?:docs|src|design|tests?|scripts|supabase|public|lib|app|prompts|evals|addons|scenes|assets|integration_test|\.claude|\.github|\.husky)\//;
 
 const read = (root, f) => (existsSync(join(root, f)) ? readFileSync(join(root, f), 'utf8') : null);
 const list = (v) => (Array.isArray(v) ? v : String(v ?? '').split(/[,\s]+/)).map((s) => s.trim()).filter(Boolean);
@@ -48,8 +49,9 @@ export function applicableReviewRules(root) {
 export function checkGenerated(root) {
   const issues = [];
   const add = (area, issue) => issues.push({ area, issue });
-  const pkg = JSON.parse(read(root, 'package.json') ?? '{}');
-  const scripts = pkg.scripts ?? {};
+  const toolchain = detectToolchain(root) ?? 'node';
+  const runner = TOOLCHAIN[toolchain].runner;
+  const tasks = new Set(definedTasks(root, toolchain));
 
   // --- CLAUDE.md -------------------------------------------------------------------
   const claude = read(root, 'CLAUDE.md');
@@ -66,7 +68,10 @@ export function checkGenerated(root) {
   for (const f of texts) {
     const text = read(root, f);
     for (const p of placeholders(text)) add('placeholders', `${f}:${p.line}: ${p.issue}`);
-    for (const m of text.matchAll(/npm run ([\w:-]+)/g)) if (!scripts[m[1]]) add('commands', `${f}: "npm run ${m[1]}" — no such script in package.json`);
+    for (const m of text.matchAll(TASK_COMMAND)) {
+      if (m[1] !== runner) add('commands', `${f}: "${m[0]}" — this project runs its tasks with ${runner ? `"${runner} <task>"` : 'no task runner'}`);
+      else if (!tasks.has(m[2])) add('commands', `${f}: "${m[0]}" — no such ${toolchain === 'node' ? 'script in package.json' : 'task'}`);
+    }
     for (const m of text.matchAll(/`([^`\s]+)`/g)) {
       const p = m[1].replace(/[.,;:)]+$/, '');
       // Only things that look like files (an extension) or folders (a trailing slash): branch names
@@ -141,6 +146,19 @@ export function checkGenerated(root) {
       if (!/guard-files/.test(commands)) add('settings', 'no PreToolUse guard (accepted ADRs, generated files, secrets)');
     }
   }
+  // Hook config: which formatter, linter and check the hooks run (Node.js projects may rely on the defaults).
+  const hookConfig = read(root, '.claude/hooks/config.json');
+  if (hookConfig === null && toolchain !== 'node' && toolchain !== 'editor') add('settings', `no .claude/hooks/config.json — without it the hooks run the Node.js defaults, not the ${toolchain} tools (node "<plugin root>/scripts/toolchains.mjs" hook-config ${toolchain})`);
+  if (hookConfig !== null) {
+    try {
+      const cfg = JSON.parse(hookConfig);
+      const cmd = cfg.check?.run?.join(' ') ?? '';
+      const m = /^(npm run|uv run poe|just) ([\w:-]+)/.exec(cmd.replace(/ --silent$/, ''));
+      if (m && !tasks.has(m[2])) add('settings', `.claude/hooks/config.json runs "${m[0]}" on stop, but there is no such task`);
+    } catch (err) {
+      add('settings', `.claude/hooks/config.json is not valid JSON: ${err.message}`);
+    }
+  }
   if (!/settings\.local\.json/.test(read(root, '.gitignore') ?? '')) add('settings', '.gitignore doesn\'t ignore .claude/settings.local.json');
 
   // --- CONTRIBUTING.md --------------------------------------------------------------------------
@@ -149,7 +167,8 @@ export function checkGenerated(root) {
   else {
     if (!/^<!-- keelwright:/.test(contributing)) add('contributing', 'CONTRIBUTING.md has no keelwright metadata comment on its first line');
     const conventional = /config-conventional/.test(['commitlint.config.js', 'commitlint.config.mjs', 'commitlint.config.cjs', '.commitlintrc.json'].map((f) => read(root, f) ?? '').join(''));
-    if (conventional && !/Conventional Commits/i.test(contributing)) add('contributing', 'commitlint enforces Conventional Commits but CONTRIBUTING.md doesn\'t say so');
+    const preCommit = /conventional-pre-commit/.test(read(root, '.pre-commit-config.yaml') ?? '');
+    if ((conventional || preCommit) && !/Conventional Commits/i.test(contributing)) add('contributing', `${conventional ? 'commitlint' : 'the commit-msg hook'} enforces Conventional Commits but CONTRIBUTING.md doesn't say so`);
   }
   return issues;
 }

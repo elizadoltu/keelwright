@@ -32,6 +32,12 @@ export const SATISFIED = new Set(['approved', 'done', 'skipped']);
 
 export const PROJECT_TYPES = ['web', 'mobile', 'game', 'ai', 'library'];
 
+// How a project is built and checked (reference/toolchains.md) — independent of the project type:
+// an Expo app and a TypeScript library are both `node`; a Python AI service and a Python library
+// are both `python`. `editor` covers engines and IDEs whose projects are created in the editor
+// (Unity, Unreal, native Xcode / Android Studio apps): the scaffold writes setup instructions.
+export const TOOLCHAINS = ['node', 'python', 'dart', 'rust', 'godot', 'editor'];
+
 // Catalog keys (spec 6.0). Keys are the template names.
 export const ALWAYS_DOCUMENTS = ['prd', 'adr', 'backlog', 'development-workflow'];
 

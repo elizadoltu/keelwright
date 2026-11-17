@@ -12,7 +12,7 @@ Templates live in `<plugin root>/templates/`. Keys are used in the PRD's `docume
 | Key | Document | Path | Step |
 |---|---|---|---|
 | `prd` | PRD (MVP scope and release plan) | `docs/prd.md` | `prd` |
-| `adr` | ADRs: ADR-0001 + at least the frontend decision | `docs/decisions/NNNN-title.md` | `prd`, `architecture` |
+| `adr` | ADRs: ADR-0001 + at least the stack decision (frontend, app framework, engine, model provider or language); for mobile also the offline / sync strategy | `docs/decisions/NNNN-title.md` | `prd`, `architecture` |
 | `backlog` | Deferred backlog | `docs/backlog.md` | `features` |
 | `development-workflow` | `CONTRIBUTING.md` | `CONTRIBUTING.md` | `generate` |
 
@@ -26,14 +26,14 @@ Include a document only when its condition holds; give the reason either way whe
 | `c4` | same as `architecture-overview` | `docs/architecture/c4/workspace.dsl` | `architecture` |
 | `erd` | the project stores data (in a database it owns or a managed one) | `docs/architecture/erd.md` + `docs/architecture/schema.sql` | `architecture` |
 | `feature-breakdown` | more than ~5 features, or delivery in several slices | `docs/features.md` | `features` |
-| `visual-identity` | the project has a user-facing UI | `docs/design/visual-identity.md` + `design/tokens.json` | `design` |
+| `visual-identity` | the project has a user-facing UI — for a game only when its UI is built with a UI framework (a game's look is otherwise the GDD's art direction) | `docs/design/visual-identity.md` + `design/tokens.json` | `design` |
 | `screen-flow` | project type is mobile | `docs/design/screen-flow.md` | `design` |
 | `release-checklist` | mobile, shipped to app stores | `docs/release-checklist.md` | `design` |
 | `game-design-document` | project type is game | `docs/gdd.md` | `design` |
 | `asset-pipeline` | project type is game | `design/asset-pipeline.md` | `design` |
 | `ai-system-design` | the project calls an LLM or ML model | `docs/ai/system-design.md` | `architecture` |
 | `ai-eval-plan` | the project calls an LLM or ML model | `docs/evals/plan.md` + `evals/data/` | `architecture` |
-| `api-surface` | project type is library / CLI / API | `docs/api-surface.md` | `architecture` |
+| `api-surface` | project type is library / CLI / API, or the project exposes an API that other systems or teams call (e.g. an AI service behind another product) | `docs/api-surface.md` | `architecture` |
 
 ## Optional — only when the user asks
 

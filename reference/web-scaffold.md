@@ -50,7 +50,7 @@ These names are the contract for CONTRIBUTING.md, CLAUDE.md, the hooks and CI �
 | CI | `.github/workflows/ci.yml`: `npm ci` → `npm run check` → `npm run build` → Playwright (installing only the browsers it uses) → gitleaks; commitlint on pull requests |
 | Dependency updates | `.github/dependabot.yml`: `npm` and `github-actions`, weekly, grouped |
 | Environment | `.env.example` with every variable the code reads and no values for secrets; `.gitignore` covering `node_modules`, build output, `.env*` except `.env.example`, `.keelwright/snapshots/`, `.claude/settings.local.json` |
-| Database | When `docs/architecture/schema.sql` exists: `supabase init`, then the schema copied into the first migration `supabase/migrations/<timestamp>_init.sql` |
+| Database | When `docs/architecture/schema.sql` exists and the database is Supabase (the web default): `supabase init`, then the schema copied into the first migration `supabase/migrations/<timestamp>_init.sql`. Another PostgreSQL: see the scaffold step, "Database" |
 | Tests | One Vitest unit test of a real helper the skeleton needs (not `1 + 1`); one Playwright smoke test: every P1 route returns 200, has one `<h1>` and the right `lang` |
 
 ## The skeleton

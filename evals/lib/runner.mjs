@@ -70,7 +70,7 @@ export async function runCase(c, { pluginDir, outDir, invoke = claudeInvoke, mod
 
   // Keep what the run produced for grading and inspection, then drop the temporary folder.
   mkdirSync(outDir, { recursive: true });
-  for (const p of ['.keelwright', 'docs', 'design']) {
+  for (const p of ['.keelwright', 'docs', 'design', 'evals/data']) {
     if (existsSync(join(work, p))) cpSync(join(work, p), join(outDir, p), { recursive: true });
   }
   rmSync(work, { recursive: true, force: true });

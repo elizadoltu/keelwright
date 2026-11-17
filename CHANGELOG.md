@@ -7,6 +7,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- Every project type: mobile, game, AI / LLM and library / CLI / API, alongside web. Each has stack rules in `reference/<type>-stack.md` (the main decision checked in order and compared with 2–3 alternatives — Expo / Flutter / native; Godot / Phaser / Unity / Unreal; Python or TypeScript with a model provider comparison; the users' language for libraries, Rust for single-binary CLIs), type-specific interview topics, and its documents: screen flow, store release checklist and an offline / sync ADR for mobile; GDD and asset pipeline for games; AI system design and eval plan (with cost and latency budgets) for AI; public API surface for libraries.
+- Toolchains (`node`, `python`, `dart`, `rust`, `godot`, `editor`): `reference/toolchains.md` and `scripts/lib/toolchains.mjs` define the task runner (npm scripts, poethepoet, just), lockfiles, runtime pins, git hooks (Husky, or pre-commit with gitleaks and Conventional Commits), Dependabot ecosystems and hook commands. Scaffolding for each, with written setup instructions (`docs/setup.md`) for editor-based engines.
+- `scripts/versions.mjs`: PyPI, crates.io and pub.dev packages, CPython, Flutter (with its Dart SDK), Rust, Godot and Unity LTS; checks `requires-python`, a crate's `rust-version` and a Dart package's SDK constraint.
+- `scripts/toolchains.mjs`: required tasks and hook configuration per toolchain.
+- `doccheck` types for the type-specific documents: screen flow (screens and a navigation diagram), GDD (core loop, cut list), AI system design (prompts; tools with side effects need confirmation), AI eval plan (thresholds, cost and latency budgets), API surface (items, versioning), with word limits.
+- The theme from `design/tokens.json` can also be a TypeScript object (React Native / Expo) or a Dart class (Flutter).
+- Skills for generated projects: `change-prompt` (AI) and `change-public-api` (libraries).
+- Eval cases for each new type: `habit-tracker-mobile`, `roguelite-game`, `support-assistant-ai`, `csv-validator-cli`; graders for the toolchain and expected ADRs; the versions grader checks the toolchain's registry.
+
 - `generate` step: CLAUDE.md (under 200 lines), path-scoped `.claude/rules/` from the stack packs' review rules (duplicates merged, not-applicable rules left out), the `reviewer` (read-only), `tester` and `docs-keeper` subagents, the `implement-story`, `new-adr` and `new-component` skills, Claude Code hooks and settings, and CONTRIBUTING.md — all from the same facts.
 - Claude Code hook scripts for generated projects: `guard-files` (accepted ADRs, generated files, secrets via gitleaks), `format-on-edit` (Prettier + ESLint fix), `check-on-stop` (`npm run check`).
 - `scripts/generatecheck.mjs` and `templates/claude/`.
@@ -42,6 +51,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - Contributor documentation: contributing guide, code of conduct, security policy, issue and pull request templates.
 
 ### Changed
+
+- The Claude Code hooks read `.claude/hooks/config.json` for the formatter, linter and check command, so the same scripts serve every toolchain (without it they keep the Node.js defaults).
+- `scaffoldcheck`, `preflight` and `generatecheck` check each toolchain's own files, tasks and tools; libraries may declare ranges for runtime dependencies.
+- The stack's main decision is recorded as `stack.primary` (was `stack.frontend`); the eval grader is now `primary` and still reads older runs.
 
 - `STATE set stack` merges nested objects (versions, packs, layers) key by key.
 - `prd` step: the problem statement comes only from the input and interview; assumptions and risks stay in their table. Version hold-back ADRs are named `NNNN-hold-<package>-at-<version>.md`.

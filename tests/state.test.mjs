@@ -235,6 +235,9 @@ describe('markers and setters', () => {
     S.mergeStack(state, { versions: { astro: '7.4.12' } });
     assert.deepEqual(state.stack.versions, { node: '24.0.0', astro: '7.4.12' }, 'nested objects merge key by key');
     assert.throws(() => S.mergeStack(state, [1]), /JSON object/);
+    S.mergeStack(state, { toolchain: 'python' });
+    assert.equal(state.stack.toolchain, 'python');
+    assert.throws(() => S.mergeStack(state, { toolchain: 'maven' }), /unknown toolchain "maven"/);
   });
 });
 

@@ -1,0 +1,18 @@
+{
+  "description": "Open-source single-binary CLI. Exercises the library / CLI rules (Rust, rule 2), the rust toolchain, the public API surface with CLI conventions and versioning, and leaving out visual identity, data and deployment documents.",
+  "stopAtGate": 2,
+  "answers": [
+    "The schema file is YAML. Releases as binaries on GitHub plus a Homebrew formula later. Semantic versioning; the CLI flags and the JSON output are the public contract. No configuration file beyond the schema. Anything else: decide later."
+  ],
+  "expect": {
+    "projectType": "library",
+    "primary": { "choice": "rust", "rule": 2 },
+    "toolchain": "rust",
+    "documents": {
+      "include": ["prd", "adr", "backlog", "development-workflow", "api-surface"],
+      "exclude": ["visual-identity", "erd", "screen-flow", "release-checklist", "game-design-document", "asset-pipeline", "ai-system-design", "ai-eval-plan"]
+    },
+    "interviewQuestions": { "min": 1 }
+  },
+  "judges": ["invented-facts", "redundant-questions"]
+}

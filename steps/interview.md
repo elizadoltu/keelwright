@@ -18,7 +18,7 @@ Pick one: `web`, `mobile`, `game`, `ai`, `library` (library / CLI / API).
 
 - Base it on what the user is building, not on incidental mentions (a website with a chatbot widget is `web` with an AI feature, not `ai`).
 - If two types fit equally, ask (one question, with the options).
-- **This version supports `web` only.** For any other type: record it with `STATE set project-type <type>`, tell the user the type was recognised but its documents and stacks arrive in a later version, and stop. Leave the step `in_progress`.
+- An HTTP API with no UI of its own is `library` (its consumers are developers); a product whose core is a model (an assistant, an agent, an extraction pipeline) is `ai`.
 
 ## 3. Map what is known and what is open
 
@@ -45,6 +45,27 @@ Go through the topics below. For each, decide: **answered by the input** (note w
 | Integrations (email, analytics, calendars, social, APIs) | Added services, ADRs |
 | Non-goals | Scope and the backlog |
 | Timeline / first release | MVP scope |
+
+Add the topics for the project type (skip any the input answers):
+
+| Type | Topic | Why it matters |
+|---|---|---|
+| mobile | iOS, Android, both — and a web version? | Native vs cross-platform (`reference/mobile-stack.md`) |
+| mobile | Platform-only features (widgets, watch, background location, AR) | Native vs cross-platform |
+| mobile | Offline use, and what happens to changes made offline | The offline / sync ADR, local storage |
+| mobile | App stores, accounts, payments (in-app purchases?), push notifications | Release checklist, services |
+| game | Where it's played (browser, desktop, mobile, console), 2D or 3D | Engine choice (`reference/game-stack.md`) |
+| game | Core loop and what makes it fun; comparable games | GDD pillars and core loop |
+| game | Art and audio: who makes them, style, existing assets | Asset pipeline, scope |
+| game | Saves, online features (leaderboards, accounts), monetisation | Backend, ERD |
+| ai | What the model does, and an example input with the output wanted | AI system design, eval dataset |
+| ai | Data sent to the model: personal or customer data, retention or region rules | Provider choice, privacy NFRs |
+| ai | Cost and latency budgets, expected volume | `EV-` budgets, model choice |
+| ai | Actions it may take (tools) and which need a human to confirm | Tools and guardrails |
+| ai | What a good answer is, and who judges it | Eval criteria and graders |
+| library | Who uses it and from which language or terminal; how they install it | Language and distribution (`reference/library-stack.md`) |
+| library | Runtime versions to support; stability promises | Versioning policy, CI matrix |
+| library | The main operations of its public API or CLI | API surface |
 
 **Don't ask about technology** (frameworks, databases, hosting products) unless the user raised it or a hard constraint depends on it — KeelWright recommends the stack in the `prd` step. Ask about needs; the stack follows from them.
 

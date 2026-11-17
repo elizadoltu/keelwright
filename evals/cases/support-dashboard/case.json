@@ -6,7 +6,7 @@
   ],
   "expect": {
     "projectType": "web",
-    "frontend": { "choice": "tanstack", "rule": 5 },
+    "primary": { "choice": "tanstack", "rule": 5 },
     "documents": {
       "include": ["prd", "adr", "backlog", "development-workflow"],
       "exclude": ["erd", "screen-flow", "release-checklist", "game-design-document", "asset-pipeline", "ai-system-design", "ai-eval-plan", "api-surface"]

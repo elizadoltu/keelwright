@@ -120,3 +120,35 @@ describe('generated agent setup check', () => {
     assert.deepEqual(issues(root), ["contributing: commitlint enforces Conventional Commits but CONTRIBUTING.md doesn't say so"]);
   });
 });
+
+describe('generated setup for another toolchain', () => {
+  const python = (overrides = {}) =>
+    project({
+      'package.json': null,
+      'commitlint.config.mjs': null,
+      '.keelwright/state.json': JSON.stringify({ projectType: 'ai', stack: { toolchain: 'python' } }),
+      'pyproject.toml': '[tool.poe.tasks]\nlint = "ruff check ."\ntest = "pytest"\ncheck = ["lint", "test"]\n',
+      '.pre-commit-config.yaml': 'repos:\n  - repo: https://github.com/compilerla/conventional-pre-commit\n    hooks:\n      - id: conventional-pre-commit\n',
+      'CLAUDE.md': '# Bot\n\nADRs in `docs/decisions/`. Run `uv run poe check`.\nreviewer tester docs-keeper\n',
+      'CONTRIBUTING.md': '<!-- keelwright: status=generated -->\n# Contributing\n\nConventional Commits. `uv run poe test`.\n',
+      '.claude/hooks/config.json': JSON.stringify({ onEdit: [], check: { run: ['uv', 'run', 'poe', 'check'], requires: '.venv' } }),
+      ...overrides,
+    });
+
+  test('a complete Python setup passes', () => {
+    assert.deepEqual(issues(python()), []);
+  });
+
+  test('commands must use the project task runner and exist', () => {
+    const root = python({ 'CLAUDE.md': '# Bot\n\nADRs in `docs/decisions/`. Run `npm run check` or `uv run poe typecheck`.\nreviewer tester docs-keeper\n' });
+    assert.deepEqual(issues(root), ['commands: CLAUDE.md: "npm run check" — this project runs its tasks with "uv run poe <task>"', 'commands: CLAUDE.md: "uv run poe typecheck" — no such task']);
+  });
+
+  test('the hooks need the toolchain config, and the commit-msg hook counts for Conventional Commits', () => {
+    const root = python({ '.claude/hooks/config.json': null, 'CONTRIBUTING.md': '<!-- keelwright: status=generated -->\n# Contributing\n\nGood messages.\n' });
+    assert.deepEqual(issues(root), [
+      'settings: no .claude/hooks/config.json — without it the hooks run the Node.js defaults, not the python tools (node "<plugin root>/scripts/toolchains.mjs" hook-config python)',
+      "contributing: the commit-msg hook enforces Conventional Commits but CONTRIBUTING.md doesn't say so",
+    ]);
+  });
+});

@@ -2,7 +2,21 @@
 // acceptance-criteria form and ID traceability. Steps run these before completing; the same
 // checks can serve as eval graders.
 
-const LIMITS = { prd: 1800, adr: 700, overview: 1300, features: 1200, 'visual-identity': 1300, erd: 1000 };
+const LIMITS = {
+  prd: 1800,
+  adr: 700,
+  overview: 1300,
+  features: 1200,
+  'visual-identity': 1300,
+  erd: 1000,
+  'screen-flow': 1000,
+  'release-checklist': 900,
+  gdd: 1300,
+  'asset-pipeline': 700,
+  'ai-system-design': 1500,
+  'ai-eval-plan': 1200,
+  'api-surface': 1300,
+};
 
 const stripCode = (text) => text.replace(/```[\s\S]*?```/g, '').replace(/`[^`\n]*`/g, '');
 const stripFrontMatter = (text) => text.replace(/^---\n[\s\S]*?\n---\n/, '');
@@ -73,7 +87,60 @@ function prdChecks(text) {
   return issues;
 }
 
-const TYPE_CHECKS = { prd: prdChecks };
+// Rows of a Markdown table whose first cell is an ID with this prefix.
+const idRows = (text, prefix) => text.split('\n').filter((l) => new RegExp(`^\\|\\s*${prefix}-\\d+\\b`).test(l));
+const hasSection = (text, name) => (sections(stripCode(text))[name] ?? []).some((l) => l.trim() && !/^<!--/.test(l.trim()));
+const need = (cond, issue) => (cond ? [] : [{ issue }]);
+
+function screenFlowChecks(text) {
+  return [
+    ...need(idRows(text, 'S').length > 0, 'no screens (| S-01 | … rows in the screen inventory)'),
+    ...need(/```mermaid/.test(text), 'no Mermaid diagram of the navigation'),
+  ];
+}
+
+function gddChecks(text) {
+  return [
+    ...need(hasSection(text, 'core loop'), 'the core loop is missing'),
+    ...need(hasSection(text, 'scope and cut list'), 'no scope and cut list'),
+  ];
+}
+
+function aiSystemDesignChecks(text) {
+  const issues = need(idRows(text, 'P').length > 0, 'no prompts (| P-01 | … rows)');
+  // Tools table: | ID | Tool | What it does | Side effects | Needs confirmation |
+  for (const row of idRows(text, 'T')) {
+    const cells = row.split('|').slice(1, -1).map((c) => c.trim());
+    const [id, , , effects = '', confirm = ''] = cells;
+    if (effects && !/^(read-only|none|no)\b/i.test(effects) && !/^yes\b/i.test(confirm)) issues.push({ issue: `${id} has side effects (${effects}) but doesn't need confirmation — set it to "yes" or say why not` });
+  }
+  return issues;
+}
+
+function aiEvalPlanChecks(text) {
+  const rows = idRows(text, 'EV');
+  const issues = need(rows.length > 0, 'no eval criteria (| EV-001 | … rows)');
+  issues.push(...need(rows.some((r) => /latency|p9\d|response time/i.test(r)), 'no latency criterion (an EV- row with a latency budget)'));
+  issues.push(...need(rows.some((r) => /cost|\$|€|tokens/i.test(r)), 'no cost criterion (an EV- row with a cost budget)'));
+  for (const r of rows) if (!/[<>≤≥=]|\d+\s*%/.test(r)) issues.push({ issue: `${/EV-\d+/.exec(r)[0]} has no threshold` });
+  return issues;
+}
+
+function apiSurfaceChecks(text) {
+  return [
+    ...need(idRows(text, 'API').length > 0, 'no public API items (| API-001 | … rows)'),
+    ...need(hasSection(text, 'versioning'), 'no versioning policy'),
+  ];
+}
+
+const TYPE_CHECKS = {
+  prd: prdChecks,
+  'screen-flow': screenFlowChecks,
+  gdd: gddChecks,
+  'ai-system-design': aiSystemDesignChecks,
+  'ai-eval-plan': aiEvalPlanChecks,
+  'api-surface': apiSurfaceChecks,
+};
 
 export const DOC_TYPES = Object.keys(LIMITS);
 

@@ -6,7 +6,7 @@
   ],
   "expect": {
     "projectType": "web",
-    "frontend": {
+    "primary": {
       "choice": "astro",
       "rule": 1
     },
