@@ -287,6 +287,52 @@ The pipeline state is kept in `.keelwright/state.json` in the generated project.
 - **Create mode** — no Claude setup exists: analyse the codebase, docs and specs; infer architecture and conventions; hand off to the generator.
 - **Audit mode** — a Claude setup exists: check its quality and whether it is up to date (section 7).
 
+`/adopt` picks the mode itself: a `CLAUDE.md` or `.claude/` folder means audit mode (Phase 3; until then it says so and stops). Instruction files of other tools (`AGENTS.md`, `.cursorrules`, `.github/copilot-instructions.md`) don't count as a Claude setup — they are read as input.
+
+### 5.2.1 Create mode
+
+The code is the source of truth. Create mode **describes** the project as it is and builds the agent setup on top of it; it never changes application code, folder structure or dependency versions.
+
+**Steps**
+
+```
+analyse → { document, research } → gaps → generate → publish
+```
+
+| Step | Produces | Gate after it |
+|---|---|---|
+| `analyse` | `.keelwright/analysis.md`: project type and toolchain, stack and the versions in use, tasks, structure, conventions, existing docs, what tooling already enforces, gaps | Gate 1 |
+| `document` | Architecture overview (as built), ADR-0001 and ADRs **recorded retroactively** for the main existing decisions | Gate 2 (shared with `research`) |
+| `research` | Stack packs for the stack in use, at the **major versions in use** (5.4) | Gate 2 |
+| `gaps` | Fixes for missing tooling, each shown as a diff and applied only when the user approves it | — |
+| `generate` | CLAUDE.md, rules, skills, subagents, hooks, CONTRIBUTING.md (5.3) | Final summary |
+| `publish` | Jira and Confluence (5.6), only when asked for | Optional |
+
+**`analyse`.** A script (`scripts/analyse.mjs`) collects the facts mechanically; the step adds what needs judgement.
+
+- *Facts (script):* toolchain and package manager; runtime pins; direct dependencies with the **locked** versions; frameworks and the stack packs that cover them; tasks (npm scripts, poe, just, Makefile targets) mapped to the task contract (`lint`, `test`, `typecheck`, …); tooling present (linters, formatters, type checking, test runners, git hooks, gitleaks, CI, dependency updates); the folder structure; existing docs (README, ADR folders, `docs/`, CONTRIBUTING, other tools' instruction files); test files; monorepo markers.
+- *Judgement (step):* project type; architecture style and layers; conventions the code actually follows — naming, structure, error handling, testing, data access — each **citing the files that show it** and marked *consistent* or *mixed*; the main existing decisions.
+- *Gaps:* no secret scanning, no git hooks, no CI or CI that doesn't run the checks, no test or lint task, no dependency updates, runtime or major versions past end-of-life (4.6), personal settings committed.
+- At gate 1 the user corrects the analysis. A convention they strike out is never turned into a rule.
+
+**`document`.** The architecture overview follows its template, describing the system as built (with C4 context and container diagrams when there is more than one deployable). Retroactive ADRs record decisions already made — framework, database, hosting, auth, anything the code depends on heavily — with `status: accepted`, the date they were recorded, and "Recorded retroactively by KeelWright from the code" in the context; their alternatives are left to the user rather than invented. Existing ADRs are kept and numbered after; existing docs are linked, not rewritten. No PRD.
+
+**`research`.** As in 5.4, but for the major versions in use: a project on React 18 gets React 18 conventions. Newer majors are reported as gaps, never upgraded.
+
+**`gaps`.** For each gap the step shows the fix as a diff — e.g. a gitleaks pre-commit hook, a CI workflow that runs the project's own checks, Dependabot — and applies it only when the user approves it, one by one. It uses the project's existing tools (its package manager, its hook manager, its CI system) and never replaces them. Declined fixes are recorded in `.keelwright/gaps.md` so the generator doesn't refer to them.
+
+**`generate`.** The shared generator (5.3), reading `.keelwright/analysis.md` and the documents instead of the PRD and `.keelwright/scaffold.md`. Commands are the project's real ones (`pnpm test`, `make lint`), rules come from the inferred conventions plus the packs' review rules, and CLAUDE.md links to the existing docs. The rules the existing tooling enforces need no prose, as in 5.3.
+
+**Monorepos.** Not supported yet: `analyse` detects workspaces (npm / pnpm / yarn workspaces, Nx, Turborepo, Lerna, several manifests) and offers to adopt one package, with that folder as the project root.
+
+**State.** The same `.keelwright/state.json` with `"mode": "adopt"`, changed through the same state CLI; `status`, `report` and the run metrics work as for `/kickoff`.
+
+| Command | Does |
+|---|---|
+| `/adopt` | Starts create mode (or audit mode, later), or resumes |
+| `/adopt <step>` | Re-runs one step and marks every step after it as `stale` |
+| `/adopt status`, `/adopt report` | As for `/kickoff` |
+
 ### 5.3 Shared generator step
 
 Generates an agent workflow **tailored to the project** — derived from its PRD and architecture, never copied boilerplate:
@@ -601,6 +647,15 @@ Examples from building the steps:
 8. Other project types: type detection, stack recommendation, type-specific documents and scaffolding.
 9. `publish` (Jira / Confluence).
 10. Run on the real test project; record it in `evals/runs/` and feed the findings back (8.4). Done: `evals/runs/2026-11-17-portfolio-26.md`.
+
+**Phase 2 build order** (`/adopt` create mode, 5.2.1)
+
+1. `analyse`: the facts script (`scripts/analyse.mjs`) with tests, the step and the analysis template.
+2. `/adopt` entry point: mode detection, the adopt pipeline in the state CLI, gates, status and report.
+3. `document` and `research` for existing projects.
+4. `gaps`, and `generate` reading the analysis (the project's own commands and conventions).
+5. Evaluation cases on fixture repositories, including a grader that every cited file exists.
+6. Run on a real repository without a Claude setup; record it in `evals/runs/` and feed the findings back.
 
 ## 10. Open questions
 

@@ -16,7 +16,8 @@
 //
 // Exits 1 when any target has issues.
 
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { checkTokens, checkWorkspace, crossCheck } from './lib/crosscheck.mjs';
 import { DOC_TYPES, checkDocument } from './lib/doccheck.mjs';
 
@@ -42,7 +43,9 @@ function check(target) {
       return { file: path, type, note: `${r.files} files, ${r.defined} IDs defined`, issues: r.issues };
     }
     if (type && !DOC_TYPES.includes(type)) throw new Error(`unknown check type "${type}"`);
-    const r = checkDocument(readFileSync(path, 'utf8'), { type, maxWords });
+    // Cited paths are relative to the project root (the current folder).
+    const exists = (p) => existsSync(join(process.cwd(), p));
+    const r = checkDocument(readFileSync(path, 'utf8'), { type, maxWords, exists });
     return { file: path, type, note: `${r.words} words${r.limit ? ` / ${r.limit}` : ''}`, issues: r.issues };
   } catch (err) {
     return { file: path, type, issues: [{ issue: err.message }] };

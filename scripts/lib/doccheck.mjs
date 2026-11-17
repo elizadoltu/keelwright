@@ -16,6 +16,7 @@ const LIMITS = {
   'ai-system-design': 1500,
   'ai-eval-plan': 1200,
   'api-surface': 1300,
+  analysis: 1800,
 };
 
 const stripCode = (text) => text.replace(/```[\s\S]*?```/g, '').replace(/`[^`\n]*`/g, '');
@@ -133,7 +134,30 @@ function apiSurfaceChecks(text) {
   ];
 }
 
+// /adopt analysis (spec 5.2.1): every convention cites files that show it, and every cited file
+// exists — the analysis describes the code, so a claim without evidence is an invented one.
+const PATHLIKE = /^[\w.@*-][\w./@*-]*(\/|\.[A-Za-z0-9*]+)$/;
+export function citedPaths(cell) {
+  return [...cell.matchAll(/`([^`\n]+)`/g)].map((m) => m[1].replace(/:\d+(-\d+)?$/, '')).filter((p) => PATHLIKE.test(p) && !/^v?\d+(\.\d+)*$|^https?:/.test(p));
+}
+
+function analysisChecks(text, { exists } = {}) {
+  const issues = [];
+  const conventions = idRows(text, 'C');
+  issues.push(...need(conventions.length > 0, 'no conventions (| C-01 | … rows)'));
+  issues.push(...need(hasSection(text, 'gaps'), 'no Gaps section'));
+  for (const row of [...conventions, ...idRows(text, 'D')]) {
+    const id = /\b([CD]-\d+)/.exec(row)[1];
+    const paths = citedPaths(row).filter((p) => !p.includes('*'));
+    if (id.startsWith('C') && !paths.length) issues.push({ issue: `${id} cites no file — name at least one file that shows it` });
+    if (id.startsWith('C') && !/\b(consistent|mixed)\b/i.test(row)) issues.push({ issue: `${id} doesn't say whether the code follows it consistently or mixed` });
+    if (exists) for (const p of paths) if (!exists(p)) issues.push({ issue: `${id} cites \`${p}\`, which doesn't exist` });
+  }
+  return issues;
+}
+
 const TYPE_CHECKS = {
+  analysis: analysisChecks,
   prd: prdChecks,
   'screen-flow': screenFlowChecks,
   gdd: gddChecks,
@@ -144,12 +168,12 @@ const TYPE_CHECKS = {
 
 export const DOC_TYPES = Object.keys(LIMITS);
 
-export function checkDocument(text, { type = null, maxWords = null } = {}) {
+export function checkDocument(text, { type = null, maxWords = null, exists = null } = {}) {
   const limit = maxWords ?? (type ? LIMITS[type] : null) ?? null;
   const words = wordCount(text);
   const issues = [];
   if (limit && words > limit) issues.push({ issue: `${words} words — over the ${limit}-word limit by ${words - limit}` });
   for (const p of placeholders(text)) issues.push({ issue: `line ${p.line}: ${p.issue}` });
-  if (type && TYPE_CHECKS[type]) issues.push(...TYPE_CHECKS[type](text));
+  if (type && TYPE_CHECKS[type]) issues.push(...TYPE_CHECKS[type](text, { exists }));
   return { words, limit, issues, ok: issues.length === 0 };
 }
