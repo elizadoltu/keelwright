@@ -174,6 +174,12 @@ function run(argv) {
 
     case 'complete': {
       need(2, 'complete <step> <file|dir>...');
+      let startedAtBefore;
+      try {
+        startedAtBefore = M.loadMetrics(root).steps?.[args[0]]?.startedAt;
+      } catch {
+        // metrics are best-effort
+      }
       let markers = 0;
       const entry = mutate((state) => {
         const e = S.complete(state, args[0], args.slice(1), { root, now });
@@ -181,6 +187,8 @@ function run(argv) {
         return e;
       });
       measure((m) => M.recordComplete(m, root, args[0], entry, { now, markers }));
+      const late = M.startedLate(root, Object.keys(entry.outputs ?? {}), startedAtBefore);
+      if (late) console.error(`warning: every output of ${args[0]} was written before \`start ${args[0]}\` — run \`start\` before a step's work, or its time isn't measured`);
       return out(`${args[0]}: ${entry.status}`, entry);
     }
 

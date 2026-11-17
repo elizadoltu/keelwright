@@ -1,6 +1,8 @@
 // Design tokens (W3C DTCG) → Tailwind CSS v4 theme (spec 6.0: tokens are defined once, the theme
 // is generated). Colours in `color.light.*` become theme variables; `color.dark.*` override them
-// under prefers-color-scheme: dark. Other groups map onto Tailwind's theme namespaces.
+// under prefers-color-scheme: dark (unless the page sets data-theme="light") and under
+// [data-theme="dark"], so a Dark / Light toggle works without extra CSS. Other groups map onto
+// Tailwind's theme namespaces.
 
 // Self-contained (no imports): the scaffold copies this file into generated projects.
 
@@ -110,7 +112,10 @@ export function tokensToCss(json) {
   }
   const out = [HEADER, '', '@theme {', ...theme, '}'];
   if (plain.length) out.push('', ':root {', ...plain, '}');
-  if (dark.length) out.push('', '@media (prefers-color-scheme: dark) {', '  :root {', ...dark.map((l) => `  ${l}`), '  }', '}');
+  if (dark.length) {
+    out.push('', '@media (prefers-color-scheme: dark) {', "  :root:not([data-theme='light']) {", ...dark.map((l) => `  ${l}`), '  }', '}');
+    out.push('', ":root[data-theme='dark'] {", ...dark, '}');
+  }
   return `${out.join('\n')}\n`;
 }
 

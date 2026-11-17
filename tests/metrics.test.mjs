@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { execFileSync, spawnSync } from 'node:child_process';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { diffLines, lcsLength, recordCounter, recordRating } from '../scripts/lib/metrics.mjs';
+import { diffLines, lcsLength, recordCounter, recordRating, withoutStatus } from '../scripts/lib/metrics.mjs';
 
 const CLI = fileURLToPath(new URL('../scripts/state.mjs', import.meta.url));
 const roots = [];
@@ -33,6 +33,14 @@ describe('line diff', () => {
     assert.deepEqual(diffLines(['a', 'b'], ['a', 'b']), { lines: 2, added: 0, removed: 0, changed: 0 });
     assert.deepEqual(diffLines(['a', 'b', 'c', 'd'], ['a', 'B', 'c', 'd']), { lines: 4, added: 1, removed: 1, changed: 0.25 });
     assert.deepEqual(diffLines(['a', 'b'], ['x', 'y', 'z']), { lines: 2, added: 3, removed: 2, changed: 1.5 });
+  });
+});
+
+describe('status lines set on approval', () => {
+  test('front-matter status is left out of the comparison, body lines are kept', () => {
+    assert.deepEqual(withoutStatus(['---', 'status: draft', 'date: x', '---', 'status: in body']), ['---', 'date: x', '---', 'status: in body']);
+    assert.deepEqual(withoutStatus(['# No front matter', 'status: x']), ['# No front matter', 'status: x']);
+    assert.equal(withoutStatus(null), null);
   });
 });
 
@@ -103,6 +111,36 @@ describe('recorded through the state CLI', () => {
     assert.equal(m.steps.interview.runs, 2);
     assert.equal(m.steps.interview.editedAfterApproval, 1);
     assert.deepEqual(m.events.map((e) => e.type), ['start', 'complete', 'accept-changes', 'rerun']);
+  });
+
+  test('approving a document only changes its status: no edits are counted', () => {
+    const root = project();
+    cli(root, 'init');
+    cli(root, 'start', 'interview');
+    write(root, '.keelwright/interview.md', 'x');
+    cli(root, 'complete', 'interview', '.keelwright/interview.md');
+    cli(root, 'start', 'prd');
+    write(root, 'docs/prd.md', '---\nstatus: draft\n---\n\n# PRD\n');
+    cli(root, 'complete', 'prd', 'docs/prd.md');
+    write(root, 'docs/prd.md', '---\nstatus: approved\n---\n\n# PRD\n');
+    cli(root, 'approve', '1');
+    assert.deepEqual(metrics(root).steps.prd.gate.edits['docs/prd.md'], { lines: 5, added: 0, removed: 0, changed: 0 });
+  });
+
+  test('a step started after its work is flagged and its time is not measured', () => {
+    const root = project();
+    cli(root, 'init');
+    write(root, '.keelwright/interview.md', 'x');
+    const past = new Date(Date.now() - 60_000);
+    utimesSync(join(root, '.keelwright/interview.md'), past, past);
+    cli(root, 'start', 'interview');
+    const r = spawnSync('node', [CLI, 'complete', 'interview', '.keelwright/interview.md', '--root', root], { encoding: 'utf8' });
+    assert.equal(r.status, 0);
+    assert.match(r.stderr, /written before `start interview`/);
+    const s = metrics(root).steps.interview;
+    assert.equal(s.startedLate, true);
+    assert.equal(s.durationMs, null);
+    assert.match(cli(root, 'report'), /\| interview \| done \| 1 \| not measured \|/);
   });
 
   test('a broken metrics file warns but never blocks the pipeline', () => {

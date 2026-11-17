@@ -10,6 +10,10 @@ import { placeholders } from './doccheck.mjs';
 import { parseFrontMatter, parsePack } from './packs.mjs';
 import { TASK_COMMAND, TOOLCHAIN, definedTasks, detectToolchain } from './toolchains.mjs';
 
+// A folder with no files anywhere inside it: git doesn't track it.
+const isEmptyDir = (abs) =>
+  statSync(abs).isDirectory() && readdirSync(abs).every((n) => isEmptyDir(join(abs, n)));
+
 export const CLAUDE_MD_MAX_LINES = 200;
 export const REQUIRED_AGENTS = ['reviewer', 'tester', 'docs-keeper'];
 const WRITE_TOOLS = ['Write', 'Edit', 'MultiEdit', 'NotebookEdit'];
@@ -77,7 +81,9 @@ export function checkGenerated(root) {
       // Only things that look like files (an extension) or folders (a trailing slash): branch names
       // such as `docs/adr-analytics` share the same prefixes.
       if (!PATH_ROOTS.test(p) || /[*<>{}$…]/.test(p) || !/(\.[a-z0-9]+|\/)$/i.test(p)) continue;
-      if (!existsSync(join(root, p.replace(/\/$/, '')))) add('paths', `${f}: \`${p}\` doesn't exist`);
+      const abs = join(root, p.replace(/\/$/, ''));
+      if (!existsSync(abs)) add('paths', `${f}: \`${p}\` doesn't exist`);
+      else if (isEmptyDir(abs)) add('paths', `${f}: \`${p}\` is an empty folder — git doesn't keep it, so a fresh clone won't have it; add a \`.gitkeep\``);
     }
   }
 

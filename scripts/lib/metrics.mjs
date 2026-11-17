@@ -42,9 +42,16 @@ export function recordStart(m, step, { now, rerun, stale }) {
 // Snapshot the outputs of a gated step so the edits made during review can be measured.
 export function recordComplete(m, root, step, entry, { now, markers }) {
   const s = stepMetrics(m, step);
-  s.completedAt = now;
-  s.durationMs = ms(s.startedAt, now);
   const files = Object.keys(entry.outputs ?? {});
+  s.completedAt = now;
+  if (startedLate(root, files, s.startedAt)) {
+    // The work happened before `STATE start`, so the step's time wasn't measured.
+    s.startedLate = true;
+    s.durationMs = null;
+  } else {
+    delete s.startedLate;
+    s.durationMs = ms(s.startedAt, now);
+  }
   if (entry.status === 'awaiting_review') {
     rmSync(snapshotRoot(root, step), { recursive: true, force: true });
     for (const f of files) {
@@ -122,6 +129,15 @@ function listFiles(abs, rel) {
     .flatMap((n) => listFiles(join(abs, n), `${rel}/${n}`));
 }
 
+// True when every output was last written before the step was started: the step did its work
+// first and called `STATE start` only afterwards.
+export function startedLate(root, outputs, startedAt) {
+  if (!startedAt || !outputs.length) return false;
+  const start = Date.parse(startedAt);
+  const times = outputs.flatMap((o) => listFiles(join(root, o), o)).map((f) => statSync(join(root, f)).mtimeMs);
+  return times.length > 0 && times.every((t) => t < start);
+}
+
 const readLines = (p) => (existsSync(p) ? readFileSync(p, 'utf8').split('\n') : null);
 
 // Longest common subsequence of lines; above the size cap, fall back to a multiset comparison.
@@ -159,9 +175,18 @@ export function diffLines(before, after) {
   return { lines: before.length, added, removed, changed };
 }
 
+// The approval itself sets `status:` in the front matter (draft → approved, proposed → accepted);
+// that isn't a user edit, so the line is left out of the comparison.
+export function withoutStatus(lines) {
+  if (lines === null || lines[0] !== '---') return lines;
+  const end = lines.indexOf('---', 1);
+  if (end === -1) return lines;
+  return lines.filter((l, i) => !(i > 0 && i < end && /^status:/.test(l)));
+}
+
 function diffFile(snapshot, current) {
-  const before = readLines(snapshot);
-  const after = readLines(current);
+  const before = withoutStatus(readLines(snapshot));
+  const after = withoutStatus(readLines(current));
   if (before === null && after === null) return { lines: 0, added: 0, removed: 0, changed: 0 };
   if (after === null) return { lines: before.length, added: 0, removed: before.length, changed: 1, deleted: true };
   if (before === null) return { lines: 0, added: after.length, removed: 0, changed: 1, created: true };
@@ -189,7 +214,7 @@ export function report(m, state) {
     const g = s?.gate;
     const q = g?.markersAtReview != null ? `${g.markersAtReview} → ${g.markersAtApproval ?? '…'}` : '—';
     const counters = Object.entries(s?.counters ?? {}).map(([k, v]) => `${k}: ${v}`).join(', ') || '—';
-    lines.push(`| ${name} | ${st} | ${s?.runs ?? 0} | ${minutes(s?.durationMs)} | ${minutes(g?.reviewMs)} | ${q} | ${s?.editedAfterApproval ?? 0} | ${counters} |`);
+    lines.push(`| ${name} | ${st} | ${s?.runs ?? 0} | ${s?.startedLate ? 'not measured' : minutes(s?.durationMs)} | ${minutes(g?.reviewMs)} | ${q} | ${s?.editedAfterApproval ?? 0} | ${counters} |`);
   }
 
   const edits = Object.entries(m.steps).flatMap(([step, s]) => Object.entries(s.gate?.edits ?? {}).map(([file, e]) => ({ step, file, ...e })));

@@ -531,8 +531,8 @@ Every `/kickoff` run records metrics automatically in `.keelwright/metrics.json`
 | Metric | Recorded when | What it shows |
 |---|---|---|
 | Runs per step (first run + re-runs) | step started | Steps the user had to redo |
-| Time per step and time at each gate | step started / completed, gate approved | Where the run is slow or the review is heavy |
-| **Edit size per document at each gate** — lines added / removed between what the step generated and what the user approved | gate approved (compared with a snapshot taken at completion) | **The main quality signal**: how much the user had to rewrite |
+| Time per step and time at each gate | step started / completed, gate approved | Where the run is slow or the review is heavy. When every output was written before the step was started, the time is reported as "not measured" and `complete` warns |
+| **Edit size per document at each gate** — lines added / removed between what the step generated and what the user approved | gate approved (compared with a snapshot taken at completion; the front-matter `status:` line that approval itself sets is left out) | **The main quality signal**: how much the user had to rewrite |
 | Open `[NEEDS CLARIFICATION]` markers at review and at approval | step completed, gate approved | Open questions left, and how many the gate resolved |
 | Edits accepted after approval, and steps regenerated because of them | accept-changes | Upstream decisions that didn't hold |
 | Step-specific counters (e.g. questions asked, interview rounds, document-check failures before passing) | reported by the step | Step behaviour worth tracking |
@@ -600,7 +600,7 @@ Examples from building the steps:
 7. `generate`.
 8. Other project types: type detection, stack recommendation, type-specific documents and scaffolding.
 9. `publish` (Jira / Confluence).
-10. Run on the real test project; record it in `evals/runs/` and feed the findings back (8.4).
+10. Run on the real test project; record it in `evals/runs/` and feed the findings back (8.4). Done: `evals/runs/2026-11-17-portfolio-26.md`.
 
 ## 10. Open questions
 

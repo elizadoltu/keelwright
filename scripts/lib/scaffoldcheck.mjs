@@ -187,6 +187,13 @@ function checkNode(root, { versions, web, library, add }) {
   for (const s of required) if (!scripts[s]) add('scripts', `npm script "${s}" is missing`);
   if (existsSync(join(root, 'design/tokens.json')) && !scripts.tokens) add('scripts', 'npm script "tokens" is missing (regenerates the theme from design/tokens.json)');
   if (!/husky/.test(scripts.prepare ?? '')) add('scripts', 'npm script "prepare" should run husky');
+  // CI runs check on a fresh checkout, where Astro's generated types (.astro/, gitignored) don't
+  // exist yet: type-aware lint and astro:content imports fail unless check runs astro sync first.
+  const deps = { ...pkg.dependencies, ...pkg.devDependencies };
+  if (deps.astro && scripts.check) {
+    const runs = (cmd) => /\bastro sync\b/.test(cmd) || [...cmd.matchAll(/npm run ([\w:-]+)/g)].some((m) => m[1] !== 'check' && /\bastro sync\b/.test(scripts[m[1]] ?? ''));
+    if (!runs(scripts.check)) add('scripts', 'npm script "check" should run `astro sync` first — CI checks a fresh checkout without the generated .astro/ types');
+  }
 
   // A published library declares ranges for what its users install (the resolved version as the
   // lower bound); everything it only develops with is exact.

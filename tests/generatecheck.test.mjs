@@ -92,6 +92,16 @@ describe('generated agent setup check', () => {
     ]);
   });
 
+  test('an empty folder named in CLAUDE.md is reported (git would not keep it)', () => {
+    const root = project({ 'CLAUDE.md': '# Site\n\nADRs live in `docs/decisions/`. Components in `src/components/atoms/` and `src/components/organisms/`. Run `npm run check`.\nreviewer tester docs-keeper\n', 'src/components/organisms/Header.astro': 'x' });
+    mkdirSync(join(root, 'src/components/atoms/nested'), { recursive: true });
+    assert.deepEqual(issues(root), [
+      "paths: CLAUDE.md: `src/components/atoms/` is an empty folder — git doesn't keep it, so a fresh clone won't have it; add a `.gitkeep`",
+    ]);
+    writeFileSync(join(root, 'src/components/atoms/.gitkeep'), '');
+    assert.deepEqual(issues(root), []);
+  });
+
   test('CLAUDE.md over 200 lines', () => {
     const root = project({ 'CLAUDE.md': `ADRs: \`docs/decisions/\`. reviewer tester docs-keeper\n${'line\n'.repeat(210)}` });
     assert.match(issues(root)[0], /CLAUDE.md has 212 lines \(limit 200\)/);
