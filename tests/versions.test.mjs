@@ -155,3 +155,77 @@ describe('resolveAll', () => {
     assert.deepEqual(r.errors, [{ spec: 'nope', error: 'https://registry.npmjs.org/nope → HTTP 404' }]);
   });
 });
+
+describe('other ecosystems', async () => {
+  const { comparePy, normalizeTag, pickPypiVersion, satisfiesPy } = await import('../scripts/lib/versions.mjs');
+
+  test('PEP 440 subset', () => {
+    assert.ok(comparePy('3.10.0', '3.9.9') > 0);
+    assert.equal(comparePy('2.12', '2.12.0'), 0);
+    assert.equal(satisfiesPy('3.15.2', '>=3.10'), true);
+    assert.equal(satisfiesPy('3.9.1', '>=3.10'), false);
+    assert.equal(satisfiesPy('3.15.2', '>=3.9,<3.15'), false);
+    assert.equal(satisfiesPy('3.12.4', '==3.12.*'), true);
+    assert.equal(satisfiesPy('3.13.0', '!=3.13.*'), false);
+    assert.equal(satisfiesPy('1.4.7', '~=1.4.2'), true);
+    assert.equal(satisfiesPy('1.5.0', '~=1.4.2'), false);
+    assert.equal(satisfiesPy('3.12.0', '>=3.8; python_version'), null);
+  });
+
+  test('PyPI: highest final release, skipping prereleases and yanked ones; ranges hold back', () => {
+    const file = (extra = {}) => [{ requires_python: '>=3.10', yanked: false, ...extra }];
+    const project = { releases: { '1.9.0': file(), '2.0.0': file(), '2.1.0rc1': file(), '2.0.1': file({ yanked: true }), '1.10.0': file(), '0.1': [] } };
+    assert.equal(pickPypiVersion(project), '2.0.0');
+    assert.equal(pickPypiVersion(project, '<2'), '1.10.0');
+  });
+
+  test('release tags', () => {
+    assert.equal(normalizeTag('4.7.2-stable'), '4.7.2');
+    assert.equal(normalizeTag('4.5-stable'), '4.5.0');
+    assert.equal(normalizeTag('v8.30.1'), '8.30.1');
+  });
+
+  test('specs', () => {
+    assert.deepEqual(parseSpec('pypi:fastapi@<1'), { source: 'pypi', name: 'fastapi', range: '<1' });
+    assert.deepEqual(parseSpec('crates:clap'), { source: 'crates', name: 'clap', range: null });
+    assert.deepEqual(parseSpec('pub:go_router@^17.0.0'), { source: 'pub', name: 'go_router', range: '^17.0.0' });
+    assert.deepEqual(parseSpec('python'), { source: 'python', name: 'python', range: null });
+    assert.throws(() => parseSpec('pub:Go-Router'), /invalid pub package name/);
+  });
+
+  test('resolves runtimes and packages, and checks their runtime requirements', async () => {
+    const responses = {
+      'https://www.python.org/api/v2/downloads/release/?is_published=true&pre_release=false&version=3': [
+        { name: 'Python 3.15.2', is_published: true, pre_release: false },
+        { name: 'Python 3.13.11', is_published: true, pre_release: false },
+      ],
+      'https://pypi.org/pypi/old-lib/json': { info: { version: '1.0.0' }, releases: { '1.0.0': [{ requires_python: '>=3.8,<3.13', yanked: false }] } },
+      'https://pypi.org/pypi/ruff/json': { info: { version: '0.17.5' }, releases: { '0.17.5': [{ requires_python: '>=3.7', yanked: false }] } },
+      'https://storage.googleapis.com/flutter_infra_release/releases/releases_macos.json': {
+        current_release: { stable: 'abc' },
+        releases: [{ hash: 'abc', channel: 'stable', version: '3.50.0', dart_sdk_version: '3.14.0' }],
+      },
+      'https://pub.dev/api/packages/go_router': { latest: { version: '18.1.4', pubspec: { environment: { sdk: '^3.15.0' } } } },
+      'https://api.github.com/repos/rust-lang/rust/releases/latest': { tag_name: '1.100.0' },
+      'https://crates.io/api/v1/crates/clap': { crate: { max_stable_version: '4.6.8' }, versions: [{ num: '4.6.8', rust_version: '1.85', yanked: false }] },
+    };
+    const fetchJson = async (url) => {
+      if (!(url in responses)) throw new Error(`unexpected ${url}`);
+      return responses[url];
+    };
+    const r = await resolveAll(['python', 'pypi:old-lib', 'pypi:ruff', 'flutter', 'pub:go_router', 'rust', 'crates:clap'], { fetchJson });
+    assert.deepEqual(r.errors, []);
+    assert.deepEqual(Object.fromEntries(r.packages.map((p) => [p.name, p.version])), { python: '3.15.2', 'old-lib': '1.0.0', ruff: '0.17.5', flutter: '3.50.0', go_router: '18.1.4', rust: '1.100.0', clap: '4.6.8' });
+    const status = Object.fromEntries(r.peers.map((p) => [`${p.package} → ${p.peer}`, p.status]));
+    assert.deepEqual(status, { 'old-lib → python (requires)': 'conflict', 'ruff → python (requires)': 'ok', 'go_router → dart (requires)': 'conflict', 'clap → rust (requires)': 'ok' });
+  });
+});
+
+test('Godot: highest stable 4.x tag, not the newest 3.x maintenance release; Unity: newest LTS', async () => {
+  const fetchJson = async (url) =>
+    url.includes('godot')
+      ? [{ tag_name: '3.6.3-stable', prerelease: false }, { tag_name: '4.7.2-stable', prerelease: false }, { tag_name: '4.7-stable', prerelease: false }]
+      : { results: [{ version: '6000.0.85f2' }, { version: '6000.3.28f1' }] };
+  const r = await resolveAll(['godot', 'unity'], { fetchJson });
+  assert.deepEqual(r.packages.map((p) => [p.name, p.version]), [['godot', '4.7.2'], ['unity', '6000.3.28f1']]);
+});

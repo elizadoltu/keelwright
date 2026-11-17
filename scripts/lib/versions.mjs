@@ -1,6 +1,8 @@
 // Live version resolution (spec 4.6): latest stable versions from the registries, never from
-// memory. Supports npm packages, the Node.js LTS line and GitHub releases, plus a peer
-// dependency check so the resolved versions can be verified as a compatible set.
+// memory. Supports npm, PyPI, crates.io and pub.dev packages, the Node.js LTS line, CPython,
+// Flutter (with its Dart SDK), Rust and GitHub releases, plus a compatibility check so the
+// resolved versions can be verified as a set: npm peers and engines.node, Python's
+// requires-python, a crate's rust-version and a Dart package's SDK constraint.
 //
 // Network access goes through an injected `fetchJson(url, headers)` so the logic is testable.
 
@@ -127,19 +129,81 @@ export function satisfies(version, range) {
 // Specs: "node", "npm:<name>[@range]", "<name>[@range]", "github:<owner>/<repo>"
 // ---------------------------------------------------------------------------
 
+const RUNTIMES = new Set(['node', 'python', 'flutter', 'rust', 'godot', 'unity']);
+const NAMES = {
+  npm: /^(@[a-z0-9][\w.-]*\/)?[a-z0-9][\w.-]*$/i,
+  pypi: /^[a-z0-9]([\w.-]*[a-z0-9])?$/i,
+  crates: /^[a-z0-9][\w-]*$/i,
+  pub: /^[a-z][a-z0-9_]*$/,
+};
+
 export function parseSpec(spec) {
-  if (spec === 'node') return { source: 'node', name: 'node', range: null };
+  if (RUNTIMES.has(spec)) return { source: spec, name: spec, range: null };
   if (spec.startsWith('github:')) {
     const name = spec.slice('github:'.length);
     if (!/^[\w.-]+\/[\w.-]+$/.test(name)) throw new Error(`invalid GitHub spec "${spec}" (expected github:owner/repo)`);
     return { source: 'github', name, range: null };
   }
-  const body = spec.startsWith('npm:') ? spec.slice(4) : spec;
+  const prefix = /^(npm|pypi|crates|pub):/.exec(spec)?.[1] ?? 'npm';
+  const body = spec.startsWith(`${prefix}:`) ? spec.slice(prefix.length + 1) : spec;
   const at = body.lastIndexOf('@');
   const name = at > 0 ? body.slice(0, at) : body;
   const range = at > 0 ? body.slice(at + 1) : null;
-  if (!/^(@[a-z0-9][\w.-]*\/)?[a-z0-9][\w.-]*$/i.test(name)) throw new Error(`invalid npm package name in "${spec}"`);
-  return { source: 'npm', name, range };
+  if (!NAMES[prefix].test(name)) throw new Error(`invalid ${prefix} package name in "${spec}"`);
+  return { source: prefix, name, range };
+}
+
+// ---------------------------------------------------------------------------
+// PEP 440 (subset) for PyPI: final releases only, specifiers ==, !=, >=, <=, >, <, ~=, ==X.*
+// ---------------------------------------------------------------------------
+
+const PY_FINAL = /^v?(\d+(?:\.\d+)*)(?:\.post\d+)?$/;
+const pyParts = (text) => PY_FINAL.exec(String(text).trim())?.[1].split('.').map(Number) ?? null;
+
+export const isPyFinal = (text) => pyParts(text) !== null;
+
+export function comparePy(a, b) {
+  const x = pyParts(a) ?? [];
+  const y = pyParts(b) ?? [];
+  for (let i = 0; i < Math.max(x.length, y.length); i++) {
+    const d = (x[i] ?? 0) - (y[i] ?? 0);
+    if (d) return d;
+  }
+  return 0;
+}
+
+// true / false, or null when the specifier isn't understood.
+export function satisfiesPy(version, spec) {
+  if (!pyParts(version)) return null;
+  for (const clause of String(spec ?? '').split(',').map((c) => c.trim()).filter(Boolean)) {
+    const m = /^(~=|===|==|!=|<=|>=|<|>)\s*([\d.]+(?:\.\*)?)$/.exec(clause);
+    if (!m) return null;
+    const [, op, target] = m;
+    if (target.endsWith('.*')) {
+      const prefix = target.slice(0, -2).split('.').map(Number);
+      const parts = pyParts(version);
+      const match = prefix.every((p, i) => (parts[i] ?? 0) === p);
+      if ((op === '==' && !match) || (op === '!=' && match)) return false;
+      if (op !== '==' && op !== '!=') return null;
+      continue;
+    }
+    const c = comparePy(version, target);
+    let ok;
+    if (op === '~=') {
+      const t = target.split('.').map(Number);
+      if (t.length < 2) return null;
+      const upper = [...t.slice(0, -2), t.at(-2) + 1].join('.');
+      ok = c >= 0 && comparePy(version, upper) < 0;
+    } else ok = { '==': c === 0, '===': c === 0, '!=': c !== 0, '<=': c <= 0, '>=': c >= 0, '<': c < 0, '>': c > 0 }[op];
+    if (!ok) return false;
+  }
+  return true;
+}
+
+// Release tags such as "4.7.2-stable" (Godot) or "4.5-stable" → "4.5.0"; other tags unchanged.
+export function normalizeTag(tag) {
+  const t = String(tag ?? '').replace(/^v/, '').replace(/-stable$/, '');
+  return /^\d+\.\d+$/.test(t) ? `${t}.0` : t;
 }
 
 // ---------------------------------------------------------------------------
@@ -189,7 +253,7 @@ async function resolveNode(_spec, fetchJson) {
 
 async function resolveGithub({ name }, fetchJson) {
   const release = await fetchJson(`https://api.github.com/repos/${name}/releases/latest`, { Accept: 'application/vnd.github+json' });
-  const version = String(release.tag_name ?? '').replace(/^v/, '');
+  const version = normalizeTag(release.tag_name);
   if (!isStable(version)) throw new Error(`latest release of ${name} is not a stable version (${release.tag_name})`);
   // The commit the tag points to, for pinning GitHub Actions by SHA (annotated tags point to a tag object).
   let sha = null;
@@ -202,7 +266,84 @@ async function resolveGithub({ name }, fetchJson) {
   return { source: 'github', name, version, tag: release.tag_name, ...(sha ? { sha } : {}), peerDependencies: {}, optionalPeers: [] };
 }
 
-const RESOLVERS = { npm: resolveNpm, node: resolveNode, github: resolveGithub };
+const none = { peerDependencies: {}, optionalPeers: [] };
+
+// Highest final, not fully yanked release (inside the range, when given).
+export function pickPypiVersion(project, range = null) {
+  const releases = project.releases ?? {};
+  const ok = (ver) => isPyFinal(ver) && (releases[ver] ?? []).length > 0 && !releases[ver].every((f) => f.yanked) && (range === null || satisfiesPy(ver, range) === true);
+  return Object.keys(releases).filter(ok).sort(comparePy).at(-1) ?? null;
+}
+
+async function resolvePypi({ name, range }, fetchJson) {
+  const project = await fetchJson(`https://pypi.org/pypi/${encodeURIComponent(name)}/json`);
+  const version = pickPypiVersion(project, range);
+  if (!version) throw new Error(`no final release of ${name}${range ? ` matches ${range}` : ''}`);
+  const requiresPython = project.releases[version].find((f) => f.requires_python)?.requires_python ?? (version === project.info?.version ? project.info.requires_python : null);
+  return { source: 'pypi', name, version, ...(range ? { range } : {}), ...(requiresPython ? { requires: { python: requiresPython } } : {}), ...none };
+}
+
+async function resolveCrates({ name, range }, fetchJson) {
+  const data = await fetchJson(`https://crates.io/api/v1/crates/${encodeURIComponent(name)}`);
+  const ok = (v) => !v.yanked && isStable(v.num) && (range === null || satisfies(v.num, range) === true);
+  const chosen = range === null && data.crate?.max_stable_version ? (data.versions ?? []).find((v) => v.num === data.crate.max_stable_version) ?? { num: data.crate.max_stable_version } : (data.versions ?? []).filter(ok).sort((a, b) => compare(a.num, b.num)).at(-1);
+  if (!chosen) throw new Error(`no stable version of ${name}${range ? ` matches ${range}` : ''}`);
+  return { source: 'crates', name, version: chosen.num, ...(range ? { range } : {}), ...(chosen.rust_version ? { requires: { rust: `>=${chosen.rust_version}` } } : {}), ...none };
+}
+
+async function resolvePub({ name, range }, fetchJson) {
+  const data = await fetchJson(`https://pub.dev/api/packages/${encodeURIComponent(name)}`);
+  const ok = (v) => isStable(v.version) && !v.retracted && (range === null || satisfies(v.version, range) === true);
+  const chosen = range === null && data.latest && isStable(data.latest.version) ? data.latest : (data.versions ?? []).filter(ok).sort((a, b) => compare(a.version, b.version)).at(-1);
+  if (!chosen) throw new Error(`no stable version of ${name}${range ? ` matches ${range}` : ''}`);
+  const sdk = chosen.pubspec?.environment?.sdk;
+  return { source: 'pub', name, version: chosen.version, ...(range ? { range } : {}), ...(sdk ? { requires: { dart: sdk } } : {}), ...none };
+}
+
+async function resolvePython(_spec, fetchJson) {
+  const releases = await fetchJson('https://www.python.org/api/v2/downloads/release/?is_published=true&pre_release=false&version=3');
+  // Not the newest release_date: maintenance releases of older lines come out on the same day.
+  const versions = releases.filter((r) => r.is_published && !r.pre_release).map((r) => /Python\s+(\d+\.\d+\.\d+)$/.exec(r.name ?? '')?.[1]).filter(Boolean);
+  const version = versions.sort(compare).at(-1);
+  if (!version) throw new Error('no stable CPython release found');
+  return { source: 'python', name: 'python', version, ...none };
+}
+
+async function resolveFlutter(_spec, fetchJson) {
+  const index = await fetchJson('https://storage.googleapis.com/flutter_infra_release/releases/releases_macos.json');
+  const release = (index.releases ?? []).find((r) => r.hash === index.current_release?.stable && r.channel === 'stable');
+  if (!release) throw new Error('no stable Flutter release found');
+  return { source: 'flutter', name: 'flutter', version: release.version, dart: release.dart_sdk_version, ...none };
+}
+
+async function resolveRust(_spec, fetchJson) {
+  const release = await fetchJson('https://api.github.com/repos/rust-lang/rust/releases/latest', { Accept: 'application/vnd.github+json' });
+  const version = normalizeTag(release.tag_name);
+  if (!isStable(version)) throw new Error(`latest Rust release is not a stable version (${release.tag_name})`);
+  return { source: 'rust', name: 'rust', version, ...none };
+}
+
+// Godot: the repository also publishes 3.x maintenance releases, so take the highest stable tag
+// rather than the "latest" release.
+async function resolveGodot(_spec, fetchJson) {
+  const releases = await fetchJson('https://api.github.com/repos/godotengine/godot/releases?per_page=50', { Accept: 'application/vnd.github+json' });
+  const tags = releases.filter((r) => !r.prerelease && /-stable$/.test(r.tag_name ?? '')).map((r) => ({ tag: r.tag_name, version: normalizeTag(r.tag_name) })).filter((t) => isStable(t.version));
+  const best = tags.sort((a, b) => compare(a.version, b.version)).at(-1);
+  if (!best) throw new Error('no stable Godot release found');
+  return { source: 'godot', name: 'godot', version: best.version, tag: best.tag, ...none };
+}
+
+// Unity: the official Release API; the newest LTS stream release (e.g. 6000.3.28f1).
+async function resolveUnity(_spec, fetchJson) {
+  const data = await fetchJson('https://services.api.unity.com/unity/editor/release/v1/releases?stream=LTS&order=RELEASE_DATE_DESC&limit=25');
+  const key = (v) => /^(\d+)\.(\d+)\.(\d+)f(\d+)$/.exec(v)?.slice(1).map(Number) ?? null;
+  const versions = (data.results ?? []).map((r) => r.version).filter(key);
+  const best = versions.sort((a, b) => key(a).reduce((d, x, i) => d || x - key(b)[i], 0)).at(-1);
+  if (!best) throw new Error('no Unity LTS release found');
+  return { source: 'unity', name: 'unity', version: best, stream: 'LTS', ...none };
+}
+
+const RESOLVERS = { godot: resolveGodot, unity: resolveUnity, npm: resolveNpm, node: resolveNode, github: resolveGithub, pypi: resolvePypi, crates: resolveCrates, pub: resolvePub, python: resolvePython, flutter: resolveFlutter, rust: resolveRust };
 
 // Peer dependency check across the resolved set.
 //   ok: the peer is in the set and its version satisfies the range
@@ -221,6 +362,15 @@ export function checkPeers(packages) {
       }
       const s = satisfies(found.version, range);
       results.push({ package: pkg.name, peer, range, peerVersion: found.version, status: s === null ? 'unknown' : s ? 'ok' : 'conflict' });
+    }
+    // Runtime requirements: requires-python, a crate's rust-version, a Dart package's SDK constraint.
+    for (const [runtime, range] of Object.entries(pkg.requires ?? {})) {
+      const rt = runtime === 'dart' ? byName.get('flutter') : byName.get(runtime);
+      if (!rt) continue;
+      const have = runtime === 'dart' ? rt.dart : rt.version;
+      if (!have) continue;
+      const s = runtime === 'python' ? satisfiesPy(have, range) : satisfies(have, range);
+      results.push({ package: pkg.name, peer: `${runtime} (requires)`, range, peerVersion: have, status: s === null ? 'unknown' : s ? 'ok' : 'conflict' });
     }
     const nodeRange = pkg.engines?.node;
     const node = byName.get('node');
