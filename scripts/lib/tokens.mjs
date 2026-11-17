@@ -113,3 +113,108 @@ export function tokensToCss(json) {
   if (dark.length) out.push('', '@media (prefers-color-scheme: dark) {', '  :root {', ...dark.map((l) => `  ${l}`), '  }', '}');
   return `${out.join('\n')}\n`;
 }
+
+// ---------------------------------------------------------------------------
+// Other targets: TypeScript (React Native / Expo, or any TS UI) and Dart (Flutter).
+// The output file's extension picks the target (themeFor).
+// ---------------------------------------------------------------------------
+
+const toPx = (v) => (v.unit === 'rem' ? v.value * 16 : v.value);
+const toMs = (v) => (v.unit === 's' ? v.value * 1000 : v.value);
+
+// A token value as plain data for app code: colours as hex / rgba strings, dimensions as
+// numbers in px (rem × 16), durations in ms, a font family as its first family.
+export function plainValue(type, v) {
+  switch (type) {
+    case 'color':
+      return cssValue('color', v);
+    case 'dimension':
+      return toPx(v);
+    case 'duration':
+      return toMs(v);
+    case 'fontFamily':
+      return Array.isArray(v) ? v[0] : v;
+    case 'fontWeight':
+      return String(v);
+    default:
+      return v;
+  }
+}
+
+function resolvedTree(tree) {
+  const tokens = flattenTokens(tree);
+  const out = {};
+  for (const [path, t] of Object.entries(tokens)) {
+    const parts = path.split('.');
+    let node = out;
+    for (const p of parts.slice(0, -1)) node = node[p] ??= {};
+    node[parts.at(-1)] = plainValue(t.$type, resolve(tokens, t.$value));
+  }
+  return { tokens, out };
+}
+
+export function tokensToTs(json) {
+  const tree = typeof json === 'string' ? JSON.parse(json) : json;
+  const { out } = resolvedTree(tree);
+  return `${HEADER}\n\nexport const tokens = ${JSON.stringify(out, null, 2)} as const;\n\nexport type Tokens = typeof tokens;\n`;
+}
+
+const camel = (parts) =>
+  parts
+    .map((p) => kebab(p).split('-').filter(Boolean))
+    .flat()
+    .map((w, i) => (i === 0 ? w : w[0].toUpperCase() + w.slice(1)))
+    .join('');
+
+function dartValue(type, v) {
+  switch (type) {
+    case 'color': {
+      if (typeof v === 'string' && /^#[0-9a-f]{6}$/i.test(v)) return `Color(0xFF${v.slice(1).toUpperCase()})`;
+      if (isObj(v) && Array.isArray(v.components)) {
+        const a = hex2(v.alpha ?? 1);
+        const rgb = v.colorSpace === 'srgb' ? v.components.map(hex2).join('') : (v.hex ?? '#000000').slice(1);
+        return `Color(0x${(a + rgb).toUpperCase()})`;
+      }
+      return null;
+    }
+    case 'dimension': {
+      const n = toPx(v);
+      return Number.isInteger(n) ? `${n}.0` : String(n);
+    }
+    case 'duration':
+      return `Duration(milliseconds: ${Math.round(toMs(v))})`;
+    case 'fontFamily':
+      return `'${String(Array.isArray(v) ? v[0] : v).replace(/'/g, "\\'")}'`;
+    case 'fontWeight': {
+      const n = typeof v === 'number' ? v : { thin: 100, light: 300, normal: 400, regular: 400, medium: 500, bold: 700, black: 900 }[String(v).toLowerCase()] ?? 400;
+      return `FontWeight.w${Math.min(900, Math.max(100, Math.round(n / 100) * 100))}`;
+    }
+    case 'cubicBezier':
+      return `Cubic(${v.join(', ')})`;
+    case 'number':
+      return Number.isInteger(v) ? `${v}.0` : String(v);
+    default:
+      return null;
+  }
+}
+
+export function tokensToDart(json) {
+  const tree = typeof json === 'string' ? JSON.parse(json) : json;
+  const tokens = flattenTokens(tree);
+  const lines = [];
+  for (const [path, t] of Object.entries(tokens)) {
+    const raw = resolve(tokens, t.$value);
+    const value = dartValue(t.$type, t.$type === 'color' && isObj(raw) && raw.colorSpace === 'srgb' && (raw.alpha ?? 1) === 1 ? cssValue('color', raw) : raw);
+    if (value !== null) lines.push(`  static const ${camel(path.split('.'))} = ${value};`);
+  }
+  return `${HEADER}\n\nimport 'package:flutter/widgets.dart';\n\nabstract final class Tokens {\n${lines.join('\n')}\n}\n`;
+}
+
+// The generator for an output file, by its extension: .css → Tailwind theme, .ts / .js → a
+// TypeScript object, .dart → a Flutter constants class.
+export function themeFor(file) {
+  if (/\.css$/.test(file)) return tokensToCss;
+  if (/\.[cm]?[jt]s$/.test(file)) return tokensToTs;
+  if (/\.dart$/.test(file)) return tokensToDart;
+  return null;
+}

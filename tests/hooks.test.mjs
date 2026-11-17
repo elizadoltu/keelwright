@@ -110,3 +110,47 @@ describe('check-on-stop hook', () => {
     assert.equal(hook('check-on-stop.mjs', root, {}).status, 0);
   });
 });
+
+describe('hooks configured for another toolchain', () => {
+  const tool = (root, name, script) => {
+    writeFileSync(join(root, name), `#!/bin/sh\n${script}\n`);
+    spawnSync('chmod', ['+x', join(root, name)]);
+  };
+
+  test('format-on-edit runs the configured tools for matching files and reports problems', () => {
+    const root = project({
+      'app/main.py': 'x = 1\n',
+      'app/readme.md': '# x\n',
+      '.claude/hooks/config.json': JSON.stringify({
+        onEdit: [
+          { files: '\\.py$', run: ['bin/fmt', '{file}'] },
+          { files: '\\.py$', run: ['bin/lint', '{file}'], report: true, label: 'Ruff' },
+        ],
+      }),
+      'bin/.keep': '',
+    });
+    tool(root, 'bin/fmt', 'echo formatted > "$1.log"');
+    tool(root, 'bin/lint', 'echo "$1: F401 unused import"; exit 1');
+    const r = hook('format-on-edit.mjs', root, { tool_name: 'Edit', tool_input: { file_path: 'app/main.py' } });
+    assert.equal(r.status, 2);
+    assert.match(r.stderr, /^Ruff found problems in app\/main.py that need a manual fix:\n.*F401/);
+    assert.ok(spawnSync('test', ['-f', join(root, 'app/main.py.log')]).status === 0, 'formatter ran first');
+    assert.equal(hook('format-on-edit.mjs', root, { tool_name: 'Edit', tool_input: { file_path: 'app/readme.md' } }).status, 0);
+  });
+
+  test('format-on-edit skips tools that are not installed', () => {
+    const root = project({ 'a.py': '', '.claude/hooks/config.json': JSON.stringify({ onEdit: [{ run: ['.venv/bin/ruff', 'check', '{file}'], report: true }, { run: ['no-such-command-kw', '{file}'], report: true }] }) });
+    assert.equal(hook('format-on-edit.mjs', root, { tool_name: 'Write', tool_input: { file_path: 'a.py' } }).status, 0);
+  });
+
+  test('check-on-stop runs the configured check once its dependencies exist', () => {
+    const files = { '.claude/hooks/config.json': JSON.stringify({ check: { run: ['sh', '-c', 'echo "test_parse failed"; exit 1'], requires: '.venv', label: 'uv run poe check' } }) };
+    const root = project(files);
+    spawnSync('git', ['init', '-q'], { cwd: root });
+    assert.equal(hook('check-on-stop.mjs', root, {}).status, 0, 'no .venv yet: nothing to run');
+    mkdirSync(join(root, '.venv'));
+    const r = hook('check-on-stop.mjs', root, {});
+    assert.equal(r.status, 2);
+    assert.match(r.stderr, /^uv run poe check fails after these changes[\s\S]*test_parse failed/);
+  });
+});

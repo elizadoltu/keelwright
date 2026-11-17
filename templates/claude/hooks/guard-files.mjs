@@ -49,7 +49,7 @@ function checkAdr(file, tool, rel) {
 function checkGenerated(file, rel) {
   if (!existsSync(file)) return;
   const m = GENERATED.exec(readFileSync(file, 'utf8').slice(0, 300));
-  if (m) block(`${rel} is generated from ${m[1]} — edit ${m[1]} instead and regenerate it (npm run tokens).`);
+  if (m) block(`${rel} is generated from ${m[1]} — edit ${m[1]} instead and regenerate it with the project's tokens task.`);
 }
 
 function checkSecrets(text, rel) {
