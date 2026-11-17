@@ -1,5 +1,5 @@
 {
-  "description": "AI assistant with retrieval and tools, personal data, a Python team. Exercises the AI rules (Python, rule 2; a provider comparison), the python toolchain, the AI system design with tools that need confirmation, and the eval plan with cost and latency budgets.",
+  "description": "AI assistant with retrieval and tools, personal data, a Python team. Exercises the AI rules (Python, rule 2; a provider comparison), the python toolchain, the AI system design with tools that need confirmation, the eval plan with cost and latency budgets, and an API surface for the endpoints the support tool calls.",
   "stopAtGate": 2,
   "answers": [
     "About 300 questions a day. A budget of around 200 EUR a month for the model. A good answer cites at least one article and never makes up a policy; our senior agents can label 50 example questions with good answers. Refunds above 100 EUR need a team lead. English only. Anything else: decide later."
@@ -8,11 +8,32 @@
     "projectType": "ai",
     "toolchain": "python",
     "documents": {
-      "include": ["prd", "adr", "backlog", "development-workflow", "ai-system-design", "ai-eval-plan"],
-      "exclude": ["screen-flow", "release-checklist", "game-design-document", "asset-pipeline", "api-surface", "visual-identity"]
+      "include": [
+        "prd",
+        "adr",
+        "backlog",
+        "development-workflow",
+        "ai-system-design",
+        "ai-eval-plan",
+        "api-surface"
+      ],
+      "exclude": [
+        "screen-flow",
+        "release-checklist",
+        "game-design-document",
+        "asset-pipeline",
+        "visual-identity"
+      ]
     },
-    "adrs": ["model|provider|llm"],
-    "interviewQuestions": { "min": 1 }
+    "adrs": [
+      "model|provider|llm"
+    ],
+    "interviewQuestions": {
+      "min": 1
+    }
   },
-  "judges": ["invented-facts", "redundant-questions"]
+  "judges": [
+    "invented-facts",
+    "redundant-questions"
+  ]
 }

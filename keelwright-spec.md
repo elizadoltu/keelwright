@@ -407,7 +407,7 @@ Each document has a **key** — the name of its template — used in the PRD's `
 | `asset-pipeline` | Asset pipeline | project type is game | `design/asset-pipeline.md` | `templates/asset-pipeline.md` |
 | `ai-system-design` | AI system design (model & data flow, prompts, tools, guardrails) | the project calls an LLM or ML model | `docs/ai/system-design.md` | `templates/ai-system-design.md` |
 | `ai-eval-plan` | AI / LLM evaluation plan (incl. cost & latency budget) | the project calls an LLM or ML model | `docs/evals/plan.md` + `evals/data/` | `templates/ai-eval-plan.md` |
-| `api-surface` | Public API surface, versioning & release policy | project type is library / CLI / API | `docs/api-surface.md` | `templates/api-surface.md` |
+| `api-surface` | Public API surface, versioning & release policy | project type is library / CLI / API, or the project exposes an API that other systems or teams call | `docs/api-surface.md` | `templates/api-surface.md` |
 
 **Optional** (only when asked for)
 

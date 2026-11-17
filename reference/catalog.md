@@ -33,7 +33,7 @@ Include a document only when its condition holds; give the reason either way whe
 | `asset-pipeline` | project type is game | `design/asset-pipeline.md` | `design` |
 | `ai-system-design` | the project calls an LLM or ML model | `docs/ai/system-design.md` | `architecture` |
 | `ai-eval-plan` | the project calls an LLM or ML model | `docs/evals/plan.md` + `evals/data/` | `architecture` |
-| `api-surface` | project type is library / CLI / API | `docs/api-surface.md` | `architecture` |
+| `api-surface` | project type is library / CLI / API, or the project exposes an API that other systems or teams call (e.g. an AI service behind another product) | `docs/api-surface.md` | `architecture` |
 
 ## Optional — only when the user asks
 

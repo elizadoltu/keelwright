@@ -13,7 +13,7 @@ node evals/run.mjs --stop-at 1 --runs 1              # cheap smoke run: every ca
 node evals/run.mjs --help                            # all options
 ```
 
-Results go to `evals/results/<timestamp>/` (ignored by git): `summary.md`, `summary.json`, and per run the generated `docs/`, `design/`, `.keelwright/` and `run.json` (calls, cost, every grade).
+Results go to `evals/results/<timestamp>/` (ignored by git): `summary.md`, `summary.json`, and per run the generated `docs/`, `design/`, `evals/data/` (AI eval seeds), `.keelwright/` and `run.json` (calls, cost, every grade).
 
 Exit codes: `0` every grader at or above the threshold (default 67%), `1` below it, `2` stopped by the cost limit (default $30).
 
