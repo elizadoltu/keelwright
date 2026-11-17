@@ -5,7 +5,10 @@
 //
 //   prd:docs/prd.md                        PRD checks + word limit
 //   adr:<file>  overview:<file>  features:<file>  visual-identity:<file>  erd:<file>
-//                                          word limit + placeholders
+//   screen-flow:  release-checklist:  gdd:  asset-pipeline:  ai-system-design:  ai-eval-plan:
+//   api-surface:<file>                     word limit + placeholders (+ the document's own checks:
+//                                          screens, core loop, prompts and tools, eval thresholds
+//                                          with cost and latency, public API items)
 //   tokens:design/tokens.json              W3C DTCG structure, references, WCAG AA text contrast
 //   c4:docs/architecture/c4/workspace.dsl  Structurizr workspace structure
 //   refs:docs                              every ID referenced is defined; no broken local links

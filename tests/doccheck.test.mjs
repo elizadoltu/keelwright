@@ -90,3 +90,30 @@ describe('doccheck', () => {
     assert.equal(checkDocument(template, { type: 'prd' }).ok, false);
   });
 });
+
+describe('type-specific documents', () => {
+  const issuesOf = (text, type) => checkDocument(text, { type }).issues.map((i) => i.issue);
+
+  test('screen flow needs screens and a navigation diagram', () => {
+    assert.deepEqual(issuesOf('# Screens\n', 'screen-flow'), ['no screens (| S-01 | … rows in the screen inventory)', 'no Mermaid diagram of the navigation']);
+    assert.deepEqual(issuesOf('```mermaid\nflowchart LR\n```\n\n| S-01 | Home | x |\n', 'screen-flow'), []);
+  });
+
+  test('GDD needs a core loop and a cut list', () => {
+    assert.deepEqual(issuesOf('## Core loop\n\n## Scope and cut list\n\n- Online play\n', 'gdd'), ['the core loop is missing']);
+  });
+
+  test('AI system design: prompts, and tools with side effects need confirmation', () => {
+    const doc = '| P-01 | answer | `prompts/answer.md` | q | text |\n\n| ID | Tool | What | Side effects | Needs confirmation |\n|---|---|---|---|---|\n| T-01 | search | finds | read-only | no |\n| T-02 | refund | refunds an order | writes payments | no |\n| T-03 | note | adds a note | writes | yes |\n';
+    assert.deepEqual(issuesOf(doc, 'ai-system-design'), ['T-02 has side effects (writes payments) but doesn\'t need confirmation — set it to "yes" or say why not']);
+  });
+
+  test('AI eval plan: thresholds, plus a cost and a latency budget', () => {
+    assert.deepEqual(issuesOf('| EV-001 | grounded | pass rate | high | judge |\n', 'ai-eval-plan'), ['no latency criterion (an EV- row with a latency budget)', 'no cost criterion (an EV- row with a cost budget)', 'EV-001 has no threshold']);
+    assert.deepEqual(issuesOf('| EV-001 | grounded | pass rate | ≥ 95% | judge |\n| EV-002 | Latency | p95 | < 3 s | code |\n| EV-003 | Cost | per request | < $0.01 | code |\n', 'ai-eval-plan'), []);
+  });
+
+  test('API surface: items and a versioning policy', () => {
+    assert.deepEqual(issuesOf('## Versioning\n\nSemVer.\n', 'api-surface'), ['no public API items (| API-001 | … rows)']);
+  });
+});
