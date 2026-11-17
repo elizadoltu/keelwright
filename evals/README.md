@@ -24,24 +24,29 @@ Exit codes: `0` every grader at or above the threshold (default 67%), `1` below 
 | `personal-website` | Content-first site with two audiences, a blog and one form → Astro (rule 1), no backend server or database, i18n, stack packs chosen to match | Gate 3 |
 | `freelancer-invoicing` | Public marketing pages + logged-in app with stored data → TanStack Start (rule 3), database, ERD | Gate 2 |
 | `support-dashboard` | Entirely behind a login, reads an existing API → TanStack Start SPA mode (rule 5), nothing stored | Gate 1 |
+| `habit-tracker-mobile` | iOS + Android, offline with sync, TypeScript team → Expo (mobile rule 3), `node`, offline / sync ADR, screen flow, store checklist | Gate 2 |
+| `roguelite-game` | Solo 2D PC game, local saves, no royalties → Godot (game rule 4), `godot`, GDD and asset pipeline, no ERD | Gate 2 |
+| `support-assistant-ai` | Retrieval + tools with a human-approved refund, EU personal data, Python team → Python (AI rule 2), `python`, provider ADR, AI system design, eval plan with cost and latency budgets | Gate 2 |
+| `csv-validator-cli` | Single-binary CLI for CI pipelines → Rust (library rule 2), `rust`, API surface, no UI or data documents | Gate 2 |
 
 A case is a folder in `cases/` with:
 - `input.md` — the project description passed to `/keelwright:kickoff`.
-- `case.json` — `stopAtGate`, the `answers` sent when the interview asks (in order; after the last one the runner says "decide later"), `expect` (project type, frontend choice and rule, documents that must and mustn't be in the set, minimum interview questions) and the `judges` to run.
+- `case.json` — `stopAtGate`, the `answers` sent when the interview asks (in order; after the last one the runner says "decide later"), `expect` (project type, the main stack decision and its rule — `primary`, toolchain, documents that must and mustn't be in the set, ADRs that must exist as title patterns, minimum interview questions) and the `judges` to run.
 
 ## Graders
 
 | Grader | Type | Passes when |
 |---|---|---|
 | `reached-gate` | code | The run is waiting at the case's stop gate |
-| `project-type`, `frontend` | code | The state records the expected type, framework and rule |
+| `project-type`, `primary`, `toolchain` | code | The state records the expected type, main decision (framework, engine, language) with its rule, and toolchain |
+| `adrs` | code | An ADR matches each expected pattern (e.g. the offline / sync decision of a mobile app) |
 | `documents-include`, `documents-exclude` | code | The document set contains / leaves out the expected keys |
 | `documents-written` | code | Every listed document whose step ran exists |
 | `packs` | code | The research step chose the expected stack packs and left out the unexpected ones |
 | `interview-asked` | code | The interview asked at least the expected number of questions (from the step's `questions` metric) |
 | `doccheck` | code | Every generated document passes `scripts/doccheck.mjs`, including tokens, C4 and cross-document IDs and links |
 | `adr-traceability` | code | Every ADR after 0001 (except version hold-backs) cites requirement IDs |
-| `versions` | code + network | Every npm version exists and is stable; anything older than the newest stable is explained in an ADR; Node is the latest LTS |
+| `versions` | code + network | Every package version exists and is stable on the toolchain's registry (npm, PyPI, pub.dev, crates.io); anything older than the newest stable is explained in an ADR; runtimes (Node.js LTS, Python, Flutter, Rust, Godot, Unity) are current |
 | `judge:invented-facts` | model | The PRD states nothing about the product or users that the input and interview don't support |
 | `judge:redundant-questions` | model | The interview didn't ask what the input already answered |
 

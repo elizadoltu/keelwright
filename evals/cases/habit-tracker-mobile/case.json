@@ -1,0 +1,19 @@
+{
+  "description": "Cross-platform mobile app with offline use and sync, by a TypeScript team. Exercises the mobile rules (Expo, rule 3), the node toolchain, the offline / sync ADR, the screen flow and the store release checklist.",
+  "stopAtGate": 2,
+  "answers": [
+    "Sign in with Apple and Google, plus email. Habits are daily only for now. Reminders are local notifications, no server push. If the same habit is changed on two devices, the latest change wins. English only. Look: calm and encouraging, not gamified. Anything else: decide later."
+  ],
+  "expect": {
+    "projectType": "mobile",
+    "primary": { "choice": "expo", "rule": 3 },
+    "toolchain": "node",
+    "documents": {
+      "include": ["prd", "adr", "backlog", "development-workflow", "screen-flow", "release-checklist", "visual-identity"],
+      "exclude": ["game-design-document", "asset-pipeline", "ai-system-design", "ai-eval-plan", "api-surface"]
+    },
+    "adrs": ["offline|sync"],
+    "interviewQuestions": { "min": 1 }
+  },
+  "judges": ["invented-facts", "redundant-questions"]
+}

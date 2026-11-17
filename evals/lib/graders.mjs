@@ -7,7 +7,7 @@ import { checkTokens, checkWorkspace, crossCheck } from '../../scripts/lib/cross
 import { checkDocument } from '../../scripts/lib/doccheck.mjs';
 import { validatePack } from '../../scripts/lib/packs.mjs';
 import { next } from '../../scripts/lib/state.mjs';
-import { isStable, pickNpmVersion } from '../../scripts/lib/versions.mjs';
+import { isPyFinal, isStable, parseSpec, resolveAll } from '../../scripts/lib/versions.mjs';
 
 const read = (dir, f) => (existsSync(join(dir, f)) ? readFileSync(join(dir, f), 'utf8') : null);
 const result = (pass, detail = '') => ({ pass, detail });
@@ -23,6 +23,23 @@ export function loadRun(dir) {
 // Deterministic graders: (run, expect) → { pass, detail } | null when not applicable
 // ---------------------------------------------------------------------------
 
+// Where each document lives, which doccheck type checks it, and which step writes it.
+const DOCUMENTS = {
+  prd: { path: 'docs/prd.md', check: 'prd', step: 'prd' },
+  'architecture-overview': { path: 'docs/architecture/overview.md', check: 'overview', step: 'architecture' },
+  c4: { path: 'docs/architecture/c4/workspace.dsl', check: null, step: 'architecture' }, // checked by checkWorkspace
+  erd: { path: 'docs/architecture/erd.md', check: 'erd', step: 'architecture' },
+  'ai-system-design': { path: 'docs/ai/system-design.md', check: 'ai-system-design', step: 'architecture' },
+  'ai-eval-plan': { path: 'docs/evals/plan.md', check: 'ai-eval-plan', step: 'architecture' },
+  'api-surface': { path: 'docs/api-surface.md', check: 'api-surface', step: 'architecture' },
+  'feature-breakdown': { path: 'docs/features.md', check: 'features', step: 'features' },
+  'visual-identity': { path: 'docs/design/visual-identity.md', check: 'visual-identity', step: 'design' },
+  'screen-flow': { path: 'docs/design/screen-flow.md', check: 'screen-flow', step: 'design' },
+  'release-checklist': { path: 'docs/release-checklist.md', check: 'release-checklist', step: 'design' },
+  'game-design-document': { path: 'docs/gdd.md', check: 'gdd', step: 'design' },
+  'asset-pipeline': { path: 'design/asset-pipeline.md', check: 'asset-pipeline', step: 'design' },
+};
+
 export const GRADERS = {
   'reached-gate': (run, expect, c) => {
     if (!run.state) return result(false, 'no state file');
@@ -37,14 +54,31 @@ export const GRADERS = {
     return result(got === expect.projectType, `got ${got}`);
   },
 
-  frontend: (run, expect) => {
-    if (!expect.frontend) return null;
-    const f = run.state?.stack?.frontend ?? {};
+  // The main stack decision (the frontend for web; app framework, engine, provider or language otherwise).
+  primary: (run, expect) => {
+    if (!expect.primary) return null;
+    const f = run.state?.stack?.primary ?? run.state?.stack?.frontend ?? {};
     const choice = JSON.stringify(f.choice ?? '').toLowerCase();
-    const okChoice = choice.includes(expect.frontend.choice.toLowerCase());
+    const wanted = [expect.primary.choice].flat().map((c) => c.toLowerCase());
+    const okChoice = wanted.some((c) => choice.includes(c));
     const rule = Number(String(f.rule ?? '').match(/\d+/)?.[0]);
-    const okRule = expect.frontend.rule === undefined || rule === expect.frontend.rule;
+    const okRule = expect.primary.rule === undefined || [expect.primary.rule].flat().includes(rule);
     return result(okChoice && okRule, `choice ${f.choice ?? '—'}, rule ${f.rule ?? '—'}`);
+  },
+
+  toolchain: (run, expect) => {
+    if (!expect.toolchain) return null;
+    const got = run.state?.stack?.toolchain;
+    return result([expect.toolchain].flat().includes(got), `got ${got ?? '—'}`);
+  },
+
+  // ADRs the case expects, as patterns matched against each ADR's file name and title
+  // (e.g. a mobile app always gets an offline / sync decision).
+  adrs: (run, expect) => {
+    if (!expect.adrs) return null;
+    const titles = run.adrs.map((f) => `${f} ${/^#\s+(.+)$/m.exec(read(run.dir, `docs/decisions/${f}`) ?? '')?.[1] ?? ''}`);
+    const missing = expect.adrs.filter((p) => !titles.some((t) => new RegExp(p, 'i').test(t)));
+    return result(!missing.length, missing.length ? `no ADR matching ${missing.map((m) => `/${m}/`).join(', ')} (ADRs: ${run.adrs.join(', ')})` : '');
   },
 
   'documents-include': (run, expect) => {
@@ -83,12 +117,8 @@ export const GRADERS = {
   // Every generated document passes its doccheck, and IDs / links resolve across docs/.
   doccheck: (run) => {
     const checks = [
-      ['docs/prd.md', 'prd'],
-      ['docs/architecture/overview.md', 'overview'],
-      ['docs/architecture/erd.md', 'erd'],
-      ['docs/features.md', 'features'],
+      ...Object.values(DOCUMENTS).filter((d) => d.check).map((d) => [d.path, d.check]),
       ['docs/backlog.md', null],
-      ['docs/design/visual-identity.md', 'visual-identity'],
       ...run.adrs.map((f) => [`docs/decisions/${f}`, 'adr']),
     ];
     const failures = [];
@@ -124,17 +154,8 @@ export const GRADERS = {
 
   // Documents the case expects to exist actually exist (the document set is acted on, not just listed).
   'documents-written': (run) => {
-    const paths = {
-      prd: 'docs/prd.md',
-      'architecture-overview': 'docs/architecture/overview.md',
-      c4: 'docs/architecture/c4/workspace.dsl',
-      erd: 'docs/architecture/erd.md',
-      'feature-breakdown': 'docs/features.md',
-      'visual-identity': 'docs/design/visual-identity.md',
-    };
     const reached = new Set(Object.entries(run.state?.steps ?? {}).filter(([, s]) => ['awaiting_review', 'approved', 'done'].includes(s.status)).map(([n]) => n));
-    const owner = { prd: 'prd', 'architecture-overview': 'architecture', c4: 'architecture', erd: 'architecture', 'feature-breakdown': 'features', 'visual-identity': 'design' };
-    const missing = (run.state?.documents ?? []).filter((k) => paths[k] && reached.has(owner[k]) && !existsSync(join(run.dir, paths[k])));
+    const missing = (run.state?.documents ?? []).filter((k) => DOCUMENTS[k] && reached.has(DOCUMENTS[k].step) && !existsSync(join(run.dir, DOCUMENTS[k].path)));
     return result(!missing.length, missing.length ? `listed but not written: ${missing.join(', ')}` : '');
   },
 
@@ -146,43 +167,67 @@ export const GRADERS = {
   },
 };
 
-// Versions: every npm version is a stable published release; anything older than the newest
-// stable must be explained in an ADR. Needs network access.
+// Versions: every package version is a stable published release on the toolchain's registry
+// (npm, PyPI, pub.dev, crates.io) and every runtime is the current one; anything older than the
+// newest stable must be explained in an ADR. Needs network access.
+const RUNTIME_NAMES = { node: 'node', 'node.js': 'node', python: 'python', flutter: 'flutter', rust: 'rust', godot: 'godot', unity: 'unity' };
+const REGISTRY = { node: 'npm', python: 'pypi', dart: 'pub', rust: 'crates' };
+
 export async function gradeVersions(run, fetchJson) {
   const versions = run.state?.stack?.versions ?? {};
   const names = Object.keys(versions);
   if (!names.length) return result(false, 'no versions recorded in state.stack.versions');
   const adrText = run.adrs.map((f) => read(run.dir, `docs/decisions/${f}`)).join('\n');
+  const registry = REGISTRY[run.state?.stack?.toolchain ?? 'node'] ?? null;
   const problems = [];
+  let checked = 0;
   for (const name of names) {
     const v = String(versions[name]).replace(/^v/, '');
-    if (name === 'node' || /^node(\.js)?$/i.test(name)) {
-      const index = await fetchJson('https://nodejs.org/dist/index.json');
-      const lts = index.find((r) => r.lts)?.version.replace(/^v/, '');
-      if (v !== lts && !new RegExp(`node`, 'i').test(adrText)) problems.push(`node ${v} is not the latest LTS (${lts})`);
+    const runtime = RUNTIME_NAMES[name.toLowerCase()];
+    if (runtime) {
+      const { packages, errors } = await resolveAll([runtime], { fetchJson });
+      if (errors.length) continue; // feed unavailable: nothing to compare against
+      const current = packages[0].version;
+      checked++;
+      if (v !== current && !new RegExp(runtime, 'i').test(adrText)) problems.push(`${name} ${v} is not the current ${runtime === 'node' ? 'LTS' : 'stable'} (${current})`);
       continue;
     }
-    if (!/^(@[a-z0-9][\w.-]*\/)?[a-z0-9][\w.-]*$/i.test(name) || name === 'gitleaks') continue; // not an npm name
-    if (!isStable(v)) {
+    const githubRepo = name.includes('/') && !name.startsWith('@');
+    if (!registry || name === 'gitleaks' || githubRepo) continue; // a binary or a GitHub release
+    let spec;
+    try {
+      spec = parseSpec(`${registry}:${name}`);
+    } catch {
+      continue; // not a package name on this registry
+    }
+    if (registry === 'pypi' ? !isPyFinal(v) : !isStable(v)) {
       problems.push(`${name} ${v} is not a stable version`);
       continue;
     }
-    let packument;
-    try {
+    const { packages, errors } = await resolveAll([`${registry}:${spec.name}`], { fetchJson });
+    if (errors.length) {
+      if (registry === 'npm') problems.push(`${name}: not found on npm`);
+      continue; // other registries: may be a tool installed another way
+    }
+    checked++;
+    if (registry === 'npm') {
       const encoded = name.startsWith('@') ? `@${encodeURIComponent(name.slice(1))}` : encodeURIComponent(name);
-      packument = await fetchJson(`https://registry.npmjs.org/${encoded}`, { Accept: 'application/vnd.npm.install-v1+json' });
-    } catch {
-      problems.push(`${name}: not found on npm`);
-      continue;
+      const packument = await fetchJson(`https://registry.npmjs.org/${encoded}`, { Accept: 'application/vnd.npm.install-v1+json' });
+      if (!packument.versions?.[v]) {
+        problems.push(`${name} ${v} doesn't exist on npm`);
+        continue;
+      }
+    } else if (registry === 'pypi') {
+      const project = await fetchJson(`https://pypi.org/pypi/${encodeURIComponent(name)}/json`);
+      if (!project.releases?.[v]) {
+        problems.push(`${name} ${v} doesn't exist on PyPI`);
+        continue;
+      }
     }
-    if (!packument.versions?.[v]) {
-      problems.push(`${name} ${v} doesn't exist on npm`);
-      continue;
-    }
-    const newest = pickNpmVersion(packument);
+    const newest = packages[0].version;
     if (v !== newest && !adrText.includes(name)) problems.push(`${name} ${v} is older than ${newest} with no ADR explaining it`);
   }
-  return result(!problems.length, problems.length ? problems.join('; ') : `${names.length} versions checked`);
+  return result(!problems.length, problems.length ? problems.join('; ') : `${checked} versions checked`);
 }
 
 // ---------------------------------------------------------------------------

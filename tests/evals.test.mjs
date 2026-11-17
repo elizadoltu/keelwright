@@ -24,7 +24,7 @@ const CASE = {
   name: 'demo',
   stopAtGate: 1,
   answers: ['1a. 2b.'],
-  expect: { projectType: 'web', frontend: { choice: 'astro', rule: 1 }, documents: { include: ['prd', 'adr'], exclude: ['erd'] }, interviewQuestions: { min: 1 } },
+  expect: { projectType: 'web', primary: { choice: 'astro', rule: 1 }, documents: { include: ['prd', 'adr'], exclude: ['erd'] }, interviewQuestions: { min: 1 } },
 };
 
 // Simulates the pipeline the way /kickoff would, one call at a time.
@@ -45,7 +45,7 @@ function fakeClaude() {
       const s = st();
       S.complete(s, 'interview', ['.keelwright/interview.md'], { root: cwd, now: NOW });
       S.setProjectType(s, 'web');
-      S.mergeStack(s, { frontend: { choice: 'Astro', rule: 1 } });
+      S.mergeStack(s, { primary: { choice: 'Astro', rule: 1 } });
       S.start(s, 'prd', { now: NOW });
       S.complete(s, 'prd', ['docs/prd.md'], { root: cwd, now: NOW });
       S.save(cwd, s);
@@ -98,7 +98,7 @@ describe('graders', () => {
     const g = Object.fromEntries(Object.entries(GRADERS).map(([k, fn]) => [k, fn(run, CASE.expect, CASE)]));
     assert.equal(g['reached-gate'].pass, true);
     assert.equal(g['project-type'].pass, true);
-    assert.equal(g.frontend.pass, true, g.frontend.detail);
+    assert.equal(g.primary.pass, true, g.primary.detail);
     assert.equal(g['documents-include'].pass, true);
     assert.equal(g['documents-exclude'].pass, true);
     assert.equal(g['interview-asked'].pass, true);
@@ -108,8 +108,9 @@ describe('graders', () => {
   });
 
   test('a wrong frontend rule fails', () => {
-    const run = { state: { stack: { frontend: { choice: 'Astro', rule: 'rule 4' } } } };
-    assert.equal(GRADERS.frontend(run, CASE.expect).pass, false);
+    const run = { state: { stack: { primary: { choice: 'Astro', rule: 'rule 4' } } } };
+    assert.equal(GRADERS.primary(run, CASE.expect).pass, false);
+    assert.equal(GRADERS.primary({ state: { stack: { frontend: { choice: 'Astro', rule: 1 } } } }, CASE.expect).pass, true, 'older runs recorded it as frontend');
   });
 
   test('judge replies are parsed strictly', () => {
@@ -169,5 +170,26 @@ describe('packs grader', () => {
     const expect = { packs: { include: ['astro'], exclude: ['express'] } };
     assert.equal(GRADERS.packs({ state: { stack: { packs: { astro: 'd', tailwind: 'd' } } } }, expect).pass, true);
     assert.deepEqual(GRADERS.packs({ state: { stack: { packs: { express: 'd' } } } }, expect), { pass: false, detail: 'missing: astro; unexpected: express' });
+  });
+});
+
+describe('versions grader', async () => {
+  const { gradeVersions } = await import('../evals/lib/graders.mjs');
+  const responses = {
+    'https://www.python.org/api/v2/downloads/release/?is_published=true&pre_release=false&version=3': [{ name: 'Python 3.15.2', is_published: true, pre_release: false }],
+    'https://pypi.org/pypi/ruff/json': { info: { version: '0.17.5' }, releases: { '0.17.4': [{ yanked: false }], '0.17.5': [{ yanked: false }] } },
+    'https://pypi.org/pypi/fastapi/json': { info: { version: '0.163.1' }, releases: { '0.163.1': [{ yanked: false }] } },
+  };
+  const fetchJson = async (url) => {
+    if (!(url in responses)) throw new Error(`HTTP 404 ${url}`);
+    return responses[url];
+  };
+  const run = (versions) => ({ dir: '/nonexistent', adrs: [], state: { stack: { toolchain: 'python', versions } } });
+
+  test('checks Python packages on PyPI and the runtime against python.org', async () => {
+    assert.equal((await gradeVersions(run({ python: '3.15.2', ruff: '0.17.5', fastapi: '0.163.1', 'gitleaks/gitleaks': '8.30.1' }), fetchJson)).pass, true);
+    const r = await gradeVersions(run({ python: '3.14.0', ruff: '0.17.4' }), fetchJson);
+    assert.equal(r.pass, false);
+    assert.match(r.detail, /python 3.14.0 is not the current stable \(3.15.2\); ruff 0.17.4 is older than 0.17.5 with no ADR/);
   });
 });
