@@ -11,6 +11,8 @@ Claude Code plugin that bootstraps projects (`/kickoff`, later `/adopt`). The sp
 - `reference/` — runtime copies of spec rules the steps need (stack rules, catalog); **keep them in sync with the spec**
 - `scripts/versions.mjs` (live version resolution), `scripts/doccheck.mjs` (mechanical document checks) and `scripts/packs.mjs` (stack packs: plan, install, validate, save) — used by steps
 - `scripts/preflight.mjs`, `scripts/scaffoldcheck.mjs`, `scripts/tokens-to-css.mjs` (+ `scripts/lib/tokens.mjs`, which must stay import-free because the scaffold copies it into projects) — used by the scaffold step
+- `templates/claude/` — templates for the generated Claude setup; `templates/claude/hooks/*.mjs` are copied into projects unchanged, so they must stay dependency-free and tested (`tests/hooks.test.mjs`)
+- `scripts/generatecheck.mjs` — checks the generated agent setup (the base for `/adopt` audit mode)
 - `stack-packs/` — shipped stack packs, produced with `scripts/research-pack.mjs` (costs money); `shipped.json` lists them
 
 ## Rules

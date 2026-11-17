@@ -24,7 +24,7 @@ function project(overrides = {}) {
     'package-lock.json': '{}',
     '.npmrc': 'save-exact=true\n',
     '.nvmrc': '26\n',
-    '.gitignore': 'node_modules/\n.env\n.env.*\n!.env.example\n.keelwright/snapshots/\n',
+    '.gitignore': 'node_modules/\n.env\n.env.*\n!.env.example\n.keelwright/snapshots/\n.claude/settings.local.json\n',
     '.env.example': 'RESEND_API_KEY=\n',
     '.husky/pre-commit': 'npx lint-staged\ngitleaks git --pre-commit --staged --redact\n',
     '.husky/commit-msg': 'npx --no -- commitlint --edit "$1"\n',

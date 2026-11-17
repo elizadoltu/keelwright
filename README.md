@@ -2,7 +2,7 @@
 
 A Claude Code plugin that takes a project from **idea or specs** to project documents, a scaffolded repository and a project-specific Claude setup, with review gates where you edit the documents before the pipeline continues.
 
-> Status: Phase 1 in progress. The pipeline, state and review gates work, and the steps up to `scaffold` (`interview`, `prd`, `architecture`, `features`, `design`, `research`, `scaffold`) are built for web projects; the remaining steps are being added one by one (see `keelwright-spec.md`, section 9).
+> Status: Phase 1 in progress. The pipeline, state and review gates work, and every step except `publish` (Jira / Confluence) is built for web projects; the remaining steps are being added one by one (see `keelwright-spec.md`, section 9).
 
 ## Requirements
 
@@ -59,6 +59,7 @@ Pipeline state is kept in `.keelwright/state.json` and run metrics in `.keelwrig
 | `scripts/preflight.mjs` | Checks the machine can build the project (Node.js, git, gitleaks, Supabase CLI) before scaffolding |
 | `scripts/scaffoldcheck.mjs` | Checks a scaffolded project: exact versions, scripts, hooks, pinned CI actions, theme in sync |
 | `scripts/tokens-to-css.mjs` | Generates the Tailwind theme from the design tokens (copied into projects) |
+| `scripts/generatecheck.mjs` | Checks a generated agent setup: CLAUDE.md, rules coverage, agents, skills, settings, hooks |
 | `stack-packs/` | Researched conventions per technology, shipped with the plugin |
 | `tests/` | Unit tests |
 | `evals/` | Evaluation suite — see `evals/README.md` |

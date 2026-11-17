@@ -285,11 +285,26 @@ Generates an agent workflow **tailored to the project** — derived from its PRD
 
 Rules, skills and hooks are built from the stack packs (5.4). The generator never references something it didn't create: a line in a template that points to a missing part (e.g. E2E tests in a project without them) is removed, not left as a placeholder.
 
+**How pack rules are used.** Rules the scaffold already enforces through config, lint, types, CI or hooks (recorded in `.keelwright/scaffold.md`) need no prose — CLAUDE.md only says never to disable those checks. Rules of kind `review` (and any `hook`, `ci` or `test` rule the scaffold couldn't apply) become `.claude/rules/*.md`: one file per area, scoped with `paths` front matter so it loads only when matching files are touched, plus one project-wide architecture file. Duplicates across packs become one rule citing every ID; rules marked not applicable are left out. The mapping is recorded in `.keelwright/generate.md`.
+
+**CLAUDE.md** stays under 200 lines (Claude Code's guidance): what the project is, where the documents are, the commands, the stack, the structure, a few concrete working rules, the workflow and the agents — linking instead of repeating.
+
+**Skills:** `implement-story` (acceptance criteria → tests → code → checks → review → docs) and `new-adr` (numbering, superseding) always; `new-component` (Atomic Design level, theme classes only) when there is a UI; `new-migration` when there is a database.
+
+**Claude Code hooks** (scripts shipped with the plugin, copied unchanged into `.claude/hooks/`):
+- `guard-files` (before Edit / Write): blocks changes to accepted ADRs except superseding their status, edits to generated files (the theme), and new content gitleaks flags as a secret.
+- `format-on-edit` (after Edit / Write): Prettier and ESLint `--fix` on the file; remaining lint errors go back to Claude.
+- `check-on-stop` (Stop): `npm run check` when files changed; failures go back to Claude, once per stop.
+
+**Settings:** `.claude/settings.json` allows only the project's own npm scripts and read-only git commands, denies force-push, `--no-verify` commits and reading `.env` files; `.claude/settings.local.json` is git-ignored.
+
+**Checked:** the step passes the project's own `npm run check` and `scripts/generatecheck.mjs` — CLAUDE.md size, commands and paths that exist, no placeholders, the three agents with explicit tools and a read-only reviewer, skill descriptions, rule front matter, every applicable review rule covered and no unknown rule IDs, safe permissions, hook scripts present, `.gitignore`, and CONTRIBUTING.md agreeing with commitlint.
+
 **Generated subagents**
 
 | Subagent | Tools | Role |
 |---|---|---|
-| `reviewer` | Read, Grep, Glob, Bash (read-only commands) | Reviews changes against the chosen conventions (Clean Architecture, Atomic Design, Humble Object), the accepted ADRs and the PRD IDs. Never writes. |
+| `reviewer` | Read, Grep, Glob, Bash (read-only commands); `disallowedTools: Write, Edit, MultiEdit, NotebookEdit` | Reviews changes against the chosen conventions (Clean Architecture, Atomic Design, Humble Object), the accepted ADRs and the PRD IDs. Never writes. |
 | `tester` | Read, Grep, Glob, Edit, Write, Bash | Turns acceptance criteria (`WHEN … SHALL`, Given / When / Then) and success criteria (`SC-`) into Vitest and Playwright tests named after their IDs. |
 | `docs-keeper` | Read, Grep, Glob, Edit, Write | Keeps the ERD, `schema.sql`, architecture overview, backlog and ADR index in sync with the code. Writes new ADRs; never edits accepted ones. |
 

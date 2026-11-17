@@ -57,7 +57,7 @@ export function checkScaffold(root, { versions = {} } = {}) {
 
   // --- repository hygiene -------------------------------------------------------
   const gitignore = read(root, '.gitignore') ?? '';
-  for (const entry of ['node_modules', '.env', '.keelwright/snapshots']) {
+  for (const entry of ['node_modules', '.env', '.keelwright/snapshots', '.claude/settings.local.json']) {
     if (!gitignore.split('\n').some((l) => l.trim().replace(/^\//, '').replace(/\/$/, '') === entry || l.trim() === `${entry}*` || l.trim() === `${entry}.*`)) add('hygiene', `.gitignore doesn't ignore ${entry}`);
   }
   if (!existsSync(join(root, '.env.example'))) add('hygiene', 'no .env.example');
