@@ -141,7 +141,7 @@ The scaffold still creates everything that doesn't need the engine: `.gitignore`
 
 ## CI and dependency updates
 
-- One workflow: install with the lockfile → `check` → `build` when the project builds → E2E when it has them → gitleaks; Conventional Commits checked on pull requests. Every action pinned to a commit SHA.
+- One workflow: install with the lockfile → `check` → `build` when the project builds → E2E when it has them → gitleaks; Conventional Commits checked on pull requests. Every action pinned to a commit SHA. When the workflow restricts `permissions`, the gitleaks job gets `pull-requests: read` (the action lists a PR's commits) and `GITLEAKS_ENABLE_COMMENTS: 'false'`.
 - `.github/dependabot.yml`: the toolchain's ecosystem (`npm`, `uv`, `pub`, `cargo`), `pre-commit` when the hooks use it, and `github-actions` — weekly, grouped.
 
 ## Claude Code hooks

@@ -61,6 +61,14 @@ describe('scaffold check', () => {
     assert.ok(!has(project({ 'package.json': pkg('npm run sync && npm run lint', { sync: 'astro sync' }) })));
   });
 
+  test('gitleaks with restricted permissions needs pull-requests: read', () => {
+    const SHA = 'a'.repeat(40);
+    const wf = (perms) => `permissions:\n${perms}\nsteps:\n  - uses: actions/checkout@${SHA} # v7\n  - run: npm run check\n  - run: npm run build\n  - run: npm run test:e2e\n  - uses: gitleaks/gitleaks-action@${SHA}\n`;
+    const has = (root) => areas(checkScaffold(root, { versions: { astro: '7.4.12' } })).some((i) => i.includes('pull-requests: read'));
+    assert.ok(has(project({ '.github/workflows/ci.yml': wf('  contents: read') })));
+    assert.ok(!has(project({ '.github/workflows/ci.yml': wf('  contents: read\n  pull-requests: read') })));
+  });
+
   test('ranges, version drift, missing scripts and lockfile', () => {
     const root = project({
       'package.json': JSON.stringify({ scripts: { dev: 'x' }, dependencies: { astro: '^7.4.12', vitest: '5.0.0' } }),
