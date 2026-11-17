@@ -2,8 +2,8 @@
 
 Propose the document set, choose and right-size the stack with versions resolved live, and write the PRD and the first ADRs.
 
-**Reads:** the project input, `.keelwright/interview.md`, `<plugin root>/reference/catalog.md`, `<plugin root>/reference/web-stack.md`, and the templates `prd.md`, `adr.md`, `adr-0001-record-architecture-decisions.md`. On a re-run: the existing `docs/prd.md` and `docs/decisions/`.
-**Produces:** `docs/prd.md`, `docs/decisions/0001-record-architecture-decisions.md`, `docs/decisions/0002-<frontend decision>.md`, one ADR per other deviation from the defaults; the document set and stack in the state.
+**Reads:** the project input, `.keelwright/interview.md`, `<plugin root>/reference/catalog.md`, the stack rules for the project type (`<plugin root>/reference/<type>-stack.md`: `web`, `mobile`, `game`, `ai`, `library`), `<plugin root>/reference/toolchains.md`, and the templates `prd.md`, `adr.md`, `adr-0001-record-architecture-decisions.md`. On a re-run: the existing `docs/prd.md` and `docs/decisions/`.
+**Produces:** `docs/prd.md`, `docs/decisions/0001-record-architecture-decisions.md`, `docs/decisions/0002-<stack decision>.md` (the frontend for web, the app framework, engine, model provider or language for the other types), one ADR per other deviation from the defaults; the document set and stack in the state.
 **Gate:** Gate 1 — the user confirms the PRD, the document set and the stack.
 
 The input and the interview are the source of truth. If the user edited `.keelwright/interview.md`, their version wins.
@@ -17,7 +17,7 @@ Draft the PRD's content in your head before choosing anything technical — the 
 - **Goals and success criteria (`SC-`)** — measurable. If the user gave no number, propose a sensible target and list it as "proposed by KeelWright" in the gate summary.
 - **User stories (`US-`)** with priorities: **P1 = MVP**, P2 = next, P3 = later. Each P1 story is shippable and testable on its own. Acceptance criteria in `WHEN … THE SYSTEM SHALL …` or Given / When / Then — concrete enough to become an E2E test.
 - **Functional requirements (`FR-`)** — each traces to a story.
-- **Non-functional requirements (`NFR-`)** — measurable: performance (e.g. LCP < 2.5 s on 4G), accessibility (WCAG 2.2 AA), SEO / AI-search (content in the initial HTML, sitemap, metadata), security and privacy. Only those that apply.
+- **Non-functional requirements (`NFR-`)** — measurable: performance (e.g. LCP < 2.5 s on 4G; app start < 2 s; 60 fps; p95 latency), accessibility (WCAG 2.2 AA), SEO / AI-search (content in the initial HTML, sitemap, metadata), security and privacy (for AI: what data may reach the model provider), compatibility (supported OS, runtime or engine versions). Only those that apply.
 - **Non-goals** — the input's out-of-scope items, plus anything the interview ruled out.
 - **Assumptions and risks** — labelled as such in their table, each with how to verify or mitigate it; never stated as facts elsewhere in the PRD.
 - **Open questions** — every unresolved point as `[NEEDS CLARIFICATION: …]`. An open question that blocks a stack decision is called out at the gate.
@@ -39,15 +39,16 @@ Record it: `STATE set documents <comma-separated keys>`. The same keys go into t
 
 ## 3. Stack
 
-Follow `reference/web-stack.md`:
+Follow the stack rules for the project type — `reference/<type>-stack.md`:
 
-1. **Frontend:** go through the selection rules in order and stop at the first match. Note the rule number and why it matched; note why the earlier rules didn't.
-2. **Right-size every layer** of the defaults: keep / remove / swap / add, each with a reason that cites requirement IDs. Dynamic features in a mostly static site (a contact form, a newsletter) are handled inside the chosen framework (server endpoints / functions) or by a service — compare at least two options for each and recommend one.
-3. **Conventions:** say which of Clean Architecture, Atomic Design and Humble Object apply and at what scale.
-4. **Resolve versions** for everything the scaffold will install directly:
-   `node "<plugin root>/scripts/versions.mjs" node <npm packages…> github:gitleaks/gitleaks`
-   Handle the peer report as `reference/web-stack.md` describes; re-run until there are no conflicts. Never write a version that didn't come from the script.
-5. Record the stack: `STATE set stack '<json>'` with `resolvedAt`, `frontend` (`{ "choice", "rule" }`), `layers` (`{ layer: { "decision": "keep|remove|swap|add", "choice", "reason" } }`) and `versions` (`{ name: version }`).
+1. **The main decision** — web: the frontend (selection rules); mobile: the app framework; game: the engine; ai: the language and the model provider; library: the language and distribution. Go through the candidates in order and stop at the first match. Note the rule number and why it matched, and why the earlier rules didn't. For every type except web, also **compare 2–3 candidates** against the requirements (platforms, performance, team skills, cost, hosting or distribution, ecosystem maturity) and recommend one with the reasoning — this goes into ADR-0002 and the gate summary.
+2. **Right-size every layer** of the type's defaults: keep / remove / swap / add, each with a reason that cites requirement IDs. A small dynamic feature (a contact form, a newsletter) is handled inside the chosen framework or by a service — compare at least two options and recommend one.
+3. **Conventions:** say which of Clean Architecture, Atomic Design and Humble Object apply and at what scale (the type's rules say which usually do).
+4. **Toolchain:** from the main decision (`reference/toolchains.md`): `node`, `python`, `dart`, `rust`, `godot` or `editor`.
+5. **Resolve versions** for everything the scaffold will install directly, with the specs the type's rules list:
+   `node "<plugin root>/scripts/versions.mjs" <runtime> <packages…> github:gitleaks/gitleaks`
+   (runtimes: `node`, `python`, `flutter`, `rust`, `godot`, `unity`; packages: `npm:`, `pypi:`, `crates:`, `pub:`; tools released on GitHub: `github:<owner>/<repo>`). Handle the compatibility report as `reference/web-stack.md` describes ("Versions": conflict → hold back with an ADR; missing → add it or note it; unknown → check by hand); it covers npm peers, `engines.node`, `requires-python`, a crate's `rust-version` and a Dart package's SDK constraint. Re-run until there are no conflicts. Never write a version that didn't come from the script — except for software with no machine-readable release feed (Unreal Engine, Xcode, Android Studio): look it up on the official release notes and write the URL next to the version.
+6. Record the stack: `STATE set stack '<json>'` with `resolvedAt`, `toolchain`, `primary` (`{ "choice", "rule", "compared": [<alternatives>] }`), `layers` (`{ layer: { "decision": "keep|remove|swap|add", "choice", "reason" } }`) and `versions` (`{ name: version }`, keyed by package name). For web, `primary.choice` is the frontend framework.
 
 If an open question blocks a stack decision (e.g. whether a form must store submissions), choose the option that keeps the most doors open at the lowest cost, write the question as `[NEEDS CLARIFICATION: …]`, and say in the ADR what changes if the answer goes the other way.
 
@@ -62,9 +63,9 @@ Follow the template rules in `reference/catalog.md` (keep structure and IDs; rem
 
 **`docs/decisions/0001-record-architecture-decisions.md`** from `templates/adr-0001-record-architecture-decisions.md`: fill in date, decision-makers and the product name only. Its status is `accepted`.
 
-**`docs/decisions/0002-<frontend-decision>.md`** from `templates/adr.md`, e.g. `0002-use-astro-for-the-website.md`:
-- Status `proposed`. Drivers cite requirement IDs. Considered options: the chosen framework and the 1–2 strongest alternatives from the rules. The outcome names the rule that matched.
-- Confirmation: how the decision is checked later (e.g. "build output is static HTML for every public route").
+**`docs/decisions/0002-<stack-decision>.md`** from `templates/adr.md`, e.g. `0002-use-astro-for-the-website.md`, `0002-use-expo-for-the-app.md`, `0002-use-godot-4.md`, `0002-use-claude-for-answers.md`:
+- Status `proposed`. Drivers cite requirement IDs. Considered options: the chosen option and the 1–2 strongest alternatives from the rules, compared on the criteria above. The outcome names the rule that matched.
+- Confirmation: how the decision is checked later (e.g. "build output is static HTML for every public route"; "the eval plan's EV- thresholds pass with this model").
 
 **One ADR per other deviation from the defaults**, numbered on from 0003, same template, status `proposed` — e.g. no custom backend, no database, how the contact form is handled, a held-back package version. Keep each to the decision; don't repeat the PRD.
 
@@ -79,7 +80,7 @@ Before writing a file that already exists (a re-run), read it and keep the user'
    Then check by hand: every version in the PRD matches the script output, and every ADR linked from the PRD exists.
 2. `STATE complete prd docs/prd.md docs/decisions/0001-record-architecture-decisions.md <every other ADR file this step wrote>` — list the ADR files individually, not the `docs/decisions` folder: later steps add ADRs there, and that must not count as an edit to this step's output.
 3. The review gate follows. In the gate summary, besides the generic gate content, show:
-   - the recommended stack in one line per layer (keep / remove / swap / add), and the frontend rule that matched;
+   - the recommended stack in one line per layer (keep / remove / swap / add), the rule that matched for the main decision and the alternatives it was compared with, and the toolchain;
    - the document set: included, and excluded with reasons;
    - values KeelWright proposed that the user didn't give (targets, defaults) — so they can confirm or change them.
 

@@ -1,7 +1,7 @@
 ---
 id: <slug, e.g. astro>
 name: <Display name, e.g. Astro>
-packages: [<primary npm package first>, <related packages, globs allowed, e.g. "@astrojs/*">]
+packages: [<primary package first — its npm, PyPI, pub.dev or crates.io name, as keyed in stack.versions>, <related packages, globs allowed, e.g. "@astrojs/*">]
 major: <researched major version of the primary package>
 researchedAt: YYYY-MM-DD
 status: draft            # draft | reviewed

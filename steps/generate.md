@@ -2,8 +2,8 @@
 
 Generate the project's agent workflow — `CLAUDE.md`, rules, skills, subagents, hooks and settings — and `CONTRIBUTING.md`, all from the same facts, so agents and humans follow the same rules and nothing disagrees.
 
-**Reads:** `docs/prd.md`, `docs/decisions/`, `docs/architecture/overview.md`, `docs/features.md`, `docs/design/visual-identity.md`, `.keelwright/stack-packs/*.md` (reviewed at gate 3), `.keelwright/scaffold.md` (pack rules applied, not applied, and left for this step), `package.json`, the hook, lint and CI config the scaffold created, and the templates in `<plugin root>/templates/claude/` and `<plugin root>/templates/development-workflow.md`.
-**Produces:** `CLAUDE.md`, `.claude/rules/*.md`, `.claude/agents/{reviewer,tester,docs-keeper}.md`, `.claude/skills/*/SKILL.md`, `.claude/hooks/*.mjs`, `.claude/settings.json`, `CONTRIBUTING.md`, `.keelwright/generate.md`.
+**Reads:** `docs/prd.md`, `docs/decisions/`, `docs/architecture/overview.md`, `docs/features.md`, `docs/design/visual-identity.md`, the type-specific documents that exist (`docs/design/screen-flow.md`, `docs/gdd.md`, `docs/ai/system-design.md`, `docs/evals/plan.md`, `docs/api-surface.md`), `.keelwright/stack-packs/*.md` (reviewed at gate 3), `.keelwright/scaffold.md` (pack rules applied, not applied, and left for this step), the manifest and its tasks (`package.json`, `pyproject.toml`, `justfile`), the hook, lint and CI config the scaffold created, `<plugin root>/reference/toolchains.md`, and the templates in `<plugin root>/templates/claude/` and `<plugin root>/templates/development-workflow.md`.
+**Produces:** `CLAUDE.md`, `.claude/rules/*.md`, `.claude/agents/{reviewer,tester,docs-keeper}.md`, `.claude/skills/*/SKILL.md`, `.claude/hooks/*.mjs`, `.claude/hooks/config.json`, `.claude/settings.json`, `CONTRIBUTING.md`, `.keelwright/generate.md`.
 **Gate:** none — the step ends with a summary for the user.
 
 Claude Code protects `.claude/`: every file this step writes there needs the user's approval, and a session that can't ask (e.g. headless) can't write there at all. Before writing, tell the user to expect about 15 approval prompts (they can allow edits for the rest of the session if the prompt offers it). Never work around the protection (e.g. copying with the shell); if writes are refused, leave the step `in_progress`, say what is still missing, and finish on the next `/kickoff`.
@@ -12,9 +12,9 @@ Everything generated is **tailored**: facts, names, paths and commands from this
 
 ## 1. Collect the facts
 
-- **Commands:** the npm scripts in `package.json` — use only scripts that exist.
+- **Commands:** the project's tasks, run the toolchain's way — `npm run <task>`, `uv run poe <task>` or `just <task>` (`node "<plugin root>/scripts/toolchains.mjs" tasks <toolchain> <type>`). Use only tasks that exist. The templates show npm commands as examples: write this project's commands instead, and its test tools instead of Vitest / Playwright (e.g. pytest, `flutter test`, gdUnit4, Jest with `jest-expo`). Editor-based engines have no tasks: commands come from `docs/setup.md`.
 - **Stack:** from the overview's stack table and `stack.versions`.
-- **Structure:** the overview's code structure and routes; check the folders exist.
+- **Structure:** the overview's code structure and routes (or screens, scenes, prompts and tools, public API items); check the folders exist.
 - **Conventions:** which of Clean Architecture, Atomic Design and Humble Object the project uses, and how (overview, ADRs).
 - **Pack rules**, sorted by what happens to them:
   - **already enforced** — applied by the scaffold (`.keelwright/scaffold.md`, "Pack rules applied"): lint, types, config, CI, hooks check them. They need no prose; CLAUDE.md only says not to disable those checks.
@@ -41,25 +41,29 @@ From `templates/claude/agents/`: `reviewer`, `tester`, `docs-keeper`. Fill in th
 
 From `templates/claude/skills/`, filled in for this project:
 - `implement-story` and `new-adr` — always.
-- `new-component` — when the project has a user-facing UI (`visual-identity` in the document set): the real component folder, the theme class names from `design/tokens.json`, and the framework's component rules.
+- `new-component` — when the project has a user-facing UI (`visual-identity` in the document set): the real component folder, the theme names from `design/tokens.json` (Tailwind classes on web; the generated `tokens` object or `Tokens` class in apps), and the framework's component rules.
 - When the project has a database: a `new-migration` skill (create a migration with the Supabase CLI, never edit an applied one, then have `docs-keeper` update `schema.sql` and the ERD).
+- AI projects: a `change-prompt` skill — change or add a prompt or tool by its `P-` / `T-` ID: update the file and the AI system design, add eval cases for the change to `evals/data/`, run the `eval` task only with the user's go-ahead (it costs money) and compare against the `EV-` thresholds, then record the result in the eval plan's results log.
+- Libraries: a `change-public-api` skill — any change to an `API-` item: decide whether it's breaking (the API surface's versioning rules), update `docs/api-surface.md`, deprecate before removing, and use the Conventional Commit type that produces the right version bump (`feat`, `fix`, `feat!` / `BREAKING CHANGE:`).
+- Games: none beyond the base skills unless the GDD names a repeated task (e.g. adding a level); then one skill for it.
 
 Each skill's `description` starts with what it does and when to use it — that is what makes Claude pick it.
 
 ## 6. Hooks and settings
 
 - Copy `<plugin root>/templates/claude/hooks/guard-files.mjs`, `format-on-edit.mjs` and `check-on-stop.mjs` into `.claude/hooks/` **unchanged**.
-- `.claude/settings.json` from `templates/claude/settings.json`: keep the hooks; in `permissions.allow`, keep only commands whose npm scripts exist. Never allow every shell command (`Bash(*)`).
+- Write `.claude/hooks/config.json` with the output of `node "<plugin root>/scripts/toolchains.mjs" hook-config <toolchain>` — which formatter and linter run after each edit and which `check` runs on stop. For an editor-based engine, keep the edit list empty and `check` null unless `docs/setup.md` gives a command-line check.
+- `.claude/settings.json` from `templates/claude/settings.json`: keep the hooks; in `permissions.allow`, list this project's own task commands that exist (`Bash(npm run test *)`, `Bash(uv run poe test *)`, `Bash(just test *)`…) and its test runner, instead of the template's npm lines. Never allow every shell command (`Bash(*)`) or a whole tool (`Bash(uv *)`, `Bash(cargo *)`).
 - `.claude/settings.local.json` (personal settings) must stay out of the repository: the scaffold already ignores it in `.gitignore`. Don't edit `.gitignore` here — it belongs to the scaffold step, and changing it would count as an edit to an approved step. If the line is missing, tell the user and suggest re-running `/kickoff scaffold`.
 
 ## 7. `CONTRIBUTING.md`
 
-From `templates/development-workflow.md`, with this project's real values: setup (Node.js version from `.nvmrc`, npm, gitleaks install link, `cp .env.example .env.local`), branching (GitHub Flow unless an ADR says otherwise), Conventional Commits (enforced by commitlint), the quality-gates table with the **actual** tool and hook for each row (from the scaffold), environments and deployment from the overview, releases, definition of done, and the "Working with AI agents" section pointing to `CLAUDE.md`, `.claude/rules/`, `.claude/skills/` and the agents. Remove rows and lines for things the project doesn't have. Keep the first-line `<!-- keelwright: status=generated date=YYYY-MM-DD -->` comment with today's date.
+From `templates/development-workflow.md`, with this project's real values: setup (the runtime and its version — `.nvmrc`, `.python-version`, the Flutter, Rust, Godot or engine version — the tools to install with their links, how to install the git hooks, gitleaks, `cp .env.example .env.local` when there is one), branching (GitHub Flow unless an ADR says otherwise), Conventional Commits (enforced by commitlint), the quality-gates table with the **actual** tool and hook for each row (from the scaffold), environments and deployment from the overview, releases, definition of done, and the "Working with AI agents" section pointing to `CLAUDE.md`, `.claude/rules/`, `.claude/skills/` and the agents. Remove rows and lines for things the project doesn't have. Keep the first-line `<!-- keelwright: status=generated date=YYYY-MM-DD -->` comment with today's date.
 
 ## 8. Record and check
 
 1. Write `.keelwright/generate.md`: which pack rule (or merged group) went to which file, the rules left out and why, and the generated files.
-2. `npm run format`, then `npm run check` — the generated Markdown and hook scripts must pass the project's own checks.
+2. The `format` task, then the `check` task (e.g. `npm run format` and `npm run check`) — the generated Markdown and hook scripts must pass the project's own checks. Editor-based engines: skip this.
 3. `node "<plugin root>/scripts/generatecheck.mjs"` — fix every issue and run again until it passes (count failing runs with `STATE metric generate check-failures +1`).
 
 ## 9. Finish
@@ -67,6 +71,6 @@ From `templates/development-workflow.md`, with this project's real values: setup
 1. `STATE complete generate CLAUDE.md .claude CONTRIBUTING.md .keelwright/generate.md` — only files this step owns.
 2. Summary for the user:
    - what was generated, one line per file group, with the counts (rule files, rules, skills);
-   - how to start: "ask Claude to implement US-1" (the `implement-story` skill) and what the hooks do on every edit;
+   - how to start: "ask Claude to implement US-1" (the `implement-story` skill) and what the hooks do on every edit (with this project's formatter, linter and check);
    - that everything is ready to commit, e.g. `git add -A && git commit -m "chore: add Claude Code setup and contributing guide"`;
    - open questions still marked `[NEEDS CLARIFICATION]` in the documents, which the first stories will need.
