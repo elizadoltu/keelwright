@@ -3,13 +3,16 @@
 //
 //   node preflight.mjs [--root <dir>] [--json]
 //
-// Checks the local Node.js against every resolved npm package's engines.node (required) and the
-// resolved Node.js LTS (recommended), and that git, gitleaks and — when the project has a database
-// schema — the Supabase CLI and Docker are installed. Exits 1 when something required is missing.
+// Checks what the project's toolchain needs (scripts/lib/toolchains.mjs): for Node.js projects the
+// local Node.js against every resolved npm package's engines.node (required) and the resolved LTS
+// (recommended); for the others their tools (uv, flutter, cargo, godot, just). Always git and
+// gitleaks; with a database schema, the Supabase CLI and Docker. Exits 1 when something required
+// is missing.
 
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
+import { TOOLCHAIN, detectToolchain } from './lib/toolchains.mjs';
 import { httpFetchJson, parseVersion, satisfies } from './lib/versions.mjs';
 
 const argv = process.argv.slice(2);
@@ -29,8 +32,13 @@ const tool = (cmd, args = ['--version']) => {
 const results = [];
 const add = (level, what, detail) => results.push({ level, what, detail });
 
-// Node.js: required by the packages, recommended by the stack.
+const toolchain = detectToolchain(root) ?? 'node';
+add('ok', 'Toolchain', toolchain);
+
+// Node.js: required by the packages, recommended by the stack. (Node.js also runs KeelWright's own
+// scripts, so it is always present; its version matters only for Node.js projects.)
 const local = process.version.replace(/^v/, '');
+if (toolchain === 'node') {
 const engines = [];
 for (const [name, version] of Object.entries(versions)) {
   if (name === 'node' || !/^(@[a-z0-9][\w.-]*\/)?[a-z0-9][\w.-]*$/i.test(name) || !parseVersion(String(version))) continue;
@@ -47,6 +55,20 @@ if (unmet.length) add('required', 'Node.js', `local ${local} doesn't satisfy ${u
 else add('ok', 'Node.js', `local ${local} satisfies every package's engines (${engines.length} checked)`);
 const lts = versions.node;
 if (lts && parseVersion(lts)?.major !== parseVersion(local)?.major) add('recommended', 'Node.js LTS', `the project pins Node.js ${lts.split('.')[0]} (current LTS); you have ${local}. Install it with your version manager, e.g. \`nvm install ${lts.split('.')[0]} && nvm use ${lts.split('.')[0]}\``);
+}
+
+// The toolchain's own tools.
+for (const t of TOOLCHAIN[toolchain].tools) {
+  const found = tool(t.cmd, t.cmd === 'godot' ? ['--version', '--headless'] : ['--version']);
+  add(found ? 'ok' : 'required', t.cmd, found ?? `not installed — ${t.why}`);
+}
+if (toolchain === 'python' && versions.python) add('ok', 'Python', `uv installs Python ${versions.python} for the project (no system Python needed)`);
+if (toolchain === 'dart' && versions.flutter) {
+  const flutter = tool('flutter');
+  const have = /Flutter (\d+\.\d+\.\d+)/.exec(flutter ?? '')?.[1];
+  if (have && have !== versions.flutter) add('recommended', 'Flutter', `the project was resolved with Flutter ${versions.flutter}; you have ${have} (\`flutter upgrade\`)`);
+}
+if (toolchain === 'editor') add('recommended', 'Engine / IDE', 'install the engine version the PRD names (e.g. through Unity Hub or the Epic Games Launcher) — the setup instructions in docs/setup.md say how');
 
 // Tools.
 const git = tool('git');

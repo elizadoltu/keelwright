@@ -1,9 +1,9 @@
 #!/usr/bin/env node
-// Check a scaffolded web project (spec 5.5). Run in the project root.
+// Check a scaffolded project (spec 5.5), for its toolchain and project type. Run in the project root.
 //
 //   node scaffoldcheck.mjs [--root <dir>] [--json]
 //
-// Uses the resolved versions from .keelwright/state.json when present. Exits 1 on any issue.
+// Uses the toolchain, project type and resolved versions from .keelwright/state.json when present. Exits 1 on any issue.
 
 import { existsSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';

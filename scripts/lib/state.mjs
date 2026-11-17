@@ -8,6 +8,7 @@ import {
   ALWAYS_DOCUMENTS,
   DOCUMENT_KEYS,
   PROJECT_TYPES,
+  TOOLCHAINS,
   SATISFIED,
   STEPS,
   downstreamOf,
@@ -239,6 +240,7 @@ export function mergeStack(state, patch) {
   // Nested objects (versions, packs, layers) are merged key by key, so a step can add a few
   // versions without restating the others.
   const isObj = (v) => typeof v === 'object' && v !== null && !Array.isArray(v);
+  if ('toolchain' in patch && !TOOLCHAINS.includes(patch.toolchain)) fail(`unknown toolchain "${patch.toolchain}" (toolchains: ${TOOLCHAINS.join(', ')})`);
   for (const [k, v] of Object.entries(patch)) {
     state.stack[k] = isObj(v) && isObj(state.stack[k]) ? { ...state.stack[k], ...v } : v;
   }

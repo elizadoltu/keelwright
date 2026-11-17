@@ -100,3 +100,112 @@ describe('scaffold check', () => {
     assert.ok(issues.includes("hygiene: .gitignore doesn't ignore .keelwright/snapshots"));
   });
 });
+
+function bare(files) {
+  const root = mkdtempSync(join(tmpdir(), 'keelwright-scaffold-'));
+  dirs.push(root);
+  for (const [f, c] of Object.entries(files)) {
+    mkdirSync(join(root, f, '..'), { recursive: true });
+    writeFileSync(join(root, f), c);
+  }
+  return root;
+}
+
+const PRE_COMMIT = `default_install_hook_types: [pre-commit, commit-msg]
+repos:
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: ${SHA} # frozen: v8.30.1
+    hooks:
+      - id: gitleaks
+  - repo: https://github.com/compilerla/conventional-pre-commit
+    rev: ${SHA} # frozen: v4.5.0
+    hooks:
+      - id: conventional-pre-commit
+        stages: [commit-msg]
+`;
+
+const pythonProject = (overrides = {}) => ({
+  '.keelwright/state.json': JSON.stringify({ projectType: 'ai', stack: { toolchain: 'python' } }),
+  'pyproject.toml': `[project]\nname = "support-bot"\ndependencies = [\n  "anthropic==2.9.0",\n  "fastapi==0.163.1",\n]\n\n[dependency-groups]\ndev = ["pytest==9.2.0", "ruff==0.17.5", "poethepoet==0.49.0"]\n\n[tool.poe.tasks]\nlint = "ruff check ."\nformat = "ruff format ."\nformat-check = "ruff format --check ."\ntypecheck = "pyright"\ntest = "pytest"\neval = "pytest evals"\n\n[tool.poe.tasks.check]\nsequence = ["lint", "format-check", "typecheck", "test"]\n`,
+  'uv.lock': '',
+  '.python-version': '3.15\n',
+  '.gitignore': '.venv/\n__pycache__/\n.env\n!.env.example\n.keelwright/snapshots/\n.claude/settings.local.json\n',
+  '.env.example': 'ANTHROPIC_API_KEY=\n',
+  '.pre-commit-config.yaml': PRE_COMMIT,
+  '.github/workflows/ci.yml': `steps:\n  - uses: astral-sh/setup-uv@${SHA} # v7\n  - run: uv run poe check\n  - uses: gitleaks/gitleaks-action@${SHA}\n`,
+  '.github/dependabot.yml': 'updates:\n  - package-ecosystem: uv\n  - package-ecosystem: pre-commit\n  - package-ecosystem: github-actions\n',
+  'tests/test_answer.py': 'def test_x(): pass\n',
+  ...overrides,
+});
+
+describe('scaffold check: other toolchains', () => {
+  test('a complete Python project passes', () => {
+    assert.deepEqual(areas(checkScaffold(bare(pythonProject()), { versions: { python: '3.15.2', anthropic: '2.9.0' } })), []);
+  });
+
+  test('Python: ranges in an app, missing tasks, unpinned hook revs', () => {
+    const files = pythonProject({
+      'pyproject.toml': '[project]\ndependencies = ["anthropic>=2.9.0"]\n\n[tool.poe.tasks]\ntest = "pytest"\n',
+      '.pre-commit-config.yaml': 'repos:\n  - repo: https://github.com/gitleaks/gitleaks\n    rev: v8.30.1\n    hooks:\n      - id: gitleaks\n',
+    });
+    const issues = areas(checkScaffold(bare(files)));
+    for (const expected of [
+      'tasks: task "check" is missing (uv run poe check)',
+      'tasks: task "format-check" is missing (uv run poe format-check)',
+      'versions: "anthropic>=2.9.0" is not an exact version (==)',
+      'hooks: no Conventional Commits check on commit-msg (compilerla/conventional-pre-commit)',
+      'hooks: https://github.com/gitleaks/gitleaks rev v8.30.1 is not pinned to a commit SHA (pre-commit autoupdate --freeze)',
+    ]) assert.ok(issues.includes(expected), `missing "${expected}" in ${JSON.stringify(issues, null, 1)}`);
+  });
+
+  test('a Python library may declare ranges for its users, with the resolved version as lower bound', () => {
+    const files = pythonProject({
+      '.keelwright/state.json': JSON.stringify({ projectType: 'library', stack: { toolchain: 'python' } }),
+      'pyproject.toml': pythonProject()['pyproject.toml'].replace('"anthropic==2.9.0"', '"anthropic>=2.8"').replace('"fastapi==0.163.1"', '"fastapi>=0.163.1"').replace('[tool.poe.tasks.check]', 'build = "uv build"\n\n[tool.poe.tasks.check]'),
+    });
+    assert.deepEqual(areas(checkScaffold(bare(files), { versions: { anthropic: '2.9.0', fastapi: '0.163.1' } })), ['versions: "anthropic>=2.8" should have the resolved 2.9.0 as its lower bound (e.g. >=2.9.0)']);
+  });
+
+  test('Godot: justfile tasks, .godot ignored, gdUnit test', () => {
+    const files = {
+      '.keelwright/state.json': JSON.stringify({ projectType: 'game', stack: { toolchain: 'godot' } }),
+      'project.godot': 'config_version=5\n',
+      justfile: 'lint:\n  uvx --from "gdtoolkit==4.*" gdlint .\nformat:\n  gdformat .\nformat-check:\n  gdformat --check .\ntest:\n  ./addons/gdUnit4/runtest.sh -a res://test\ncheck: lint format-check test\n',
+      '.gitignore': '.godot/\n.env\n.keelwright/snapshots/\n.claude/settings.local.json\n',
+      '.pre-commit-config.yaml': PRE_COMMIT,
+      '.github/workflows/ci.yml': `steps:\n  - uses: actions/checkout@${SHA}\n  - run: just check\n  - uses: gitleaks/gitleaks-action@${SHA}\n`,
+      '.github/dependabot.yml': 'updates:\n  - package-ecosystem: pre-commit\n  - package-ecosystem: github-actions\n',
+      'test/test_score.gd': 'extends GdUnitTestSuite\n',
+    };
+    assert.deepEqual(areas(checkScaffold(bare(files))), []);
+    assert.deepEqual(areas(checkScaffold(bare({ ...files, 'test/test_score.gd': '', justfile: 'test:\n  x\n' }))).filter((i) => i.startsWith('tasks')), ['tasks: task "lint" is missing (just lint)', 'tasks: task "format" is missing (just format)', 'tasks: task "format-check" is missing (just format-check)', 'tasks: task "check" is missing (just check)']);
+  });
+
+  test('Rust: a unit test means a #[test] function', () => {
+    const files = {
+      'Cargo.toml': '[package]\nname = "csvtool"\n',
+      'Cargo.lock': '',
+      'rust-toolchain.toml': '[toolchain]\nchannel = "1.100.0"\n',
+      justfile: 'lint:\n  cargo clippy\nformat:\n  cargo fmt\nformat-check:\n  cargo fmt --check\ntest:\n  cargo test\nbuild:\n  cargo build --release\ncheck: lint format-check test\n',
+      '.keelwright/state.json': JSON.stringify({ projectType: 'library', stack: { toolchain: 'rust' } }),
+      '.gitignore': 'target/\n.env\n.keelwright/snapshots/\n.claude/settings.local.json\n',
+      '.pre-commit-config.yaml': PRE_COMMIT,
+      '.github/workflows/ci.yml': `steps:\n  - run: just check\n  - uses: gitleaks/gitleaks-action@${SHA}\n`,
+      '.github/dependabot.yml': 'updates:\n  - package-ecosystem: cargo\n  - package-ecosystem: pre-commit\n  - package-ecosystem: github-actions\n',
+      'src/lib.rs': 'pub fn parse() {}\n',
+    };
+    assert.deepEqual(areas(checkScaffold(bare(files))), ['tests: no unit test (#[test] in src/ or tests/)']);
+    assert.deepEqual(areas(checkScaffold(bare({ ...files, 'src/lib.rs': '#[cfg(test)]\nmod tests {\n  #[test]\n  fn parses() {}\n}\n' }))), []);
+  });
+
+  test('editor-based engines need setup instructions instead of tasks', () => {
+    const files = {
+      '.keelwright/state.json': JSON.stringify({ projectType: 'game', stack: { toolchain: 'editor' } }),
+      '.gitignore': '.env\n.keelwright/snapshots/\n.claude/settings.local.json\n',
+      '.pre-commit-config.yaml': PRE_COMMIT,
+      '.github/workflows/ci.yml': `steps:\n  - uses: gitleaks/gitleaks-action@${SHA}\n`,
+      '.github/dependabot.yml': 'updates:\n  - package-ecosystem: github-actions\n',
+    };
+    assert.deepEqual(areas(checkScaffold(bare(files))), ['setup: no docs/setup.md — editor-based projects get written setup instructions']);
+  });
+});
