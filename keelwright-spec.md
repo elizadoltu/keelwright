@@ -361,7 +361,8 @@ Creates a working repository for the chosen stack, using the versions resolved i
 - GitHub Actions CI — check, build, Playwright, gitleaks, commitlint — with every action pinned to a commit SHA (`scripts/versions.mjs` resolves release tags to SHAs).
 - Dependabot for npm and GitHub Actions (Renovate when chosen instead).
 - A Vitest unit test of a real helper and a Playwright smoke test over the P1 routes, passing out of the box.
-- When a database is used: Supabase local setup, with `docs/architecture/schema.sql` copied into the first migration (6.0, data model lifecycle).
+- When a database is used: `docs/architecture/schema.sql` copied into the first migration (6.0, data model lifecycle) — with the Supabase CLI's local setup when the database is Supabase, otherwise with the migration tool the ADRs chose (plain SQL in `migrations/` until one is chosen).
+- A package that installing forces below its resolved version gets a hold-back ADR from the scaffold itself (a new file, so not an edit to an earlier step).
 - `.env.example`; no secrets are ever written.
 
 The step must pass `npm run check`, `npm run build`, `npm run test:e2e` and `scripts/scaffoldcheck.mjs` (exact versions, scripts, hooks with gitleaks, pinned actions, dependency updates, theme in sync, migration present) before it completes. It records configuration files as its outputs, not source folders, so ordinary feature work doesn't count as an edit to the scaffold. It never commits for the user.

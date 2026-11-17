@@ -135,6 +135,8 @@ The scaffold still creates everything that doesn't need the engine: `.gitignore`
           types: [<python | dart | rust | …>]
   ```
 
+  Claude Code protects `.pre-commit-config.yaml` (like `.husky/`): writing it needs the user's approval, and a headless session can't write it at all — the step then shows the file for the user to create.
+
   Revs are commit SHAs with the tag as a comment (`versions.mjs github:<owner>/<repo>`, or `pre-commit autoupdate --freeze`). Dependabot's `pre-commit` ecosystem keeps them current.
 
 ## CI and dependency updates

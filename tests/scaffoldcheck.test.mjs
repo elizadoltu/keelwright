@@ -91,6 +91,10 @@ describe('scaffold check', () => {
       'supabase/migrations/20261116000000_init.sql': 'create table clients (id uuid);\n',
     });
     assert.deepEqual(areas(checkScaffold(root)), ['database: table invoices from schema.sql is not in the first migration']);
+    const plain = project({ 'docs/architecture/schema.sql': 'create table articles (id uuid);\n', 'migrations/20261117000000_init.sql': 'create table articles (id uuid);\n' });
+    assert.deepEqual(areas(checkScaffold(plain)), [], 'plain SQL migrations for a database other than Supabase');
+    const none = project({ 'docs/architecture/schema.sql': 'create table articles (id uuid);\n' });
+    assert.deepEqual(areas(checkScaffold(none)), ['database: docs/architecture/schema.sql exists but there is no SQL migration (supabase/migrations/, migrations/ or db/migrations/)']);
   });
 
   test('.gitignore must cover secrets and snapshots', () => {

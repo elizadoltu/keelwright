@@ -6,7 +6,7 @@
 // Checks what the project's toolchain needs (scripts/lib/toolchains.mjs): for Node.js projects the
 // local Node.js against every resolved npm package's engines.node (required) and the resolved LTS
 // (recommended); for the others their tools (uv, flutter, cargo, godot, just). Always git and
-// gitleaks; with a database schema, the Supabase CLI and Docker. Exits 1 when something required
+// gitleaks; with a Supabase database, the Supabase CLI and Docker. Exits 1 when something required
 // is missing.
 
 import { execFileSync } from 'node:child_process';
@@ -75,7 +75,8 @@ const git = tool('git');
 add(git ? 'ok' : 'required', 'git', git ?? 'not installed');
 const gitleaks = tool('gitleaks', ['version']);
 add(gitleaks ? 'ok' : 'recommended', 'gitleaks', gitleaks ?? 'not installed — the pre-commit hook needs it (https://github.com/gitleaks/gitleaks#installing)');
-if (existsSync(join(root, 'docs/architecture/schema.sql'))) {
+// The Supabase CLI only when the stack's database is Supabase (another PostgreSQL uses its own migration tool).
+if (existsSync(join(root, 'docs/architecture/schema.sql')) && /supabase/i.test(JSON.stringify(state.stack ?? {}))) {
   const supabase = tool('supabase');
   add(supabase ? 'ok' : 'required', 'Supabase CLI', supabase ?? 'not installed — needed for the local database and migrations');
   const docker = tool('docker');

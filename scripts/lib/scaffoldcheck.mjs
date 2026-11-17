@@ -161,11 +161,12 @@ export function checkScaffold(root, { versions = {}, toolchain = null, projectTy
   // --- database ----------------------------------------------------------------------------------
   const schema = read(root, 'docs/architecture/schema.sql');
   if (schema) {
-    const migDir = join(root, 'supabase/migrations');
-    const migrations = existsSync(migDir) ? readdirSync(migDir).filter((f) => f.endsWith('.sql')).sort() : [];
-    if (!migrations.length) add('database', 'docs/architecture/schema.sql exists but supabase/migrations/ has no migration');
+    // Supabase, or any other PostgreSQL with plain SQL migrations.
+    const migDir = ['supabase/migrations', 'migrations', 'db/migrations'].find((d) => existsSync(join(root, d)) && readdirSync(join(root, d)).some((f) => f.endsWith('.sql')));
+    const migrations = migDir ? readdirSync(join(root, migDir)).filter((f) => f.endsWith('.sql')).sort() : [];
+    if (!migrations.length) add('database', 'docs/architecture/schema.sql exists but there is no SQL migration (supabase/migrations/, migrations/ or db/migrations/)');
     else {
-      const first = read(root, `supabase/migrations/${migrations[0]}`).toLowerCase();
+      const first = read(root, `${migDir}/${migrations[0]}`).toLowerCase();
       for (const m of schema.matchAll(/create table\s+(?:if not exists\s+)?([\w."]+)/gi)) {
         if (!first.includes(m[1].toLowerCase().replace(/"/g, ''))) add('database', `table ${m[1]} from schema.sql is not in the first migration`);
       }

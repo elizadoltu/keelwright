@@ -10,7 +10,7 @@ This step runs package installs and creates many files. Tell the user what it is
 
 **Toolchain rules:** `reference/toolchains.md` for the project's `stack.toolchain` — the generator, the task contract (`node "<plugin root>/scripts/toolchains.mjs" tasks <toolchain> <project type>` lists the tasks this project must have), versions, git hooks, CI, ignores. Where this file says `npm`, Husky or Playwright, it means the toolchain's equivalent there. Web projects follow `reference/web-scaffold.md` as well.
 
-Claude Code asks for approval before writing some paths, such as `.husky/`, `.npmrc` and `.vscode/`; tell the user to expect those prompts. If a write is refused or can't be approved (e.g. a headless run), use the tool's own command where one exists (e.g. `npm config set … --location=project` for `.npmrc`); otherwise show the user the exact file content, leave the step `in_progress`, and finish on the next `/kickoff`.
+Claude Code asks for approval before writing some paths, such as `.husky/`, `.pre-commit-config.yaml`, `.npmrc` and `.vscode/`; tell the user to expect those prompts. If a write is refused or can't be approved (e.g. a headless run), use the tool's own command where one exists (e.g. `npm config set … --location=project` for `.npmrc`); otherwise show the user the exact file content, leave the step `in_progress`, and finish on the next `/kickoff`.
 
 ## 1. Preflight
 
@@ -32,6 +32,7 @@ If the folder isn't a git repository, run `git init` (the hooks need it). Never 
 Follow "Versions" in `reference/toolchains.md` (and `reference/web-scaffold.md` for web):
 - Dependencies from `stack.versions` — exact for apps; for libraries, ranges with the resolved version as the lower bound for what users install, exact for development tools.
 - Tools the stack packs' rules require (ESLint plugins, Prettier plugins, configs, coverage provider…) — resolve them now, check peers, add them to `stack.versions`. Don't add a package no rule or document asks for.
+- If installing forces a package below its resolved version (a conflict the `prd` step couldn't see, e.g. between two Python packages' requirements), record it: `STATE set stack` with the held-back version, and a new ADR `docs/decisions/NNNN-hold-<package>-at-<version>.md` (next free number, status `proposed`) quoting the requirement that forced it. A new ADR isn't an edit to an earlier step's files; list it in this step's outputs and in the summary, and say which documents still name the newer version (re-running `/kickoff architecture` updates them).
 - Then install with the toolchain's tool (`npm install`, `uv sync`, `flutter pub get`, `cargo fetch`) and confirm it reports no dependency conflicts. The lockfile is committed.
 
 ## 4. Configuration from the stack packs
@@ -83,7 +84,11 @@ Follow "Git hooks" and "CI and dependency updates" in `reference/toolchains.md` 
 
 ## 7. Database
 
-Only when `docs/architecture/schema.sql` exists: `supabase init` (non-interactive), then copy the schema into `supabase/migrations/<UTC timestamp>_init.sql`. From now on the migrations are the source of truth for the schema (spec 6.0).
+Only when `docs/architecture/schema.sql` exists. Use the database the ADRs chose:
+- **Supabase:** `supabase init` (non-interactive), then copy the schema into `supabase/migrations/<UTC timestamp>_init.sql`.
+- **Any other PostgreSQL** (e.g. a managed database at a cloud provider): the migration tool the ADRs name (or, if none, plain SQL files in `migrations/` and a note in the summary that a migration runner is still to be chosen); the schema becomes `migrations/<UTC timestamp>_init.sql` (or the tool's first migration). For local development a Postgres container is enough — don't add Supabase just to run it.
+
+From now on the migrations are the source of truth for the schema (spec 6.0).
 
 ## 8. Make it pass
 
@@ -94,4 +99,4 @@ Only when `docs/architecture/schema.sql` exists: `supabase init` (non-interactiv
 ## 9. Finish
 
 1. Tell the user: what was created, the commands they'll use (e.g. `npm run dev`, `npm run check`; `uv run poe check`; `just check`), how to install the git hooks when the toolchain needs a step for it (`uvx pre-commit install` for pre-commit), anything the preflight warned about, and that the scaffold is ready to commit (`git add -A && git commit -m "chore: scaffold project"` — the hooks run on that commit). For editor-based engines: that `docs/setup.md` is the next thing to do.
-2. `STATE complete scaffold <manifest> <lockfile> <runtime pin> <each config file> <hooks: .husky or .pre-commit-config.yaml> .github .env.example .gitignore <justfile> <docs/setup.md> .keelwright/scaffold.md` — only the files that exist; record configuration, not source folders: `src/`, `lib/`, scenes and prompts change with every feature and must not count as an edit to the scaffold. For a Python project the tasks live in `pyproject.toml`, so it is recorded like any manifest.
+2. `STATE complete scaffold <manifest> <lockfile> <any hold-back ADR> <runtime pin> <each config file> <hooks: .husky or .pre-commit-config.yaml> .github .env.example .gitignore <justfile> <docs/setup.md> .keelwright/scaffold.md` — only the files that exist; record configuration, not source folders: `src/`, `lib/`, scenes and prompts change with every feature and must not count as an edit to the scaffold. For a Python project the tasks live in `pyproject.toml`, so it is recorded like any manifest.
