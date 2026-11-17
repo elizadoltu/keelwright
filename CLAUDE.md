@@ -14,6 +14,7 @@ Claude Code plugin that bootstraps projects (`/kickoff`, later `/adopt`). The sp
 - `scripts/preflight.mjs`, `scripts/scaffoldcheck.mjs`, `scripts/tokens-to-css.mjs` (+ `scripts/lib/tokens.mjs`, which must stay import-free because the scaffold copies it into projects) — used by the scaffold step
 - `templates/claude/` — templates for the generated Claude setup; `templates/claude/hooks/*.mjs` are copied into projects unchanged, so they must stay dependency-free and tested (`tests/hooks.test.mjs`)
 - `scripts/generatecheck.mjs` — checks the generated agent setup (the base for `/adopt` audit mode)
+- `scripts/publish.mjs` + `scripts/lib/publish.mjs` — plans the `publish` step from the documents and `.keelwright/publish.json`; the step itself calls the Atlassian MCP tools
 - `stack-packs/` — shipped stack packs, produced with `scripts/research-pack.mjs` (costs money); `shipped.json` lists them
 
 ## Rules
