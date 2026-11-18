@@ -107,15 +107,15 @@ Repeat:
 
 1. Run `STATE next --json`.
 2. On `{"action": "run", "step": …}` → run the step (section 6), then repeat.
-   - If the step is `publish` (`"optional": true`): publishing is not built for `/adopt` yet (the Jira plan reads a PRD, which `/adopt` doesn't write). Run `STATE start publish` and `STATE skip publish --reason "not available in /adopt yet"`, then repeat.
+   - If the step is `publish` (`"optional": true`), first ask whether the user wants the documents in Confluence (Jira isn't offered: it needs a PRD). If not, run `STATE start publish` and `STATE skip publish --reason "not requested"`, then repeat.
 3. On `{"action": "review", "gate": N}` → hold the review gate (section 7) and stop.
-4. On `{"action": "complete"}` → tell the user the adoption is finished, with a short summary of what exists now and what was declined in `gaps`. Stop.
+4. On `{"action": "complete"}` → tell the user the adoption is finished, with a short summary of what exists now and what was declined in `gaps`, and suggest `/adopt report` to rate the documents. Stop.
 
 Run as many steps as you can in one go; the pipeline only pauses at review gates, when a step needs answers from the user, or when a step is not implemented yet.
 
 ## 6. Running a step
 
-1. Read `${CLAUDE_PLUGIN_ROOT}/steps/<step>.md`. The `research` and `generate` step files serve both `/kickoff` and `/adopt`: follow their **In /adopt** section where it differs.
+1. Read `${CLAUDE_PLUGIN_ROOT}/steps/<step>.md`. The `research`, `generate` and `publish` step files serve both `/kickoff` and `/adopt`: follow their **In /adopt** section where it differs.
 2. **If the step file says it is not implemented yet** — for the whole step, or for `/adopt` — tell the user: the step name, what it will produce, and that this version of KeelWright stops here. Don't change the state. Stop.
 3. Run `STATE start <step>` **before any of the step's work** — before writing or editing any file — so the step's time is measured.
 4. Follow the step's instructions. They say what to read, what to produce, and when to ask the user.

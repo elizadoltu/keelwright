@@ -1,15 +1,16 @@
 #!/usr/bin/env node
 // Facts about an existing repository for `/adopt` create mode (spec 5.2.1). Read-only.
 //
-//   node analyse.mjs [--root <dir>] [--json | --preflight]
+//   node analyse.mjs [--root <dir>] [--json | --preflight | --gaps | --hook-config]
 //
 // Without flags: a short summary for people. --json: everything, for the `analyse` step.
 // --preflight: JSON with the mode and what stops /adopt before it starts (audit, monorepo,
-// unsupported toolchain, no project).
+// unsupported toolchain, no project). --gaps: the gaps still open, one per line (`gaps` re-checks
+// with it). --hook-config: .claude/hooks/config.json from the project's own tools (`generate`).
 
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { analyse, preflight, summary } from './lib/analyse.mjs';
+import { analyse, hookConfig, preflight, summary } from './lib/analyse.mjs';
 
 const args = process.argv.slice(2);
 const flag = (name) => {
@@ -22,6 +23,8 @@ const pluginRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
 try {
   const a = analyse(root, { pluginRoot });
   if (args.includes('--preflight')) console.log(JSON.stringify(preflight(a), null, 2));
+  else if (args.includes('--gaps')) console.log(a.gaps.map((g) => `${g.id}\t${g.issue}`).join('\n') || 'none');
+  else if (args.includes('--hook-config')) console.log(JSON.stringify(hookConfig(a, root), null, 2));
   else console.log(args.includes('--json') ? JSON.stringify(a, null, 2) : summary(a));
 } catch (err) {
   console.error(`analyse: ${err.message}`);

@@ -557,6 +557,8 @@ export function gaps(a, files) {
   if (!a.tasks.contract.lint && !tl.lint.length) add('lint', 'no linter configured');
   else if (!a.tasks.contract.lint) add('tasks', 'no lint task (a linter is configured, but no script runs it)');
   if (!a.tasks.contract.test) add('tasks', a.tests.count ? 'no test task (test files exist)' : 'no test task and no tests');
+  const parts = ['lint', 'typecheck', 'test'].filter((t) => a.tasks.contract[t]);
+  if (!a.tasks.contract.check && parts.length >= 2) add('check-task', `no single check task — ${parts.join(', ')} run separately, so the Claude stop hook and CI have no one command to run`);
   if (a.toolchain && a.dependencies.length && !a.lockfiles.length && a.toolchain !== 'godot' && a.toolchain !== 'editor') add('lockfile', 'no lockfile committed');
   if (a.toolchain && !Object.keys(a.runtime).length && ['node', 'python'].includes(a.toolchain)) add('runtime-pin', `no pinned ${a.toolchain === 'node' ? 'Node.js' : 'Python'} version`);
   const committedEnv = files.filter((f) => /(^|\/)\.env(\.[\w-]+)?$/.test(f) && !/\.(example|sample|template)$/.test(f) && !/(^|\/)(tests?|fixtures?|examples?|test_apps)\//.test(f));
@@ -592,6 +594,39 @@ export function analyse(root, { pluginRoot = null } = {}) {
 }
 
 // A short human-readable summary (the step reads the JSON; this is for people).
+// .claude/hooks/config.json for an adopted project: the formatter and linter it already has, run
+// on each edited file, and its own check on stop — never tools it doesn't use (spec 5.2.1, 5.3).
+const PY_PREFIX = { uv: ['uv', 'run'], poetry: ['poetry', 'run'], pdm: ['pdm', 'run'] };
+export function hookConfig(a, root = null) {
+  const has = (kind, name) => a.tooling[kind].some((t) => t.name === name);
+  const onEdit = [];
+  const checkCmd = a.tasks.contract.check ?? null;
+  let requires = null;
+  if (a.toolchain === 'node') {
+    const bin = (b) => `node_modules/.bin/${b}`;
+    const code = '\\.(?:[cm]?[jt]sx?|astro|vue|svelte)$';
+    if (has('format', 'Prettier')) onEdit.push({ run: [bin('prettier'), '--write', '--ignore-unknown', '--log-level', 'warn', '{file}'] });
+    if (has('lint', 'Biome') || has('format', 'Biome')) onEdit.push({ files: `${code.slice(0, -1)}|json)$`, run: [bin('biome'), 'check', '--write', '--no-errors-on-unmatched', '{file}'], report: true, label: 'Biome' });
+    if (has('lint', 'ESLint')) onEdit.push({ files: code, run: [bin('eslint'), '--fix', '--no-warn-ignored', '{file}'], report: true, label: 'ESLint' });
+    requires = 'node_modules';
+  } else if (a.toolchain === 'python') {
+    const pre = PY_PREFIX[a.packageManager] ?? [];
+    const py = '\\.pyi?$';
+    if (has('format', 'Ruff format') || (has('lint', 'Ruff') && !has('format', 'Black'))) onEdit.push({ files: py, run: [...pre, 'ruff', 'format', '{file}'] });
+    if (has('format', 'Black')) onEdit.push({ files: py, run: [...pre, 'black', '--quiet', '{file}'] });
+    if (has('lint', 'Ruff')) onEdit.push({ files: py, run: [...pre, 'ruff', 'check', '--fix', '{file}'], report: true, label: 'Ruff' });
+    if (a.packageManager === 'uv') requires = '.venv';
+  } else if (a.toolchain === 'dart') {
+    onEdit.push({ files: '\\.dart$', run: ['dart', 'format', '{file}'] }, { files: '\\.dart$', run: ['dart', 'analyze', '{file}'], report: true, label: 'dart analyze' });
+    requires = '.dart_tool';
+  } else if (a.toolchain === 'rust') {
+    const edition = /^\s*edition\s*=\s*"(\d{4})"/m.exec((root && read(root, 'Cargo.toml')) ?? '')?.[1] ?? '2021';
+    onEdit.push({ files: '\\.rs$', run: ['rustfmt', '--edition', edition, '{file}'] });
+  }
+  const check = checkCmd ? { run: checkCmd.split(/\s+/), requires, label: checkCmd } : null;
+  return { onEdit, check };
+}
+
 // What /adopt checks before it creates any state: an existing Claude setup (audit mode), a
 // monorepo (adopt one package, from its folder), a toolchain KeelWright supports, and a project at all.
 export function preflight(a) {

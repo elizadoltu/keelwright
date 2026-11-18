@@ -55,8 +55,16 @@ export function repoUrlFromRemote(remote) {
 // ---------------------------------------------------------------------------
 
 export function productName(root) {
-  const prd = read(root, 'docs/prd.md') ?? '';
-  return /^#\s+(?:PRD:\s*)?(.+)$/m.exec(stripFrontMatter(prd))?.[1].trim() ?? 'Project';
+  // /kickoff: the PRD's title. /adopt (no PRD): the analysis's title, then the manifest's name.
+  const title = (file, re) => re.exec(stripFrontMatter(read(root, file) ?? ''))?.[1].trim();
+  let manifest = null;
+  try {
+    manifest = JSON.parse(read(root, 'package.json') ?? 'null')?.name ?? null;
+  } catch {
+    // not JSON
+  }
+  manifest ??= /^\s*name\s*=\s*"([^"]+)"/m.exec(read(root, 'pyproject.toml') ?? read(root, 'Cargo.toml') ?? '')?.[1] ?? null;
+  return title('docs/prd.md', /^#\s+(?:PRD:\s*)?(.+)$/m) ?? title('.keelwright/analysis.md', /^#\s+(?:Analysis:\s*)?(.+)$/m) ?? manifest ?? 'Project';
 }
 
 // "### US-1 [P1] Title" blocks: the story sentence, acceptance criteria and anything else in the block.
@@ -186,7 +194,7 @@ function markdownFiles(root, dir) {
     });
 }
 
-const FOLDER_TITLES = { architecture: 'Architecture', decisions: 'Decisions', design: 'Design', ai: 'AI', evals: 'Evaluation', api: 'API' };
+const FOLDER_TITLES = { architecture: 'Architecture', decisions: 'Decisions', adr: 'Decisions', adrs: 'Decisions', design: 'Design', ai: 'AI', evals: 'Evaluation', api: 'API' };
 const folderTitle = (product, folder) => `${product} — ${FOLDER_TITLES[posix.basename(folder)] ?? posix.basename(folder).replace(/[-_]/g, ' ').replace(/^./, (c) => c.toUpperCase())}`;
 
 // Front matter as one line of metadata; instruction comments removed; local links to other
