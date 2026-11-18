@@ -63,21 +63,25 @@ function loadCases(names) {
   if (unknown.length) throw new Error(`unknown case(s): ${unknown.join(', ')} (cases: ${all.join(', ')})`);
   return (names.length ? names : all).map((name) => {
     const dir = join(CASES, name);
-    return { name, dir, input: readFileSync(join(dir, 'input.md'), 'utf8'), ...JSON.parse(readFileSync(join(dir, 'case.json'), 'utf8')) };
+    const input = existsSync(join(dir, 'input.md')) ? readFileSync(join(dir, 'input.md'), 'utf8') : null; // /adopt cases have a repo/ instead
+    return { name, dir, input, ...JSON.parse(readFileSync(join(dir, 'case.json'), 'utf8')) };
   });
 }
 
 async function grade(c, dir, o) {
-  const run = loadRun(dir);
+  const run = loadRun(dir, c);
   const grades = {};
   for (const [name, fn] of Object.entries(GRADERS)) {
     const r = fn(run, c.expect ?? {}, c);
     if (r) grades[name] = r;
   }
-  try {
-    grades.versions = await gradeVersions(run, httpFetchJson);
-  } catch (err) {
-    grades.versions = { pass: false, detail: `could not check: ${err.message}` };
+  // /adopt records the versions in use, which are old on purpose: `versions-in-use` checks them instead.
+  if (c.mode !== 'adopt') {
+    try {
+      grades.versions = await gradeVersions(run, httpFetchJson);
+    } catch (err) {
+      grades.versions = { pass: false, detail: `could not check: ${err.message}` };
+    }
   }
   let judgeCost = 0;
   if (o.judges) {

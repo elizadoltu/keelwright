@@ -1,0 +1,16 @@
+image: python:3.12
+
+before_script:
+  - pip install poetry==1.8.4
+  - poetry install
+
+lint:
+  script: make lint typecheck
+
+test:
+  script: make test
+
+nightly:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+  script: make run

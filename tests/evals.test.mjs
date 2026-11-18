@@ -193,3 +193,81 @@ describe('versions grader', async () => {
     assert.match(r.detail, /python 3.14.0 is not the current stable \(3.15.2\); ruff 0.17.4 is older than 0.17.5 with no ADR/);
   });
 });
+
+describe('/adopt eval cases', () => {
+  const PLUGIN = join(import.meta.dirname, '..');
+  const caseDir = join(PLUGIN, 'evals/cases/adopt-orders-api');
+  const ORDERS = { name: 'adopt-orders-api', dir: caseDir, ...JSON.parse(readFileSync(join(caseDir, 'case.json'), 'utf8')), stopAtGate: 1 };
+
+  const ANALYSIS = (evidence) => `---\nstatus: draft\n---\n\n# Analysis: Orders API\n\n## Conventions\n\n| ID | Area | Convention | Evidence | Followed |\n|---|---|---|---|---|\n| C-01 | errors | Handlers throw \`HttpError\` | ${evidence} | mixed — \`src/routes/health.ts\` answers itself |\n| C-02 | layers | Routes call a service, services call repositories | \`src/services/orderService.ts\` | consistent |\n\n## Gaps\n\n| ID | Gap | Proposed fix |\n|---|---|---|\n| G-01 | no secret scanning (gitleaks) | gitleaks in CI |\n| G-02 | no git hooks | Husky |\n| G-03 | no Dependabot | dependabot.yml |\n`;
+
+  // /adopt as the runner sees it: asks about the branch first, then analyses and stops at gate 1.
+  const fakeAdopt = ({ evidence = '`src/errors.ts`, `src/app.ts`', touch = null } = {}) => async ({ cwd, prompt }) => {
+    if (prompt === '/keelwright:adopt') return { session_id: 's', total_cost_usd: 0.1, result: 'Create a branch keelwright-adopt?' };
+    if (prompt.startsWith('Stay on the current branch')) {
+      const s = S.create({ version: 'test', now: NOW, mode: 'adopt' });
+      S.start(s, 'analyse', { now: NOW });
+      S.mergeStack(s, { toolchain: 'node', versions: { express: '4.21.2', pg: '8.13.1' } });
+      write(cwd, '.keelwright/analysis.md', ANALYSIS(evidence));
+      if (touch) write(cwd, touch, '// changed by the run\n');
+      S.complete(s, 'analyse', ['.keelwright/analysis.md'], { root: cwd, now: NOW });
+      S.save(cwd, s);
+    }
+    return { session_id: 's', total_cost_usd: 0.4, result: 'ok' };
+  };
+
+  test('nextMessage: stay on the branch first; apply fixes in gaps', () => {
+    assert.deepEqual(nextMessage(null, ORDERS, 0, { call: 1 }), { message: 'Stay on the current branch and continue.' });
+    assert.equal(nextMessage(null, ORDERS, 0, { call: 2 }).stop, 'no state after the first call');
+    const s = S.create({ version: 't', now: NOW, mode: 'adopt' });
+    for (const step of ['analyse', 'document', 'research']) s.steps[step] = { status: 'approved' };
+    s.steps.gaps = { status: 'in_progress' };
+    assert.match(nextMessage(s, { ...ORDERS, stopAtGate: 3 }, 0).message, /Apply every proposed fix/);
+  });
+
+  test('a run on the fixture repo: reaches gate 1, cites real files, changes no code', async () => {
+    const out = temp();
+    const r = await runCase(ORDERS, { pluginDir: PLUGIN, outDir: out, invoke: fakeAdopt() });
+    assert.equal(r.stop, 'reached gate 1');
+    const run = loadRun(out, ORDERS);
+    assert.ok(run.files.before['src/routes/health.ts'] && run.files.after['.keelwright/analysis.md']);
+    const g = (name) => GRADERS[name](run, ORDERS.expect, ORDERS);
+    for (const name of ['mode', 'reached-gate', 'cited-files', 'code-untouched', 'analysis-check', 'conventions', 'gaps-found', 'versions-in-use']) assert.equal(g(name).pass, true, `${name}: ${g(name).detail}`);
+    assert.equal(g('adr-folder'), null, 'not graded before the document step');
+    assert.equal(g('adr-traceability'), null);
+  });
+
+  test('an invented file and a changed source file fail their graders', async () => {
+    const out = temp();
+    await runCase(ORDERS, { pluginDir: PLUGIN, outDir: out, invoke: fakeAdopt({ evidence: '`src/middleware/errors.ts`', touch: 'src/routes/health.ts' }) });
+    const run = loadRun(out, ORDERS);
+    assert.match(GRADERS['cited-files'](run, ORDERS.expect).detail, /src\/middleware\/errors.ts/);
+    assert.deepEqual(GRADERS['code-untouched'](run, ORDERS.expect), { pass: false, detail: 'changed: src/routes/health.ts' });
+  });
+
+  test('ADR folder, retroactive ADRs and pack majors after the document and research steps', () => {
+    const dir = temp();
+    write(dir, '.keelwright/state.json', JSON.stringify({ mode: 'adopt', steps: { document: { status: 'awaiting_review' }, research: { status: 'awaiting_review' } } }));
+    const before = { 'docs/adr/0001-use-express.md': 'a', 'src/db.ts': 'b' };
+    write(dir, '.eval/files.json', JSON.stringify({ before, after: { ...before, 'docs/adr/0002-use-postgresql-through-pg.md': 'c', 'docs/decisions/0001-record-architecture-decisions.md': 'd' } }));
+    write(dir, 'docs/adr/0002-use-postgresql-through-pg.md', '# 0002. Use PostgreSQL through pg\n\n## Context\n\nRecorded retroactively by KeelWright from the code on 2026-11-18.\n\n## Decision\n\nEvidence:\n- `src/db.ts` — the pool\n\n## Alternatives\n\nWe also considered MongoDB and MySQL.\n');
+    write(dir, '.keelwright/stack-packs/express.md', '---\nid: express\nmajor: 5\n---\n');
+    const run = loadRun(dir, ORDERS);
+    assert.match(GRADERS['adr-folder'](run, ORDERS.expect).detail, /ADRs written outside the project's folder: docs\/decisions\/0001/);
+    assert.match(GRADERS['retro-adrs'](run, ORDERS.expect).detail, /lists alternatives the repository never mentions/);
+    assert.deepEqual(GRADERS['pack-majors'](run, ORDERS.expect), { pass: false, detail: 'express: expected major 4' });
+  });
+
+  test('every adopt fixture repo gives the facts its case expects from the analysis script', async () => {
+    const { analyse } = await import('../scripts/lib/analyse.mjs');
+    for (const name of ['adopt-orders-api', 'adopt-etl-python', 'adopt-workspace-app']) {
+      const c = JSON.parse(readFileSync(join(PLUGIN, 'evals/cases', name, 'case.json'), 'utf8'));
+      const a = analyse(join(PLUGIN, 'evals/cases', name, 'repo'));
+      assert.equal(a.mode, 'create', name);
+      assert.equal(a.toolchain, c.expect.toolchain, name);
+      const locked = Object.fromEntries(a.dependencies.map((d) => [d.name, d.locked]));
+      for (const [pkg, v] of Object.entries(c.expect.versions)) assert.ok(String(locked[pkg]).startsWith(v), `${name}: ${pkg} ${locked[pkg]}`);
+      if (c.expect.workspaces) assert.deepEqual(a.workspaces.map((w) => w.path), c.expect.workspaces);
+    }
+  });
+});

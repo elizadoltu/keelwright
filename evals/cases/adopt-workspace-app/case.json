@@ -1,0 +1,15 @@
+{
+  "description": "/adopt on an npm workspace repo shaped like a real one (esn-fm): web/ (React + Vite + Tailwind, Vitest) and api/ (Express 5), one lockfile, Husky and CI at the root, an existing docs/architecture.md. Planted: the api's test script only echoes (no tests), no gitleaks, no Dependabot, no Node.js pin. Adopted as one project. Stops at gate 1.",
+  "mode": "adopt",
+  "stopAtGate": 1,
+  "expect": {
+    "mode": "adopt",
+    "projectType": "web",
+    "toolchain": "node",
+    "workspaces": ["api", "web"],
+    "versions": { "react": "19.2", "express": "5.2" },
+    "gaps": ["secret|gitleaks", "dependabot|renovate|dependency update", "api.*test|test.*api"],
+    "notGaps": ["no (git )?hooks", "no lockfile", "no (ci|continuous integration)\\b"]
+  },
+  "judges": []
+}

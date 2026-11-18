@@ -1,0 +1,17 @@
+{
+  "description": "/adopt on a Poetry ETL job with a Makefile, Ruff, mypy, pytest and GitLab CI, no ADRs. Planted: Pydantic 1 (a major behind), every record a Pydantic model (consistent), SQLAlchemy Core rather than the ORM, no gitleaks, no hooks, no dependency updates, no single check task. Stops at gate 1.",
+  "mode": "adopt",
+  "stopAtGate": 1,
+  "expect": {
+    "mode": "adopt",
+    "projectType": ["ai", "library", "web"],
+    "toolchain": "python",
+    "versions": { "pydantic": "1.10", "sqlalchemy": "2.0" },
+    "conventions": [
+      { "match": "pydantic|model", "followed": "consistent" }
+    ],
+    "gaps": ["secret|gitleaks", "hook|pre-commit", "dependabot|renovate|dependency update"],
+    "notGaps": ["no (ci|continuous integration)\\b", "no test"]
+  },
+  "judges": []
+}

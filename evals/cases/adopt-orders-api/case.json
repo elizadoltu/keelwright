@@ -1,0 +1,21 @@
+{
+  "description": "/adopt on a pnpm Express 4 API with layered routes → services → repositories, an existing ADR folder (docs/adr), AGENTS.md, Vitest tests and CI. Planted: one route breaks the HttpError convention (mixed), PostgreSQL through pg with no ADR, Express a major behind the shipped pack (research at major 4), no gitleaks, no hooks, no Dependabot.",
+  "mode": "adopt",
+  "stopAtGate": 2,
+  "expect": {
+    "mode": "adopt",
+    "projectType": ["web", "library"],
+    "toolchain": "node",
+    "versions": { "express": "4.21", "pg": "8.13" },
+    "conventions": [
+      { "match": "HttpError", "followed": "mixed" },
+      { "match": "service", "followed": "consistent" }
+    ],
+    "gaps": ["secret|gitleaks", "hook", "dependabot|renovate|dependency update"],
+    "notGaps": ["no (ci|continuous integration)\\b", "no lint", "no test"],
+    "adrFolder": "docs/adr",
+    "alternativesKnown": false,
+    "packMajors": { "express": 4 }
+  },
+  "judges": []
+}
