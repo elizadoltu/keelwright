@@ -3,9 +3,9 @@
 // ~/.keelwright/stack-packs/ (or $KEELWRIGHT_HOME/stack-packs/), and the packs a project uses are
 // copied into <project>/.keelwright/stack-packs/ so they can be reviewed at gate 3.
 
-import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { basename, join } from 'node:path';
+import { join } from 'node:path';
 import { placeholders, wordCount } from './doccheck.mjs';
 import { parseVersion } from './versions.mjs';
 
@@ -159,13 +159,18 @@ export function resolvedMajor(pack, versions) {
   return v ? v.major : null;
 }
 
+// The newest pack for the project's major (an adopted project may be on an older one), else the newest.
+export function choosePack(list = [], versions = {}) {
+  return list.find((p) => resolvedMajor(p, versions) === p.meta.major) ?? list[0] ?? null;
+}
+
 const ageDays = (date, now) => Math.floor((Date.parse(now) - Date.parse(date)) / 86_400_000);
 
 // For each pack id the project needs: reuse | research, with the reason.
 export function plan(ids, versions, { pluginRoot, now = new Date().toISOString(), refresh = false, maxAgeDays = MAX_AGE_DAYS }) {
   const packs = availablePacks(pluginRoot);
   return ids.map((id) => {
-    const best = packs[id]?.[0];
+    const best = choosePack(packs[id], versions);
     if (!best) return { id, action: 'research', reason: 'no pack yet' };
     const base = { id, file: best.file, location: best.location, researchedAt: best.meta.researchedAt, major: best.meta.major };
     if (refresh) return { ...base, action: 'research', reason: '--refresh' };
@@ -191,7 +196,12 @@ export function saveToCache(file) {
   const issues = validatePack(readFileSync(file, 'utf8'));
   if (issues.length) throw new Error(`not saved, the pack has issues: ${issues.join('; ')}`);
   mkdirSync(userPackDir(), { recursive: true });
-  const dest = join(userPackDir(), basename(file));
+  // One file per id and major, so a pack for an older major (from /adopt) doesn't replace the
+  // current one. A cached file from before this naming, for the same major, is replaced.
+  const { meta } = parsePack(readFileSync(file, 'utf8'), file);
+  const dest = join(userPackDir(), `${meta.id}@${meta.major}.md`);
+  const legacy = join(userPackDir(), `${meta.id}.md`);
+  if (existsSync(legacy) && parsePack(readFileSync(legacy, 'utf8'), legacy).meta.major === meta.major) rmSync(legacy);
   copyFileSync(file, dest);
   return dest;
 }

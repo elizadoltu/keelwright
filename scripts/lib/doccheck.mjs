@@ -17,6 +17,7 @@ const LIMITS = {
   'ai-eval-plan': 1200,
   'api-surface': 1300,
   analysis: 1800,
+  'adr-retro': 450,
 };
 
 const stripCode = (text) => text.replace(/```[\s\S]*?```/g, '').replace(/`[^`\n]*`/g, '');
@@ -156,8 +157,21 @@ function analysisChecks(text, { exists } = {}) {
   return issues;
 }
 
+// A retroactive ADR (/adopt `document`): says it was recorded from the code, cites files that exist,
+// and leaves out what a recorder can't know rather than inventing it.
+function adrRetroChecks(text, { exists } = {}) {
+  const issues = [];
+  issues.push(...need(/Recorded retroactively by KeelWright from the code/.test(text), 'doesn\'t say it was "Recorded retroactively by KeelWright from the code"'));
+  issues.push(...need(hasSection(text, 'alternatives'), 'no Alternatives section (say "Not recorded" when none are known)'));
+  const paths = citedPaths(stripFrontMatter(text)).filter((p) => !p.includes('*'));
+  issues.push(...need(paths.length > 0, 'cites no file — the Decision section names the files that show it'));
+  if (exists) for (const p of paths) if (!exists(p)) issues.push({ issue: `cites \`${p}\`, which doesn't exist` });
+  return issues;
+}
+
 const TYPE_CHECKS = {
   analysis: analysisChecks,
+  'adr-retro': adrRetroChecks,
   prd: prdChecks,
   'screen-flow': screenFlowChecks,
   gdd: gddChecks,

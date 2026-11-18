@@ -16,6 +16,8 @@ Templates live in `<plugin root>/templates/`. Keys are used in the PRD's `docume
 | `backlog` | Deferred backlog | `docs/backlog.md` | `features` |
 | `development-workflow` | `CONTRIBUTING.md` | `CONTRIBUTING.md` | `generate` |
 
+In `/adopt` the baseline is `adr` (ADR-0001 only when the project has no ADRs, plus ADRs recorded retroactively from `templates/adr-retroactive.md`, in the project's own ADR folder), `architecture-overview` (as built) and `development-workflow`, all from the `document` and `generate` steps; `c4` is added when there is more than one deployable. No PRD and no backlog.
+
 ## Conditional
 
 Include a document only when its condition holds; give the reason either way when proposing the set.

@@ -9,6 +9,8 @@
 //   api-surface:<file>                     word limit + placeholders (+ the document's own checks:
 //                                          screens, core loop, prompts and tools, eval thresholds
 //                                          with cost and latency, public API items)
+//   analysis:.keelwright/analysis.md      /adopt analysis: conventions cite existing files, consistent / mixed
+//   adr-retro:<file>                       /adopt retroactive ADR: says so, cites existing files, Alternatives
 //   tokens:design/tokens.json              W3C DTCG structure, references, WCAG AA text contrast
 //   c4:docs/architecture/c4/workspace.dsl  Structurizr workspace structure
 //   refs:docs                              every ID referenced is defined; no broken local links
