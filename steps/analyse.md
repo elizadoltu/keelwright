@@ -13,9 +13,10 @@
 Run `analyse.mjs --json` and read the output completely. `/adopt` already stopped on the cases below before creating the state (`--preflight`); they are checked again here because the project may have changed since, e.g. on a re-run.
 
 - **`mode` is `audit`** (a `CLAUDE.md` or `.claude/` exists): tell the user the project already has a Claude setup, that audit mode isn't built yet, and stop.
-- **`monorepo.detected`**: tell the user monorepos aren't supported yet, list `monorepo.packages`, and ask (AskUserQuestion) which package to adopt, or to stop. The chosen folder becomes the project root: stop and tell the user to start `/adopt` again from that folder.
+- **`workspaces` is set** (a workspace repo that `/adopt` takes as one project: npm / pnpm / yarn workspaces, one lockfile, shared tooling at the root): analyse it from the root. Each workspace has its own `dependencies`, `frameworks`, `tasks` and `tests` in `workspaces[]`; the root's tooling (hooks, CI, secrets) covers them all.
+- **`monorepo.detected` and no `workspaces`**: tell the user this kind of monorepo isn't supported yet (`monorepo.notAdoptable` says why), list `monorepo.packages`, and ask (AskUserQuestion) which package to adopt, or to stop. The chosen folder becomes the project root: stop and tell the user to start `/adopt` again from that folder.
 - **`toolchain` is null**: name what was found (`otherLanguages`) and say KeelWright doesn't support that toolchain yet; stop.
-- Record the stack as it is: `STATE set stack '<json>'` with `resolvedAt` (today), `toolchain`, `packageManager`, `primary` (`{ "choice": <the main framework>, "rule": null, "compared": [] }` — nothing was compared: it was already chosen) and `versions` (`{ name: locked version }` for the runtime and the frameworks).
+- Record the stack as it is: `STATE set stack '<json>'` with `resolvedAt` (today), `toolchain`, `packageManager`, `primary` (`{ "choice": <the main framework>, "rule": null, "compared": [] }` — nothing was compared: it was already chosen) and `versions` (`{ name: locked version }` for the runtime and the frameworks). A workspace repo also records `"workspaces": ["frontend", "backend"]`; `primary.choice` names the main framework of each (`"React (frontend), Express (backend)"`), and where a package is locked at different versions in two workspaces, `versions` takes the higher one and the analysis's Stack table shows both.
 
 ## 2. Read the project
 
@@ -31,7 +32,8 @@ Read before you judge. In this order, stopping when you have enough to describe 
 Follow the template. Section by section:
 
 - **Project:** the type (`web`, `mobile`, `game`, `ai`, `library` — as in the interview step's rules); `STATE set project-type <type>`.
-- **Stack:** the frameworks and main libraries with their **locked** versions (`dependencies[].locked`), each with the file that shows it. Not the latest versions — this project's.
+- **Stack:** the frameworks and main libraries with their **locked** versions (`dependencies[].locked`), each with the file that shows it. Not the latest versions — this project's. In a workspace repo, one row per framework **and workspace** (`frameworks[].workspace`) — two workspaces may lock different versions.
+- **Workspace repo:** the Project table's Repository row lists the workspaces and what each is (e.g. "`frontend/` — React SPA on Vercel; `backend/` — Express API on Railway"). Tasks: the root's and each workspace's (`workspaces[].tasks.contract`, run from the root). Structure, Architecture and Conventions are per workspace where they differ — a convention row says which workspace in its Area (`frontend: components`) — plus how the workspaces talk to each other (HTTP calls, a shared package, types).
 - **Tasks:** `tasks.contract`, exactly as the facts give them; missing ones go to Gaps.
 - **Structure and Architecture:** what the folders hold and the style the code actually has, citing files. Where the code departs from its own style, say so — that's useful to the reviewer agent later.
 - **Conventions:** only what you saw. Each row: the area, the convention phrased so it could become a rule, the files that show it, and **consistent** (the files you looked at follow it) or **mixed** (some don't — name one that doesn't). Instructions from other tools' files count as conventions when the code follows them; cite both. Skip generic practice ("uses functions") — a convention is something a new contributor could get wrong.

@@ -64,10 +64,10 @@ analyse → { document, research } → gaps → generate → publish
 4. **`none`** — a new adoption:
    1. Run `ANALYSE --preflight`. It prints the mode, the toolchain and the `blockers`. For each blocker, tell the user and **stop without creating anything**:
       - `audit` — the project already has a Claude setup (`detail`: its files); audit mode isn't built yet (Phase 3).
-      - `monorepo` — monorepos aren't supported yet. List the packages (`detail`) and say: run `/adopt` from the folder of the package to adopt; that folder becomes the project root.
+      - `monorepo` — this kind of monorepo isn't supported yet (`why`: e.g. Nx, more than six workspaces, a project outside the workspaces). List the packages (`detail`) and say: run `/adopt` from the folder of the package to adopt; that folder becomes the project root.
       - `toolchain` — the project's languages (`detail`) aren't supported yet. Name the supported ones: node, python, dart, rust, godot.
       - `no-project` — there's no project here; `/adopt` is for existing code and `/kickoff` starts new projects.
-   2. Tell the user in one line what was found (toolchain and package manager) and that `/adopt` starts with the analysis.
+   2. Tell the user in one line what was found (toolchain and package manager) and that `/adopt` starts with the analysis. When `workspaces` is set, say the repository is adopted as **one project** with those workspaces, from the root.
    3. **Git.** If it is a git repository with uncommitted changes, say so: `/adopt` writes documents and, with approval, tooling fixes — mixing them with unfinished work makes both hard to review. Then ask (AskUserQuestion):
       - **Create a branch `keelwright-adopt`** (recommended) → `git switch -c keelwright-adopt`;
       - **Stay on the current branch**;

@@ -18,6 +18,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - The `gaps` step: each tooling gap fixed with the project's own tools, shown as a diff and applied only on approval, one by one; decisions recorded in `.keelwright/gaps.md`; nothing committed, no application code or dependency version changed. New gap `check-task` (lint, types and tests exist but no single check task).
 - `generate` in `/adopt`: rules from the conventions the user kept, the project's own commands, hook config from its own formatter and linter (`analyse.mjs --hook-config`), an `implement-change` skill, the existing CONTRIBUTING.md kept and extended. `generatecheck` knows adopted projects: only their own task commands, their ADR folder, a required hook config; pack rules set aside in `.keelwright/generate.md` aren't required.
 - `publish` in `/adopt`: Confluence, titled with the project's name from the analysis or manifest.
+- Workspace repos (npm / pnpm / yarn workspaces, one lockfile, up to six Node.js workspaces) are adopted as one project from the root: per-workspace dependencies, frameworks, tasks run from the root and tests; gaps across workspaces; a hook config that runs each workspace's tools from its folder (`format-on-edit` takes a `cwd`); `generatecheck` accepts workspace commands (`--workspace`, `--filter`, `yarn workspace`). Other monorepos still stop, with the reason.
+- `analyse`: scripts that only `echo` (npm's default `test`, "No tests yet") are not tasks; TypeScript is found in workspace `tsconfig.json` files.
 
 ### Changed
 

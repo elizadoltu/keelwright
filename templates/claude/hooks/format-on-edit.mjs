@@ -5,8 +5,10 @@
 //
 // The tools come from `onEdit` in .claude/hooks/config.json — a list of
 //   { "files": "<regex on the path>", "run": ["<command>", "<arg>", "{file}"], "report": true, "label": "Ruff" }
-// run in order; "report": true sends a non-zero exit to Claude. Without a config file the hook
-// uses Prettier and ESLint from node_modules. A command that isn't installed is skipped.
+// run in order; "report": true sends a non-zero exit to Claude. "cwd": a folder (relative to the
+// project) to run in — a workspace — where a relative command is looked up first, then at the
+// project root. Without a config file the hook uses Prettier and ESLint from node_modules. A
+// command that isn't installed is skipped.
 
 import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
@@ -45,9 +47,10 @@ for (const step of steps) {
   if (!Array.isArray(step.run) || !step.run.length) continue;
   if (step.files && !new RegExp(step.files).test(rel)) continue;
   const [cmd, ...args] = step.run.map((a) => a.replaceAll('{file}', file));
-  const local = cmd.includes('/') ? resolve(root, cmd) : null;
-  if (local && !existsSync(local)) continue; // tool not installed in the project
-  const r = spawnSync(local ?? cmd, args, { cwd: root, encoding: 'utf8', timeout: 60_000 });
+  const cwd = step.cwd ? resolve(root, step.cwd) : root;
+  const local = cmd.includes('/') ? [resolve(cwd, cmd), resolve(root, cmd)].find((p) => existsSync(p)) : null;
+  if (cmd.includes('/') && !local) continue; // tool not installed in the project
+  const r = spawnSync(local ?? cmd, args, { cwd, encoding: 'utf8', timeout: 60_000 });
   if (r.error) continue; // command not found
   if (step.report && r.status !== 0) {
     const label = step.label ?? basename(cmd);
