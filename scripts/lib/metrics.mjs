@@ -3,7 +3,7 @@
 
 import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { STEPS } from './pipeline.mjs';
+import { stepNames, stepsOf } from './pipeline.mjs';
 
 export const METRICS_FILE = 'metrics.json';
 export const SNAPSHOT_DIR = 'snapshots';
@@ -101,8 +101,8 @@ export function recordAcceptChanges(m, { now, accepted, stale, keepDownstream })
 }
 
 // Step-specific counters: "5" sets the value, "+1" adds to it.
-export function recordCounter(m, step, key, value) {
-  if (!STEPS.some((s) => s.name === step)) throw new Error(`unknown step "${step}"`);
+export function recordCounter(m, step, key, value, mode = 'kickoff') {
+  if (!stepNames(mode).includes(step)) throw new Error(`unknown step "${step}" (steps: ${stepNames(mode).join(', ')})`);
   if (!/^[a-z][a-z0-9-]*$/.test(key)) throw new Error(`invalid metric name "${key}" (lowercase, digits, dashes)`);
   const m2 = /^(\+)?(\d+)$/.exec(String(value));
   if (!m2) throw new Error(`metric value must be a number or +number, got "${value}"`);
@@ -202,12 +202,14 @@ const pct = (x) => `${Math.round(x * 100)}%`;
 
 export function report(m, state) {
   const lines = ['# KeelWright run report', ''];
+  const mode = state.mode ?? 'kickoff';
+  lines.push(`- Mode: /${mode}`);
   lines.push(`- Project type: ${state.projectType ?? '—'}`);
   lines.push(`- KeelWright: ${state.keelwright}`);
   lines.push(`- Started: ${state.createdAt}`);
   lines.push('');
   lines.push('## Steps', '', '| Step | Status | Runs | Time | Review time | Open questions (review → approval) | Edited after approval | Counters |', '|---|---|---|---|---|---|---|---|');
-  for (const { name } of STEPS) {
+  for (const { name } of stepsOf(mode)) {
     const s = m.steps[name];
     const st = state.steps[name].status;
     if (!s && st === 'pending') continue;

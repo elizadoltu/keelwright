@@ -2,7 +2,7 @@
 
 `/adopt` create mode (spec 5.2.1): describe the existing project as it is — stack, tasks, structure, architecture, conventions, decisions and gaps — so the documents and the agent setup can be built on what the code really does.
 
-**Reads:** the output of `node "<plugin root>/scripts/analyse.mjs" --json` (run in the project root), the README, CONTRIBUTING, existing ADRs and `docs/`, other tools' instruction files (`AGENTS.md`, `.cursorrules`, `.github/copilot-instructions.md`), the manifests and config files, CI, and a sample of the source and test files; `.keelwright/analysis.md` if it exists (a re-run: the user's corrections win).
+**Reads:** the output of `node "<plugin root>/scripts/analyse.mjs" --json` (run in the project root), the README, CONTRIBUTING, existing ADRs and `docs/`, other tools' instruction files (`AGENTS.md`, `.cursorrules`, `.github/copilot-instructions.md`), the manifests and config files, CI, and a sample of the source and test files; `.keelwright/input.md` if it exists (the user's notes about the project — they outrank what you infer); `.keelwright/analysis.md` if it exists (a re-run: the user's corrections win).
 **Produces:** `.keelwright/analysis.md` (from `<plugin root>/templates/analysis.md`); the project type and toolchain in the state.
 **Gate:** 1 — the user corrects the analysis.
 
@@ -10,7 +10,7 @@
 
 ## 1. Collect the facts
 
-Run `analyse.mjs --json` and read the output completely.
+Run `analyse.mjs --json` and read the output completely. `/adopt` already stopped on the cases below before creating the state (`--preflight`); they are checked again here because the project may have changed since, e.g. on a re-run.
 
 - **`mode` is `audit`** (a `CLAUDE.md` or `.claude/` exists): tell the user the project already has a Claude setup, that audit mode isn't built yet, and stop.
 - **`monorepo.detected`**: tell the user monorepos aren't supported yet, list `monorepo.packages`, and ask (AskUserQuestion) which package to adopt, or to stop. The chosen folder becomes the project root: stop and tell the user to start `/adopt` again from that folder.

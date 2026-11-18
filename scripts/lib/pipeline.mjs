@@ -1,5 +1,6 @@
-// The /kickoff pipeline definition (spec 5.1 and 5.1.2). Single source of truth for step
-// names, order, dependencies and gates; the state CLI and its tests read it from here.
+// The pipeline definitions: /kickoff (spec 5.1, 5.1.2) and /adopt create mode (5.2.1). Single
+// source of truth for step names, order, dependencies and gates; the state CLI and its tests
+// read it from here. A state without a `mode` is a kickoff (states written before /adopt).
 
 export const STEPS = [
   { name: 'interview', deps: [], gate: null, optional: false },
@@ -13,9 +14,32 @@ export const STEPS = [
   { name: 'publish', deps: ['generate'], gate: null, optional: true },
 ];
 
-export const STEP_NAMES = STEPS.map((s) => s.name);
+// /adopt create mode: the code is the source of truth, so there is no interview, PRD or scaffold.
+export const ADOPT_STEPS = [
+  { name: 'analyse', deps: [], gate: 1, optional: false },
+  { name: 'document', deps: ['analyse'], gate: 2, optional: false },
+  { name: 'research', deps: ['analyse'], gate: 2, optional: false },
+  { name: 'gaps', deps: ['document', 'research'], gate: null, optional: false },
+  { name: 'generate', deps: ['gaps'], gate: null, optional: false },
+  { name: 'publish', deps: ['generate'], gate: null, optional: true },
+];
 
-export const GATES = [...new Set(STEPS.map((s) => s.gate).filter((g) => g !== null))];
+export const PIPELINES = { kickoff: STEPS, adopt: ADOPT_STEPS };
+export const MODES = Object.keys(PIPELINES);
+
+export function stepsOf(mode = 'kickoff') {
+  const steps = PIPELINES[mode];
+  if (!steps) throw new Error(`unknown mode "${mode}" (modes: ${MODES.join(', ')})`);
+  return steps;
+}
+
+export const stepNames = (mode = 'kickoff') => stepsOf(mode).map((s) => s.name);
+
+export const STEP_NAMES = stepNames('kickoff');
+
+export const gatesOf = (mode = 'kickoff') => [...new Set(stepsOf(mode).map((s) => s.gate).filter((g) => g !== null))];
+
+export const GATES = gatesOf('kickoff');
 
 export const STATUSES = [
   'pending',
@@ -60,20 +84,27 @@ export const OPTIONAL_DOCUMENTS = ['jira', 'confluence', 'architecture-requireme
 
 export const DOCUMENT_KEYS = [...ALWAYS_DOCUMENTS, ...CONDITIONAL_DOCUMENTS, ...OPTIONAL_DOCUMENTS];
 
-export function getStep(name) {
-  const step = STEPS.find((s) => s.name === name);
-  if (!step) throw new Error(`unknown step "${name}" (steps: ${STEP_NAMES.join(', ')})`);
+// /adopt writes no PRD and no backlog: the architecture overview (as built), retroactive ADRs and
+// CONTRIBUTING.md (merged with an existing one) are its baseline.
+export const ADOPT_ALWAYS_DOCUMENTS = ['adr', 'architecture-overview', 'development-workflow'];
+
+export const alwaysDocuments = (mode = 'kickoff') => (mode === 'adopt' ? ADOPT_ALWAYS_DOCUMENTS : ALWAYS_DOCUMENTS);
+
+export function getStep(name, mode = 'kickoff') {
+  const step = stepsOf(mode).find((s) => s.name === name);
+  if (!step) throw new Error(`unknown step "${name}" (steps: ${stepNames(mode).join(', ')})`);
   return step;
 }
 
 // All steps that depend on `name`, directly or transitively, in pipeline order.
-export function downstreamOf(name) {
-  getStep(name);
+export function downstreamOf(name, mode = 'kickoff') {
+  getStep(name, mode);
+  const steps = stepsOf(mode);
   const found = new Set();
   let frontier = [name];
   while (frontier.length) {
     const next = [];
-    for (const step of STEPS) {
+    for (const step of steps) {
       if (!found.has(step.name) && step.deps.some((d) => frontier.includes(d))) {
         found.add(step.name);
         next.push(step.name);
@@ -81,9 +112,9 @@ export function downstreamOf(name) {
     }
     frontier = next;
   }
-  return STEP_NAMES.filter((n) => found.has(n));
+  return stepNames(mode).filter((n) => found.has(n));
 }
 
-export function stepsInGate(gate) {
-  return STEPS.filter((s) => s.gate === gate).map((s) => s.name);
+export function stepsInGate(gate, mode = 'kickoff') {
+  return stepsOf(mode).filter((s) => s.gate === gate).map((s) => s.name);
 }

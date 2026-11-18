@@ -2,7 +2,7 @@
 
 A Claude Code plugin that takes a project from **idea or specs** to project documents, a scaffolded repository and a project-specific Claude setup, with review gates where you edit the documents before the pipeline continues.
 
-> Status: Phase 1 complete. The whole `/kickoff` pipeline is built — from the interview to an optional publish to Jira and Confluence — for web, mobile, game, AI / LLM and library / CLI / API projects, and was validated on a real web project (`evals/runs/`). Next: `/adopt` (see `keelwright-spec.md`, section 9).
+> Status: Phase 1 complete. The whole `/kickoff` pipeline is built — from the interview to an optional publish to Jira and Confluence — for web, mobile, game, AI / LLM and library / CLI / API projects, and was validated on a real web project (`evals/runs/`). In progress: `/adopt` for existing projects — it runs the analysis and its review gate so far (see `keelwright-spec.md`, 5.2.1 and section 9).
 
 ## Requirements
 
@@ -39,6 +39,15 @@ Plugin commands are namespaced, so the command is `/keelwright:kickoff` (shown a
 | `/kickoff research --refresh` | Re-researches the stack packs |
 | `/kickoff report` | Shows how the run went (time, re-runs, how much you edited each document) and asks you to rate each document |
 
+### Existing projects: `/adopt` (in progress)
+
+Run in the root of an existing repository that has no Claude setup yet (`/keelwright:adopt`). It describes the project as it is — stack and versions in use, tasks, architecture, conventions with the files that show them, gaps — and stops for your corrections at gate 1. It never changes application code or dependency versions. The documents, tooling fixes and Claude setup that follow are being built (`keelwright-spec.md`, 5.2.1).
+
+| Command | Does |
+|---|---|
+| `/adopt [notes]` | Starts (or continues) adopting the project; notes are kept as input for the analysis |
+| `/adopt status`, `/adopt report`, `/adopt <step>` | As for `/kickoff` |
+
 Pipeline state is kept in `.keelwright/state.json` and run metrics in `.keelwright/metrics.json` in your project — commit both. Metrics never leave your machine.
 
 ## Repository layout
@@ -47,8 +56,8 @@ Pipeline state is kept in `.keelwright/state.json` and run metrics in `.keelwrig
 |---|---|
 | `keelwright-spec.md` | The full specification — the source of truth |
 | `.claude-plugin/` | Plugin manifest and marketplace entry |
-| `commands/kickoff.md` | The `/kickoff` command: argument handling, the step loop, review gates |
-| `steps/` | Instructions for each pipeline step, read by `/kickoff` |
+| `commands/kickoff.md`, `commands/adopt.md` | The commands: argument handling, the step loop, review gates |
+| `steps/` | Instructions for each pipeline step, read by `/kickoff` and `/adopt` |
 | `scripts/state.mjs` | State CLI — the only way the pipeline reads or changes `state.json` |
 | `scripts/lib/` | Pipeline definition and state logic |
 | `templates/` | Document templates used by the steps |

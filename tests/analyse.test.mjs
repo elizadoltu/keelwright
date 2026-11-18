@@ -176,6 +176,16 @@ describe('analyse: special cases', () => {
     assert.equal(analyse(repo({ 'package.json': {}, 'services/api/CLAUDE.md': 'x' })).mode, 'audit');
   });
 
+  test('--preflight: what stops /adopt before it creates any state', () => {
+    const cli = (files) => JSON.parse(execFileSync('node', [join(PLUGIN, 'scripts/analyse.mjs'), '--root', repo(files), '--preflight'], { encoding: 'utf8' }));
+    const ids = (files) => cli(files).blockers.map((b) => b.id);
+    assert.deepEqual(cli({ 'package.json': {}, 'src/a.js': 'x' }), { mode: 'create', toolchain: 'node', packageManager: 'npm', blockers: [] });
+    assert.deepEqual(cli({ 'package.json': {}, 'CLAUDE.md': 'x' }).blockers[0], { id: 'audit', detail: ['CLAUDE.md'] });
+    assert.deepEqual(ids({ 'package.json': { workspaces: ['packages/*'] }, 'packages/a/package.json': {} }), ['monorepo']);
+    assert.deepEqual(cli({ 'go.mod': 'module x', 'main.go': 'x' }).blockers, [{ id: 'toolchain', detail: ['go'] }]);
+    assert.deepEqual(ids({ 'notes.txt': 'x' }), ['no-project']);
+  });
+
   test('monorepos are detected', () => {
     const a = analyse(repo({ 'package.json': { workspaces: ['packages/*'] }, 'packages/web/package.json': {}, 'packages/api/package.json': {} }));
     assert.equal(a.monorepo.detected, true);
