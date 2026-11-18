@@ -2,6 +2,8 @@
 
 Generate the project's agent workflow — `CLAUDE.md`, rules, skills, subagents, hooks and settings — and `CONTRIBUTING.md`, all from the same facts, so agents and humans follow the same rules and nothing disagrees.
 
+**In /adopt:** not implemented yet (Phase 2, build step 4). The rest of this file is the `/kickoff` step.
+
 **Reads:** `docs/prd.md`, `docs/decisions/`, `docs/architecture/overview.md`, `docs/features.md`, `docs/design/visual-identity.md`, the type-specific documents that exist (`docs/design/screen-flow.md`, `docs/gdd.md`, `docs/ai/system-design.md`, `docs/evals/plan.md`, `docs/api-surface.md`), `.keelwright/stack-packs/*.md` (reviewed at gate 3), `.keelwright/scaffold.md` (pack rules applied, not applied, and left for this step), the manifest and its tasks (`package.json`, `pyproject.toml`, `justfile`), the hook, lint and CI config the scaffold created, `<plugin root>/reference/toolchains.md`, and the templates in `<plugin root>/templates/claude/` and `<plugin root>/templates/development-workflow.md`.
 **Produces:** `CLAUDE.md`, `.claude/rules/*.md`, `.claude/agents/{reviewer,tester,docs-keeper}.md`, `.claude/skills/*/SKILL.md`, `.claude/hooks/*.mjs`, `.claude/hooks/config.json`, `.claude/settings.json`, `CONTRIBUTING.md`, `.keelwright/generate.md`.
 **Gate:** none — the step ends with a summary for the user.

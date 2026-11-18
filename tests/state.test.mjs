@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, beforeEach, describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { downstreamOf } from '../scripts/lib/pipeline.mjs';
+import { MODES, downstreamOf, stepsInGate, stepsOf } from '../scripts/lib/pipeline.mjs';
 import * as S from '../scripts/lib/state.mjs';
 
 const NOW = '2026-11-16T10:00:00.000Z';
@@ -44,6 +44,78 @@ describe('pipeline', () => {
 
   test('unknown step is rejected', () => {
     assert.throws(() => downstreamOf('deploy'), /unknown step/);
+  });
+});
+
+describe('commands and step files match the pipelines', () => {
+  const plugin = fileURLToPath(new URL('..', import.meta.url));
+  for (const mode of MODES) {
+    test(`/${mode}: every step is in the command's table and has a step file`, () => {
+      const command = readFileSync(join(plugin, 'commands', `${mode}.md`), 'utf8');
+      const section = command.split(/^## The pipeline.*$/m)[1].split(/^## /m)[0];
+      const table = [...section.matchAll(/^\| `([a-z-]+)` \|/gm)].map((m) => m[1]);
+      const names = stepsOf(mode).map((s) => s.name);
+      assert.deepEqual(table, names);
+      for (const n of names) assert.ok(existsSync(join(plugin, 'steps', `${n}.md`)), `steps/${n}.md`);
+    });
+  }
+});
+
+describe('adopt pipeline', () => {
+  test('analyse is gate 1; document and research share gate 2; gaps, generate and publish follow', () => {
+    assert.deepEqual(downstreamOf('analyse', 'adopt'), ['document', 'research', 'gaps', 'generate', 'publish']);
+    assert.deepEqual(downstreamOf('document', 'adopt'), ['gaps', 'generate', 'publish']);
+    assert.deepEqual(stepsInGate(2, 'adopt'), ['document', 'research']);
+    assert.throws(() => downstreamOf('interview', 'adopt'), /unknown step "interview"/);
+    assert.throws(() => downstreamOf('analyse', 'migrate'), /unknown mode/);
+  });
+
+  test('a run: analyse → gate 1 → document + research → gate 2 → gaps → generate', () => {
+    const root = project();
+    const state = S.create({ version: '0.1.0', now: NOW, mode: 'adopt' });
+    assert.equal(state.mode, 'adopt');
+    assert.equal(S.modeOf(state), 'adopt');
+    assert.deepEqual(Object.keys(state.steps), ['analyse', 'document', 'research', 'gaps', 'generate', 'publish']);
+    assert.deepEqual(state.documents, ['adr', 'architecture-overview', 'development-workflow']);
+    assert.deepEqual(S.next(state), { action: 'run', step: 'analyse', optional: false });
+    assert.throws(() => S.start(state, 'prd', { now: NOW }), /unknown step "prd"/);
+
+    runStep(state, root, 'analyse', '.keelwright/analysis.md');
+    assert.deepEqual(S.next(state), { action: 'review', gate: 1, steps: ['analyse'] });
+    S.approve(state, 1, { root, now: NOW });
+    runStep(state, root, 'document', 'docs/architecture/overview.md');
+    runStep(state, root, 'research', '.keelwright/stack-packs/express.md');
+    assert.deepEqual(S.next(state), { action: 'review', gate: 2, steps: ['document', 'research'] });
+    assert.deepEqual(S.approve(state, 2, { root, now: NOW }), ['document', 'research']);
+    runStep(state, root, 'gaps', '.keelwright/gaps.md');
+    assert.equal(state.steps.gaps.status, 'done');
+    assert.deepEqual(S.next(state), { action: 'run', step: 'generate', optional: false });
+  });
+
+  test('a re-run of analyse marks the later steps stale; edits are detected', () => {
+    const root = project();
+    const state = S.create({ version: '0.1.0', now: NOW, mode: 'adopt' });
+    runStep(state, root, 'analyse', '.keelwright/analysis.md');
+    S.approve(state, 1, { root, now: NOW });
+    runStep(state, root, 'document', 'docs/architecture/overview.md');
+    write(root, '.keelwright/analysis.md', 'corrected');
+    assert.deepEqual(S.changes(state, root).affected, ['document']);
+    assert.deepEqual(S.start(state, 'analyse', { now: NOW }).stale, ['document']);
+  });
+
+  test('the adopt document set needs the adopt baseline, not the PRD', () => {
+    const state = S.create({ version: '0.1.0', now: NOW, mode: 'adopt' });
+    S.setDocuments(state, ['adr', 'architecture-overview', 'development-workflow', 'c4']);
+    assert.deepEqual(state.documents, ['adr', 'development-workflow', 'architecture-overview', 'c4']);
+    assert.throws(() => S.setDocuments(state, ['adr', 'development-workflow']), /architecture-overview/);
+    assert.throws(() => S.create({ version: '0.1.0', now: NOW, mode: 'migrate' }), /unknown mode/);
+  });
+
+  test('a state without a mode is a kickoff', () => {
+    const state = S.create({ version: '0.1.0', now: NOW });
+    delete state.mode;
+    assert.equal(S.modeOf(state), 'kickoff');
+    assert.deepEqual(S.next(state), { action: 'run', step: 'interview', optional: false });
   });
 });
 
@@ -271,6 +343,30 @@ describe('CLI', () => {
     assert.equal(json.projectType, 'web');
     assert.equal(json.input, 'A booking site');
     assert.equal(json.next.step, 'architecture');
+  });
+
+  test('adopt: init, mode, steps, metric and report', () => {
+    const root = project();
+    assert.equal(cli(root, 'mode').trim(), 'none');
+    assert.match(cli(root, 'steps', '--mode', 'adopt'), /^analyse/);
+    cli(root, 'init', '--mode', 'adopt');
+    assert.equal(cli(root, 'mode').trim(), 'adopt');
+    assert.match(cli(root, 'steps'), /gaps {2}deps: document, research/);
+    assert.match(cli(root, 'next'), /run step "analyse"/);
+    cli(root, 'start', 'analyse');
+    write(root, '.keelwright/analysis.md', 'analysis');
+    cli(root, 'complete', 'analyse', '.keelwright/analysis.md');
+    assert.match(cli(root, 'metric', 'analyse', 'doccheck-failures', '+1'), /= 1/);
+    assert.match(cliFails(root, 'metric', 'interview', 'questions', '1'), /unknown step "interview"/);
+    const status = cli(root, 'status');
+    assert.match(status, /Mode: \/adopt/);
+    assert.match(status, /review gate 1 \(analyse\)/);
+    assert.doesNotMatch(status, /interview/);
+    const report = cli(root, 'report');
+    assert.match(report, /Mode: \/adopt/);
+    assert.match(report, /\| analyse \| awaiting_review \|/);
+    assert.match(cli(root, 'downstream', 'document'), /gaps, generate, publish/);
+    assert.match(cliFails(project(), 'init', '--mode', 'migrate'), /unknown mode/);
   });
 
   test('errors are short messages with exit code 1', () => {

@@ -592,6 +592,17 @@ export function analyse(root, { pluginRoot = null } = {}) {
 }
 
 // A short human-readable summary (the step reads the JSON; this is for people).
+// What /adopt checks before it creates any state: an existing Claude setup (audit mode), a
+// monorepo (adopt one package, from its folder), a toolchain KeelWright supports, and a project at all.
+export function preflight(a) {
+  const blockers = [];
+  if (a.mode === 'audit') blockers.push({ id: 'audit', detail: a.docs.claude });
+  if (a.monorepo.detected) blockers.push({ id: 'monorepo', detail: a.monorepo.packages });
+  if (!a.structure.files || (!a.toolchain && !a.otherLanguages.length)) blockers.push({ id: 'no-project', detail: [] });
+  else if (!a.toolchain) blockers.push({ id: 'toolchain', detail: a.otherLanguages });
+  return { mode: a.mode, toolchain: a.toolchain, packageManager: a.packageManager, blockers };
+}
+
 export function summary(a) {
   const L = [];
   const list = (xs) => (xs.length ? xs.join(', ') : 'none');

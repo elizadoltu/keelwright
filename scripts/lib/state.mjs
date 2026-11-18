@@ -1,19 +1,20 @@
-// Pipeline state for /kickoff (spec 5.1.2), kept in <project>/.keelwright/state.json.
+// Pipeline state for /kickoff (spec 5.1.2) and /adopt (5.2.1), kept in <project>/.keelwright/state.json.
 // Every change to the state goes through these functions; nothing edits the JSON by hand.
 
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { isAbsolute, join, relative, resolve, sep } from 'node:path';
 import {
-  ALWAYS_DOCUMENTS,
   DOCUMENT_KEYS,
+  MODES,
   PROJECT_TYPES,
   TOOLCHAINS,
   SATISFIED,
-  STEPS,
-  downstreamOf,
-  getStep,
-  stepsInGate,
+  alwaysDocuments,
+  downstreamOf as downstreamIn,
+  getStep as getStepIn,
+  stepsInGate as stepsInGateOf,
+  stepsOf,
 } from './pipeline.mjs';
 
 export const STATE_DIR = '.keelwright';
@@ -27,6 +28,13 @@ const fail = (message) => {
   throw new StateError(message);
 };
 
+// Which pipeline a state follows. States written before /adopt have no mode: they are kickoffs.
+export const modeOf = (state) => state.mode ?? 'kickoff';
+const stepsFor = (state) => stepsOf(modeOf(state));
+const getStep = (state, name) => getStepIn(name, modeOf(state));
+const downstreamOf = (state, name) => downstreamIn(name, modeOf(state));
+const stepsInGate = (state, gate) => stepsInGateOf(gate, modeOf(state));
+
 // ---------------------------------------------------------------------------
 // Load / save
 // ---------------------------------------------------------------------------
@@ -38,7 +46,7 @@ export function exists(root) {
 }
 
 export function load(root) {
-  if (!exists(root)) fail(`no KeelWright state in ${root} — run /kickoff to start`);
+  if (!exists(root)) fail(`no KeelWright state in ${root} — run /kickoff or /adopt to start`);
   return JSON.parse(readFileSync(statePath(root), 'utf8'));
 }
 
@@ -47,16 +55,19 @@ export function save(root, state) {
   writeFileSync(statePath(root), `${JSON.stringify(state, null, 2)}\n`);
 }
 
-export function create({ version, now, projectType = null, input = null }) {
+export function create({ version, now, mode = 'kickoff', projectType = null, input = null }) {
+  if (!MODES.includes(mode)) fail(`unknown mode "${mode}" (modes: ${MODES.join(', ')})`);
   if (projectType !== null) checkProjectType(projectType);
+  const steps = stepsOf(mode);
   return {
     keelwright: version,
+    mode,
     createdAt: now,
     projectType,
     input,
-    currentStep: STEPS[0].name,
-    documents: [...ALWAYS_DOCUMENTS],
-    steps: Object.fromEntries(STEPS.map((s) => [s.name, { status: 'pending' }])),
+    currentStep: steps[0].name,
+    documents: [...alwaysDocuments(mode)],
+    steps: Object.fromEntries(steps.map((s) => [s.name, { status: 'pending' }])),
     stack: {},
   };
 }
@@ -66,7 +77,7 @@ export function create({ version, now, projectType = null, input = null }) {
 // ---------------------------------------------------------------------------
 
 const statusOf = (state, name) => state.steps[name].status;
-const depsSatisfied = (state, name) => getStep(name).deps.every((d) => SATISFIED.has(statusOf(state, d)));
+const depsSatisfied = (state, name) => getStep(state, name).deps.every((d) => SATISFIED.has(statusOf(state, d)));
 
 // What /kickoff should do next:
 //   { action: 'run', step }       run this step
@@ -74,7 +85,7 @@ const depsSatisfied = (state, name) => getStep(name).deps.every((d) => SATISFIED
 //   { action: 'complete' }        every step is finished
 export function next(state) {
   let reviewGate = null;
-  for (const step of STEPS) {
+  for (const step of stepsFor(state)) {
     const status = statusOf(state, step.name);
     if (SATISFIED.has(status)) continue;
     if (status === 'awaiting_review') {
@@ -84,13 +95,13 @@ export function next(state) {
     if (depsSatisfied(state, step.name)) return { action: 'run', step: step.name, optional: step.optional };
     break;
   }
-  if (reviewGate !== null) return { action: 'review', gate: reviewGate, steps: stepsInGate(reviewGate) };
+  if (reviewGate !== null) return { action: 'review', gate: reviewGate, steps: stepsInGate(state, reviewGate) };
   return { action: 'complete' };
 }
 
 // Steps downstream of `name` that already ran (or were skipped) and would have to be regenerated.
 export function affectedDownstream(state, name) {
-  return downstreamOf(name).filter((n) => statusOf(state, n) !== 'pending');
+  return downstreamOf(state, name).filter((n) => statusOf(state, n) !== 'pending');
 }
 
 // ---------------------------------------------------------------------------
@@ -105,9 +116,9 @@ function markStale(state, names) {
 
 // Start a step, or re-run one that already ran. A re-run marks every step after it as stale.
 export function start(state, name, { now }) {
-  getStep(name);
+  getStep(state, name);
   if (!depsSatisfied(state, name)) {
-    const missing = getStep(name).deps.filter((d) => !SATISFIED.has(statusOf(state, d)));
+    const missing = getStep(state, name).deps.filter((d) => !SATISFIED.has(statusOf(state, d)));
     fail(`cannot start "${name}": waiting for ${missing.join(', ')}`);
   }
   const rerun = statusOf(state, name) !== 'pending';
@@ -121,7 +132,7 @@ export function start(state, name, { now }) {
 // Record a finished step and the files it produced. Gated steps wait for review;
 // other steps are done immediately and their outputs are hashed for edit detection.
 export function complete(state, name, outputs, { root, now }) {
-  const step = getStep(name);
+  const step = getStep(state, name);
   if (statusOf(state, name) !== 'in_progress') fail(`cannot complete "${name}": it is ${statusOf(state, name)}, not in_progress`);
   const files = normaliseOutputs(root, outputs);
   if (step.gate === null) {
@@ -146,7 +157,7 @@ export function skip(state, name, reason, { now }) {
 
 // Approve a review gate. Outputs are hashed now, so edits made during the review are the baseline.
 export function approve(state, gate, { root, now }) {
-  const names = stepsInGate(gate);
+  const names = stepsInGate(state, gate);
   if (!names.length) fail(`unknown gate "${gate}"`);
   const pending = next(state);
   if (pending.action !== 'review' || pending.gate !== gate) fail(`gate ${gate} is not waiting for review`);
@@ -165,7 +176,7 @@ export function approve(state, gate, { root, now }) {
 // downstream that would have to be regenerated because of it.
 export function changes(state, root) {
   const changed = [];
-  for (const step of STEPS) {
+  for (const step of stepsFor(state)) {
     const entry = state.steps[step.name];
     if (!['approved', 'done'].includes(entry.status) || !entry.outputs) continue;
     for (const [file, recorded] of Object.entries(entry.outputs)) {
@@ -176,7 +187,7 @@ export function changes(state, root) {
   }
   const changedSteps = [...new Set(changed.map((c) => c.step))];
   const affected = [...new Set(changedSteps.flatMap((s) => affectedDownstream(state, s)))];
-  return { changed, changedSteps, affected: STEPS.map((s) => s.name).filter((n) => affected.includes(n)) };
+  return { changed, changedSteps, affected: stepsFor(state).map((s) => s.name).filter((n) => affected.includes(n)) };
 }
 
 // Accept the user's edits as the new baseline. Unless keepDownstream is set, the steps after
@@ -195,7 +206,7 @@ export function acceptChanges(state, root, { keepDownstream = false } = {}) {
 // Open [NEEDS CLARIFICATION: …] markers in the outputs of steps waiting for review.
 export function markers(state, root) {
   const found = [];
-  for (const step of STEPS) {
+  for (const step of stepsFor(state)) {
     const entry = state.steps[step.name];
     if (entry.status !== 'awaiting_review') continue;
     for (const file of Object.keys(entry.outputs ?? {})) {
@@ -226,7 +237,7 @@ export function setProjectType(state, type) {
 export function setDocuments(state, keys) {
   const unknown = keys.filter((k) => !DOCUMENT_KEYS.includes(k));
   if (unknown.length) fail(`unknown document keys: ${unknown.join(', ')} (keys: ${DOCUMENT_KEYS.join(', ')})`);
-  const missing = ALWAYS_DOCUMENTS.filter((k) => !keys.includes(k));
+  const missing = alwaysDocuments(modeOf(state)).filter((k) => !keys.includes(k));
   if (missing.length) fail(`the document set must include the "always" documents: ${missing.join(', ')}`);
   state.documents = DOCUMENT_KEYS.filter((k) => keys.includes(k));
 }

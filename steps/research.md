@@ -2,6 +2,8 @@
 
 Gather current, sourced conventions for every technology in the chosen stack — one **stack pack** per technology — so the generator builds rules, skills and hooks from researched practice instead of fixed templates.
 
+**In /adopt:** not implemented yet (Phase 2, build step 3). The rest of this file is the `/kickoff` step.
+
 **Reads:** the state (`STATE status --json`: `stack.layers`, `stack.versions`, `projectType`), `docs/prd.md` (technical constraints), the ADRs, `docs/architecture/overview.md` if it exists (conventions), the stack rules for the project type (`<plugin root>/reference/<type>-stack.md`, "Stack packs": pack ids), `<plugin root>/steps/research-pack.md`, `<plugin root>/templates/stack-pack.md`. On a re-run: the existing `.keelwright/stack-packs/`.
 **Produces:** `.keelwright/stack-packs/<id>.md`, one per technology; `stack.packs` in the state.
 **Gate:** Gate 3 — the user reviews the packs before anything is generated from them.

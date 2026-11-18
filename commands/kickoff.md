@@ -52,13 +52,14 @@ Decide what was asked from `$ARGUMENTS`:
 
 ## 2. Start or continue
 
-1. Check whether `.keelwright/state.json` exists.
-2. **If it doesn't exist** (new kickoff):
+1. Run `STATE mode`. If it prints `adopt`, this project is being adopted: tell the user to continue with `/adopt` and stop.
+2. **If it prints `none`** (new kickoff):
+   - If the folder already holds a project (a manifest such as `package.json`, `pyproject.toml`, `Cargo.toml`, `pubspec.yaml` with source files next to it), ask (AskUserQuestion) whether to **adopt it with `/adopt`** (recommended: it describes the existing code instead of planning a new project) or **kick off here anyway**. On `/adopt`, stop and tell the user to run it.
    - The project description is required. If `$ARGUMENTS` is a path to a file, that file is the description; if it is text, the text is the description. If there are no arguments, ask the user for the project description or specs (text or file paths) and stop until they answer.
    - Run `STATE init --input "<file path, or a one-line summary of the text>"`.
    - If the folder is a git repository or has a `.gitignore`, add `.keelwright/snapshots/` to `.gitignore` (temporary copies used to measure review edits). The rest of `.keelwright/` is committed.
    - If the description was given as text, save it verbatim to `.keelwright/input.md` so later steps can re-read it.
-3. **If it exists**, check for edits first (section 3), then continue.
+3. **If it prints `kickoff`**, check for edits first (section 3), then continue.
 4. Continue with the loop in section 5.
 
 If the state exists and `$ARGUMENTS` contains a new project description, don't start over: tell the user a kickoff is already in progress here, show `STATE status`, and ask whether the new text should be added as input to the current kickoff.
@@ -100,7 +101,7 @@ Run as many steps as you can in one go; the pipeline only pauses at review gates
 ## 6. Running a step
 
 1. Read `${CLAUDE_PLUGIN_ROOT}/steps/<step>.md`.
-2. **If it says the step is not implemented yet**, tell the user: the step name, what it will produce, and that this version of KeelWright stops here. Don't change the state. Stop.
+2. **If it says the step is not implemented yet** (the whole step — an **In /adopt** note is about `/adopt` and doesn't apply here), tell the user: the step name, what it will produce, and that this version of KeelWright stops here. Don't change the state. Stop.
 3. Run `STATE start <step>` **before any of the step's work** — before writing or editing any file — so the step's time is measured. `STATE complete` warns when every output was written before the start.
 4. Follow the step's instructions. They say what to read, what to produce, and when to ask the user.
 5. Finish with exactly one of:

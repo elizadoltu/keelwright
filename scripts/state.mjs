@@ -1,25 +1,27 @@
 #!/usr/bin/env node
-// KeelWright state CLI — the only way /kickoff reads or changes .keelwright/state.json.
+// KeelWright state CLI — the only way /kickoff and /adopt read or change .keelwright/state.json.
 // Run `node state.mjs help` for usage.
 
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { STEPS, downstreamOf } from './lib/pipeline.mjs';
+import { MODES, downstreamOf, stepsOf } from './lib/pipeline.mjs';
 import * as M from './lib/metrics.mjs';
 import * as S from './lib/state.mjs';
 
 const HELP = `Usage: node state.mjs <command> [args] [--root <dir>] [--json]
 
-  init [--type <t>] [--input <text>]   Create .keelwright/state.json (fails if it exists)
+  init [--mode kickoff|adopt] [--type <t>] [--input <text>]
+                                       Create .keelwright/state.json (fails if it exists)
+  mode                                 The pipeline this project follows (kickoff | adopt; "none" without state)
   status                               Steps, next action, edited files and open markers
-  next                                 What /kickoff should do next
-  steps                                The pipeline definition
+  next                                 What /kickoff or /adopt should do next
+  steps [--mode <m>]                   The pipeline definition (this project's, or --mode's)
   downstream <step>                    Steps that a re-run of <step> would mark stale
   start <step>                         Start (or re-run) a step
   complete <step> <file|dir>...        Finish a step and record its outputs
   skip <step> --reason <text>          Skip a step with nothing to produce
-  approve <gate>                       Approve review gate 1, 2 or 3
+  approve <gate>                       Approve a review gate (kickoff: 1–3, adopt: 1–2)
   changes                              Approved files edited since approval
   accept-changes [--keep-downstream]   Take the edits as the new baseline
   markers                              Open [NEEDS CLARIFICATION] markers in files under review
@@ -31,7 +33,7 @@ const HELP = `Usage: node state.mjs <command> [args] [--root <dir>] [--json]
   set input <text>
   set stack '<json object>'            Merged into state.stack (nested objects key by key)`;
 
-const VALUE_FLAGS = new Set(['--root', '--type', '--input', '--reason']);
+const VALUE_FLAGS = new Set(['--root', '--type', '--input', '--reason', '--mode']);
 
 function parse(argv) {
   const positional = [];
@@ -57,9 +59,9 @@ function pluginVersion() {
 
 function formatStatus(state, root) {
   const lines = [];
-  lines.push(`Project type: ${state.projectType ?? '(not set)'}   Documents: ${state.documents.join(', ')}`);
+  lines.push(`Mode: /${S.modeOf(state)}   Project type: ${state.projectType ?? '(not set)'}   Documents: ${state.documents.join(', ')}`);
   lines.push('');
-  for (const step of STEPS) {
+  for (const step of stepsOf(S.modeOf(state))) {
     const entry = state.steps[step.name];
     const gate = step.gate ? `gate ${step.gate}` : '';
     const note = entry.reason ? ` — ${entry.reason}` : '';
@@ -133,7 +135,7 @@ function run(argv) {
 
     case 'init': {
       if (S.exists(root)) throw new S.StateError(`state already exists at ${S.statePath(root)}`);
-      const state = S.create({ version: pluginVersion(), now, projectType: flags.type ?? null, input: flags.input ?? null });
+      const state = S.create({ version: pluginVersion(), now, mode: flags.mode ?? 'kickoff', projectType: flags.type ?? null, input: flags.input ?? null });
       S.save(root, state);
       return out(`Created ${S.statePath(root)}`, state);
     }
@@ -151,13 +153,22 @@ function run(argv) {
       return out(describeNext(n), n);
     }
 
-    case 'steps':
-      return out(STEPS.map((s) => `${s.name}  deps: ${s.deps.join(', ') || '—'}  gate: ${s.gate ?? '—'}`).join('\n'), STEPS);
+    case 'mode': {
+      const mode = S.exists(root) ? S.modeOf(S.load(root)) : 'none';
+      return out(mode, { mode });
+    }
+
+    case 'steps': {
+      const mode = flags.mode ?? (S.exists(root) ? S.modeOf(S.load(root)) : 'kickoff');
+      if (!MODES.includes(mode)) throw new S.StateError(`unknown mode "${mode}" (modes: ${MODES.join(', ')})`);
+      const steps = stepsOf(mode);
+      return out(steps.map((s) => `${s.name}  deps: ${s.deps.join(', ') || '—'}  gate: ${s.gate ?? '—'}`).join('\n'), steps);
+    }
 
     case 'downstream': {
       need(1, 'downstream <step>');
       const state = S.exists(root) ? S.load(root) : null;
-      const all = downstreamOf(args[0]);
+      const all = downstreamOf(args[0], state ? S.modeOf(state) : 'kickoff');
       const affected = state ? S.affectedDownstream(state, args[0]) : [];
       return out(
         `Downstream of ${args[0]}: ${all.join(', ') || 'none'}\nWould be marked stale: ${affected.join(', ') || 'none'}`,
@@ -238,9 +249,9 @@ function run(argv) {
 
     case 'metric': {
       need(3, 'metric <step> <name> <n|+n>');
-      S.load(root);
+      const mode = S.modeOf(S.load(root));
       const metrics = M.loadMetrics(root);
-      const value = wrap(() => M.recordCounter(metrics, args[0], args[1], args[2]));
+      const value = wrap(() => M.recordCounter(metrics, args[0], args[1], args[2], mode));
       M.saveMetrics(root, metrics);
       return out(`${args[0]}.${args[1]} = ${value}`, { step: args[0], name: args[1], value });
     }
@@ -290,7 +301,7 @@ function run(argv) {
 try {
   run(process.argv.slice(2));
 } catch (err) {
-  if (err instanceof S.StateError || err instanceof SyntaxError || /unknown step/.test(err.message)) {
+  if (err instanceof S.StateError || err instanceof SyntaxError || /unknown (step|mode)/.test(err.message)) {
     console.error(`error: ${err.message}`);
     process.exit(1);
   }

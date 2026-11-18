@@ -325,7 +325,11 @@ analyse → { document, research } → gaps → generate → publish
 
 **Monorepos.** Not supported yet: `analyse` detects workspaces (npm / pnpm / yarn workspaces, Nx, Turborepo, Lerna, several manifests) and offers to adopt one package, with that folder as the project root.
 
-**State.** The same `.keelwright/state.json` with `"mode": "adopt"`, changed through the same state CLI; `status`, `report` and the run metrics work as for `/kickoff`.
+**Before it starts.** `/adopt` checks the repository before it creates any state (`analyse.mjs --preflight`) and stops, changing nothing, on an existing Claude setup (audit mode), a monorepo (run it from the package's folder), a toolchain KeelWright doesn't support, or a folder with no project. On a dirty git tree it says so and offers a `keelwright-adopt` branch, so the documents and tooling fixes don't mix with unfinished work. Text passed to `/adopt` is kept in `.keelwright/input.md` as the user's notes about the project; they outrank what the analysis infers.
+
+**State.** The same `.keelwright/state.json` with `"mode": "adopt"`, changed through the same state CLI (`state.mjs init --mode adopt`); a state without `mode` is a kickoff. `status`, `report` and the run metrics work as for `/kickoff`. The document set starts with `adr`, `architecture-overview` and `development-workflow` (no PRD, no backlog). `/kickoff` in a folder that is being adopted sends the user to `/adopt`, and in a folder that already holds a project it offers `/adopt` first.
+
+**Publish.** Not available in `/adopt` yet: the Jira plan reads the PRD's stories, which `/adopt` doesn't write. The step is skipped with that reason.
 
 | Command | Does |
 |---|---|
@@ -653,7 +657,7 @@ Examples from building the steps:
 1. `analyse`: the facts script (`scripts/analyse.mjs`) with tests, the step and the analysis template.
 2. `/adopt` entry point: mode detection, the adopt pipeline in the state CLI, gates, status and report.
 3. `document` and `research` for existing projects.
-4. `gaps`, and `generate` reading the analysis (the project's own commands and conventions).
+4. `gaps`, and `generate` reading the analysis (the project's own commands and conventions); `publish` (Confluence) for adopted projects.
 5. Evaluation cases on fixture repositories, including a grader that every cited file exists.
 6. Run on a real repository without a Claude setup; record it in `evals/runs/` and feed the findings back.
 
