@@ -5,6 +5,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Added — `/adopt` create mode (in progress)
+
+- Spec 5.2.1: how `/adopt` describes an existing project and builds the Claude setup on top of it — `analyse → { document, research } → gaps → generate → publish`, two gates, never changing application code or dependency versions; the Phase 2 build order.
+- `scripts/analyse.mjs`: the facts about an existing repository — toolchain and package manager (npm, pnpm, yarn, bun, uv, Poetry, pip, Cargo, Flutter), runtime pins, dependencies with their locked versions, frameworks and matching stack packs, tasks (npm scripts, poe, just, Make, tox, nox) mapped to the task contract with the project's own runner, the tooling in place, what CI runs, docs and other tools' instruction files, monorepo markers, and gaps.
+- `steps/analyse.md` and `templates/analysis.md` (not yet reachable: the `/adopt` command comes next).
+- `doccheck` type `analysis`: every convention cites a file that exists and says whether the code follows it consistently.
+
 ### Fixed
 
 From the first real run (`evals/runs/2026-11-17-portfolio-26.md`):

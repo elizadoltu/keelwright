@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { describe, test } from 'node:test';
-import { checkDocument, placeholders, wordCount } from '../scripts/lib/doccheck.mjs';
+import { checkDocument, citedPaths, placeholders, wordCount } from '../scripts/lib/doccheck.mjs';
 
 const prd = (stories, frs, extra = '') => `---
 status: draft
@@ -115,5 +115,29 @@ describe('type-specific documents', () => {
 
   test('API surface: items and a versioning policy', () => {
     assert.deepEqual(issuesOf('## Versioning\n\nSemVer.\n', 'api-surface'), ['no public API items (| API-001 | … rows)']);
+  });
+});
+
+describe('adopt analysis', () => {
+  const doc = (rows) => `# Analysis\n\n## Conventions\n\n| ID | Area | Convention | Evidence | Followed |\n|---|---|---|---|---|\n${rows}\n\n## Gaps\n\n| ID | Gap | Fix |\n|---|---|---|\n| G-01 | no gitleaks | add it |\n`;
+  const exists = (p) => ['src/errors.ts', 'src/app.ts', 'src/routes/'].includes(p);
+  const issues = (text) => checkDocument(text, { type: 'analysis', exists }).issues.map((i) => i.issue);
+
+  test('conventions cite existing files and say consistent or mixed', () => {
+    assert.deepEqual(issues(doc('| C-01 | errors | handlers throw HttpError | `src/errors.ts`, `src/app.ts:12` | consistent |')), []);
+  });
+
+  test('missing evidence, invented files, no verdict, no gaps section', () => {
+    assert.deepEqual(issues(doc('| C-01 | errors | throw HttpError | the route files | consistent |\n| C-02 | naming | kebab-case files | `src/utils/strings.ts` | mostly |')), [
+      'C-01 cites no file — name at least one file that shows it',
+      "C-02 doesn't say whether the code follows it consistently or mixed",
+      'C-02 cites `src/utils/strings.ts`, which doesn\'t exist',
+    ]);
+    assert.ok(issues('# Analysis\n').includes('no conventions (| C-01 | … rows)'));
+    assert.ok(issues('# Analysis\n').includes('no Gaps section'));
+  });
+
+  test('commands and globs in backticks are not cited files', () => {
+    assert.deepEqual(citedPaths('`pnpm test` `src/**/*.ts` `src/app.ts` `v4.2` `https://x.dev/a.md`'), ['src/**/*.ts', 'src/app.ts']);
   });
 });
