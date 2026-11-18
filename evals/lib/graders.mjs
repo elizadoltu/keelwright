@@ -4,7 +4,7 @@
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { checkTokens, checkWorkspace, crossCheck } from '../../scripts/lib/crosscheck.mjs';
-import { checkDocument } from '../../scripts/lib/doccheck.mjs';
+import { checkDocument, citedPaths } from '../../scripts/lib/doccheck.mjs';
 import { validatePack } from '../../scripts/lib/packs.mjs';
 import { next } from '../../scripts/lib/state.mjs';
 import { isPyFinal, isStable, parseSpec, resolveAll } from '../../scripts/lib/versions.mjs';
@@ -12,12 +12,22 @@ import { isPyFinal, isStable, parseSpec, resolveAll } from '../../scripts/lib/ve
 const read = (dir, f) => (existsSync(join(dir, f)) ? readFileSync(join(dir, f), 'utf8') : null);
 const result = (pass, detail = '') => ({ pass, detail });
 
-export function loadRun(dir) {
+// `c.expect.adrFolder`: an adopted project's own ADR folder (default `docs/decisions`).
+export function loadRun(dir, c = {}) {
   const stateText = read(dir, '.keelwright/state.json');
-  const decisionsDir = join(dir, 'docs/decisions');
+  const adrDir = (c.expect?.adrFolder ?? 'docs/decisions').replace(/\/$/, '');
+  const decisionsDir = join(dir, adrDir);
   const adrs = existsSync(decisionsDir) ? readdirSync(decisionsDir).filter((f) => /^\d{4}-.*\.md$/.test(f)).sort() : [];
-  return { dir, state: stateText ? JSON.parse(stateText) : null, adrs };
+  const filesText = read(dir, '.eval/files.json');
+  return { dir, state: stateText ? JSON.parse(stateText) : null, adrs, adrDir, files: filesText ? JSON.parse(filesText) : null };
 }
+
+const adopted = (run) => run.state?.mode === 'adopt';
+// ADRs this run wrote: in the ADR folder after the run but not before.
+const newAdrs = (run) => run.adrs.filter((f) => !run.files || !run.files.before[`${run.adrDir}/${f}`]);
+const section = (text, name) => (new RegExp(`^##\\s+${name}[^\\n]*\\n([\\s\\S]*?)(?=^##\\s|(?![\\s\\S]))`, 'mi').exec(text ?? '') ?? [])[1] ?? '';
+// Files an adopted project may gain or change before the gaps step: the documents and KeelWright's own folder.
+const DOC_PATHS = /^(\.keelwright\/|docs\/|CLAUDE\.md$|\.claude\/|CONTRIBUTING\.md$|\.gitignore$)/;
 
 // ---------------------------------------------------------------------------
 // Deterministic graders: (run, expect) → { pass, detail } | null when not applicable
@@ -51,7 +61,7 @@ export const GRADERS = {
   'project-type': (run, expect) => {
     if (!expect.projectType) return null;
     const got = run.state?.projectType;
-    return result(got === expect.projectType, `got ${got}`);
+    return result([expect.projectType].flat().includes(got), `got ${got}`);
   },
 
   // The main stack decision (the frontend for web; app framework, engine, provider or language otherwise).
@@ -119,13 +129,13 @@ export const GRADERS = {
     const checks = [
       ...Object.values(DOCUMENTS).filter((d) => d.check).map((d) => [d.path, d.check]),
       ['docs/backlog.md', null],
-      ...run.adrs.map((f) => [`docs/decisions/${f}`, 'adr']),
+      ...(adopted(run) ? newAdrs(run).filter((f) => !/record-architecture-decisions/.test(f)) : run.adrs).map((f) => [`${run.adrDir}/${f}`, adopted(run) ? 'adr-retro' : 'adr']),
     ];
     const failures = [];
     for (const [file, type] of checks) {
       const text = read(run.dir, file);
       if (text === null) continue;
-      const r = checkDocument(text, { type });
+      const r = checkDocument(text, { type, exists: run.files ? (p) => run.files.after[p] !== undefined : null });
       if (!r.ok) failures.push(`${file}: ${r.issues.map((i) => i.issue).join('; ')}`);
     }
     const tokens = read(run.dir, 'design/tokens.json');
@@ -145,7 +155,8 @@ export const GRADERS = {
         if (issues.length) failures.push(`stack pack ${f}: ${issues.join('; ')}`);
       }
     }
-    if (existsSync(join(run.dir, 'docs'))) {
+    // /adopt: the project's own documents in docs/ aren't the run's to fix (the step reports them at the gate).
+    if (existsSync(join(run.dir, 'docs')) && !adopted(run)) {
       const refs = crossCheck(run.dir, ['docs']);
       if (refs.issues.length) failures.push(`refs: ${refs.issues.map((i) => i.issue).join('; ')}`);
     }
@@ -154,13 +165,141 @@ export const GRADERS = {
 
   // Documents the case expects to exist actually exist (the document set is acted on, not just listed).
   'documents-written': (run) => {
+    if (adopted(run)) return null;
     const reached = new Set(Object.entries(run.state?.steps ?? {}).filter(([, s]) => ['awaiting_review', 'approved', 'done'].includes(s.status)).map(([n]) => n));
     const missing = (run.state?.documents ?? []).filter((k) => DOCUMENTS[k] && reached.has(DOCUMENTS[k].step) && !existsSync(join(run.dir, DOCUMENTS[k].path)));
     return result(!missing.length, missing.length ? `listed but not written: ${missing.join(', ')}` : '');
   },
 
+  // ---- /adopt -------------------------------------------------------------------------
+
+  mode: (run, expect) => {
+    if (!expect.mode) return null;
+    return result((run.state?.mode ?? 'kickoff') === expect.mode, `got ${run.state?.mode ?? 'kickoff'}`);
+  },
+
+  // Every file the analysis, the overview and the new ADRs cite exists in the project.
+  'cited-files': (run) => {
+    if (!adopted(run) || !run.files) return null;
+    const exists = (p) => run.files.after[p] !== undefined || Object.keys(run.files.after).some((f) => f.startsWith(p.endsWith('/') ? p : `${p}/`));
+    const sources = [['.keelwright/analysis.md', read(run.dir, '.keelwright/analysis.md')], ...newAdrs(run).map((f) => [`${run.adrDir}/${f}`, read(run.dir, `${run.adrDir}/${f}`)])];
+    const missing = [];
+    let cited = 0;
+    for (const [file, text] of sources) {
+      if (!text) continue;
+      // Table rows and Evidence lists: the places that make claims about the code.
+      for (const line of text.split('\n').filter((l) => /^\s*(\||- `)/.test(l))) {
+        for (const p of citedPaths(line).filter((x) => !x.includes('*') && !x.startsWith('.keelwright/'))) {
+          cited++;
+          if (!exists(p.replace(/\/$/, '/'))) missing.push(`${file} cites \`${p}\``);
+        }
+      }
+    }
+    if (!cited) return result(false, 'no cited files found');
+    return result(!missing.length, missing.length ? [...new Set(missing)].join('; ') : `${cited} citations`);
+  },
+
+  // Before the gaps step, nothing outside the documents and the Claude setup changed.
+  'code-untouched': (run, expect, c) => {
+    if (!adopted(run) || !run.files) return null;
+    const { before, after } = run.files;
+    const gapsRan = ['done', 'in_progress'].includes(run.state?.steps?.gaps?.status);
+    const changed = [...new Set([...Object.keys(before), ...Object.keys(after)])].filter((f) => before[f] !== after[f] && !DOC_PATHS.test(f));
+    // Existing documents (an ADR, the README) must not change either.
+    const editedDocs = Object.keys(before).filter((f) => /\.md$/.test(f) && after[f] !== before[f]);
+    const bad = gapsRan ? editedDocs : [...changed, ...editedDocs];
+    return result(!bad.length, bad.length ? `changed: ${[...new Set(bad)].join(', ')}` : `${Object.keys(before).length} files unchanged`);
+  },
+
+  // The analysis passes its doccheck against the project's real files.
+  'analysis-check': (run) => {
+    if (!adopted(run)) return null;
+    const text = read(run.dir, '.keelwright/analysis.md');
+    if (!text) return result(false, 'no .keelwright/analysis.md');
+    const exists = run.files ? (p) => run.files.after[p] !== undefined || Object.keys(run.files.after).some((f) => f.startsWith(p.endsWith('/') ? p : `${p}/`)) : null;
+    const r = checkDocument(text, { type: 'analysis', exists });
+    return result(r.ok, r.ok ? `${r.words} words` : r.issues.map((i) => i.issue).join('; '));
+  },
+
+  // Conventions the case planted, with the verdict expected (e.g. one route breaks the error pattern → mixed).
+  conventions: (run, expect) => {
+    if (!expect.conventions) return null;
+    const rows = section(read(run.dir, '.keelwright/analysis.md'), 'Conventions').split('\n').filter((l) => /\|\s*C-\d+/.test(l));
+    const misses = expect.conventions.filter((e) => !rows.some((r) => new RegExp(e.match, 'i').test(r) && (!e.followed || new RegExp(`\\b${e.followed}\\b`, 'i').test(r))));
+    return result(!misses.length, misses.length ? `no convention row matching ${misses.map((m) => `/${m.match}/${m.followed ? ` marked ${m.followed}` : ''}`).join(', ')}` : `${rows.length} conventions`);
+  },
+
+  // Gaps the case planted appear in the analysis's Gaps section.
+  'gaps-found': (run, expect) => {
+    if (!expect.gaps) return null;
+    const text = section(read(run.dir, '.keelwright/analysis.md'), 'Gaps');
+    const missing = expect.gaps.filter((p) => !new RegExp(p, 'i').test(text));
+    const extra = (expect.notGaps ?? []).filter((p) => new RegExp(p, 'i').test(text));
+    const detail = [missing.length && `missing: ${missing.map((m) => `/${m}/`).join(', ')}`, extra.length && `reported but not a gap: ${extra.map((m) => `/${m}/`).join(', ')}`].filter(Boolean).join('; ');
+    return result(!missing.length && !extra.length, detail);
+  },
+
+  // The versions in use (locked), not the latest, are recorded.
+  'versions-in-use': (run, expect) => {
+    if (!expect.versions) return null;
+    const got = run.state?.stack?.versions ?? {};
+    const wrong = Object.entries(expect.versions).filter(([name, v]) => !String(got[name] ?? '').startsWith(v));
+    return result(!wrong.length, wrong.length ? wrong.map(([n, v]) => `${n}: expected ${v}, got ${got[n] ?? '—'}`).join('; ') : '');
+  },
+
+  workspaces: (run, expect) => {
+    if (!expect.workspaces) return null;
+    const got = [...(run.state?.stack?.workspaces ?? [])].map((w) => w.replace(/\/$/, '')).sort();
+    return result(JSON.stringify(got) === JSON.stringify([...expect.workspaces].sort()), `got ${got.join(', ') || '—'}`);
+  },
+
+  // New ADRs go in the project's own folder, numbered after its highest, and ADR-0001 isn't
+  // re-recorded when the project already has ADRs.
+  'adr-folder': (run, expect) => {
+    if (!expect.adrFolder || !run.files) return null;
+    const reached = ['awaiting_review', 'approved'].includes(run.state?.steps?.document?.status);
+    if (!reached) return null;
+    const added = newAdrs(run);
+    const problems = [];
+    if (!added.length) problems.push(`no new ADR in ${run.adrDir}/`);
+    const highest = Math.max(0, ...Object.keys(run.files.before).filter((f) => f.startsWith(`${run.adrDir}/`)).map((f) => Number(/\/(\d{4})-/.exec(f)?.[1] ?? 0)));
+    for (const f of added) if (Number(f.slice(0, 4)) <= highest) problems.push(`${f} reuses a number (highest existing: ${highest})`);
+    if (highest && added.some((f) => /record-architecture-decisions/.test(f))) problems.push('ADR-0001 "record architecture decisions" written although the project has ADRs');
+    const strays = Object.keys(run.files.after).filter((f) => /^docs\/decisions\//.test(f) && run.adrDir !== 'docs/decisions');
+    if (strays.length) problems.push(`ADRs written outside the project's folder: ${strays.join(', ')}`);
+    return result(!problems.length, problems.join('; ') || added.join(', '));
+  },
+
+  // Retroactive ADRs pass their check, and don't invent alternatives the repository never mentions.
+  'retro-adrs': (run, expect) => {
+    if (!adopted(run) || !run.files) return null;
+    const retro = newAdrs(run).filter((f) => /Recorded retroactively/.test(read(run.dir, `${run.adrDir}/${f}`) ?? ''));
+    if (!retro.length) return ['awaiting_review', 'approved'].includes(run.state?.steps?.document?.status) ? result(false, 'no retroactive ADRs') : null;
+    const exists = (p) => run.files.after[p] !== undefined;
+    const problems = [];
+    for (const f of retro) {
+      const text = read(run.dir, `${run.adrDir}/${f}`);
+      const r = checkDocument(text, { type: 'adr-retro', exists });
+      if (!r.ok) problems.push(`${f}: ${r.issues.map((i) => i.issue).join('; ')}`);
+      if (expect.alternativesKnown === false && !/not recorded/i.test(section(text, 'Alternatives'))) problems.push(`${f}: lists alternatives the repository never mentions`);
+    }
+    return result(!problems.length, problems.join('\n') || `${retro.length} retroactive ADRs`);
+  },
+
+  // Packs researched or reused at the major version the project uses.
+  'pack-majors': (run, expect) => {
+    if (!expect.packMajors) return null;
+    if (!['awaiting_review', 'approved'].includes(run.state?.steps?.research?.status)) return null;
+    const wrong = Object.entries(expect.packMajors).filter(([id, major]) => {
+      const m = /^major:\s*(\d+)/m.exec(read(run.dir, `.keelwright/stack-packs/${id}.md`) ?? '');
+      return Number(m?.[1]) !== major;
+    });
+    return result(!wrong.length, wrong.map(([id, major]) => `${id}: expected major ${major}`).join('; '));
+  },
+
   // Each ADR after 0001 justifies itself with at least one requirement ID.
   'adr-traceability': (run) => {
+    if (adopted(run)) return null; // retroactive ADRs have no requirements to cite
     // ADR-0001 is fixed text; version hold-backs are justified by a peer range, not a requirement.
     const bare = run.adrs.filter((f) => !f.startsWith('0001-') && !/^\d{4}-hold-/.test(f)).filter((f) => !/\b(?:US-\d+|(?:FR|NFR|SC)-\d{3})\b/.test(read(run.dir, `docs/decisions/${f}`)));
     return result(run.adrs.length > 1 && !bare.length, bare.length ? `no requirement IDs: ${bare.join(', ')}` : `${run.adrs.length} ADRs`);

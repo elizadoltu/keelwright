@@ -1,0 +1,17 @@
+{
+  "name": "market-board",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": ["web", "api"],
+  "scripts": {
+    "dev": "concurrently \"npm run dev --workspace web\" \"npm run dev --workspace api\"",
+    "lint": "npm run lint --workspaces",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "npm run build --workspaces",
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1",
+    "husky": "^9.1.7"
+  }
+}

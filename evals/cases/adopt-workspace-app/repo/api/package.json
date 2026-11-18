@@ -1,0 +1,14 @@
+{
+  "name": "market-board-api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node --env-file=.env --import tsx/esm --watch src/index.ts",
+    "build": "tsc",
+    "lint": "eslint .",
+    "test": "echo 'No tests yet' && exit 0"
+  },
+  "dependencies": { "cors": "^2.8.5", "express": "^5.2.1", "pg": "^8.16.3" },
+  "devDependencies": { "@types/express": "^5.0.5", "eslint": "^9.39.1", "tsx": "^4.20.6", "typescript": "~5.9.3" }
+}
