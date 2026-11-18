@@ -2,7 +2,7 @@
 
 A Claude Code plugin that takes a project from **idea or specs** to project documents, a scaffolded repository and a project-specific Claude setup, with review gates where you edit the documents before the pipeline continues.
 
-> Status: Phase 1 complete. The whole `/kickoff` pipeline is built — from the interview to an optional publish to Jira and Confluence — for web, mobile, game, AI / LLM and library / CLI / API projects, and was validated on a real web project (`evals/runs/`). In progress: `/adopt` for existing projects — it runs the analysis and its review gate so far (see `keelwright-spec.md`, 5.2.1 and section 9).
+> Status: Phase 1 complete. The whole `/kickoff` pipeline is built — from the interview to an optional publish to Jira and Confluence — for web, mobile, game, AI / LLM and library / CLI / API projects, and was validated on a real web project (`evals/runs/`). In progress: `/adopt` for existing projects — it runs the analysis, the as-built documents and the stack research, through gate 2, so far (see `keelwright-spec.md`, 5.2.1 and section 9).
 
 ## Requirements
 
@@ -41,7 +41,7 @@ Plugin commands are namespaced, so the command is `/keelwright:kickoff` (shown a
 
 ### Existing projects: `/adopt` (in progress)
 
-Run in the root of an existing repository that has no Claude setup yet (`/keelwright:adopt`). It describes the project as it is — stack and versions in use, tasks, architecture, conventions with the files that show them, gaps — and stops for your corrections at gate 1. It never changes application code or dependency versions. The documents, tooling fixes and Claude setup that follow are being built (`keelwright-spec.md`, 5.2.1).
+Run in the root of an existing repository that has no Claude setup yet (`/keelwright:adopt`). It describes the project as it is — stack and versions in use, tasks, architecture, conventions with the files that show them, gaps — and stops for your corrections at gate 1; then it records the architecture as built and ADRs for the decisions already in the code, researches conventions for the versions you use, and stops at gate 2. It never changes application code or dependency versions. The tooling fixes and the Claude setup that follow are being built (`keelwright-spec.md`, 5.2.1).
 
 | Command | Does |
 |---|---|

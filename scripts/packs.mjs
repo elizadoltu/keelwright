@@ -14,7 +14,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { availablePacks, install, plan, saveToCache, userPackDir, validatePack } from './lib/packs.mjs';
+import { availablePacks, choosePack, install, plan, saveToCache, userPackDir, validatePack } from './lib/packs.mjs';
 
 const PLUGIN_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const argv = process.argv.slice(2);
@@ -50,8 +50,9 @@ switch (command) {
   case 'install': {
     if (!args.length) fail('usage: install <id>...');
     const packs = availablePacks(PLUGIN_ROOT);
+    const versions = stackVersions();
     const done = args.map((id) => {
-      const best = packs[id]?.[0];
+      const best = choosePack(packs[id], versions);
       if (!best) fail(`no pack "${id}" — research it first`);
       return install(best, root);
     });

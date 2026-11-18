@@ -2,7 +2,7 @@
 
 Gather current, sourced conventions for every technology in the chosen stack — one **stack pack** per technology — so the generator builds rules, skills and hooks from researched practice instead of fixed templates.
 
-**In /adopt:** not implemented yet (Phase 2, build step 3). The rest of this file is the `/kickoff` step.
+**In /adopt:** the same step for the stack **in use**, with the differences in the **In /adopt** section at the end. The gate is Gate 2 (shared with `document`), not Gate 3.
 
 **Reads:** the state (`STATE status --json`: `stack.layers`, `stack.versions`, `projectType`), `docs/prd.md` (technical constraints), the ADRs, `docs/architecture/overview.md` if it exists (conventions), the stack rules for the project type (`<plugin root>/reference/<type>-stack.md`, "Stack packs": pack ids), `<plugin root>/steps/research-pack.md`, `<plugin root>/templates/stack-pack.md`. On a re-run: the existing `.keelwright/stack-packs/`.
 **Produces:** `.keelwright/stack-packs/<id>.md`, one per technology; `stack.packs` in the state.
@@ -55,3 +55,17 @@ The user can edit any pack: drop a rule, change one, add their own. The edited p
 
 - Set `status: reviewed` in each pack in `.keelwright/stack-packs/`.
 - For each pack **researched in this run**, save it to the user's cache so other projects can reuse it: `PACKS save .keelwright/stack-packs/<id>.md`. Don't save reused packs the user edited for this project only — ask first whether the edits should apply to other projects too.
+
+## In /adopt
+
+The project's stack is already chosen and installed. Research its conventions **at the major versions it uses** — never the newest — and never suggest upgrading.
+
+- **Reads instead:** `.keelwright/analysis.md` (approved at gate 1: Stack, Conventions, Enforced by tooling) and `analyse.mjs --json` (`frameworks`, `packs`, `dependencies[].locked`) instead of the PRD and the type's stack rules. There is no `stack.layers`.
+- **Choose the packs** from what the project really uses: the frameworks, the data layer, styling, test runners, language tooling, git hooks (`git-hooks` for Husky, `pre-commit` for pre-commit; when the project has neither, the hook manager the `gaps` step will propose for its toolchain). Use the ids in `packs` (existing packs matched by package) and the stack rules' ids where they match; otherwise the slug rule above. Leave out technologies the analysis struck out or the project is removing.
+- **Versions:** before `PACKS plan`, make sure each pack's primary package has its **locked** version in the state: `STATE set stack '{"versions": {"<package>": "<locked>", …}}'` (merged into the versions `analyse` recorded). `PACKS plan` then reuses a pack only for the same major and researches it otherwise; a pack for an older major is cached next to the current one, not instead of it.
+- **Researching an older major:** give `steps/research-pack.md` the locked version. Use the documentation for that major (versioned docs, the archived site, the release branch). Rules that need a newer major are left out; one line in **Version notes** says what the newer major changes, for the gap report — not as a rule.
+- **Conflicts with the project:** a pack rule that contradicts a convention the analysis recorded is not deleted. Mark it in the gate summary as "the project does it differently, see C-NN"; the user decides at the gate which wins. The project's convention wins by default — the generator writes rules from the code.
+- **Rules the project's tooling already enforces** (the analysis's "Enforced by tooling") stay in the pack; `generate` won't repeat them in prose.
+- **Selection rules check (section 3):** skip it — nothing was selected.
+- **Gate summary:** as above, plus per pack the major researched and whether the project is behind the current major (that's a gap, recorded in the analysis, not something this step changes).
+- **On approval:** as above. Packs researched for an older major are saved to the cache too, under their major.

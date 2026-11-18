@@ -10,9 +10,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - Spec 5.2.1: how `/adopt` describes an existing project and builds the Claude setup on top of it — `analyse → { document, research } → gaps → generate → publish`, two gates, never changing application code or dependency versions; the Phase 2 build order.
 - `scripts/analyse.mjs`: the facts about an existing repository — toolchain and package manager (npm, pnpm, yarn, bun, uv, Poetry, pip, Cargo, Flutter), runtime pins, dependencies with their locked versions, frameworks and matching stack packs, tasks (npm scripts, poe, just, Make, tox, nox) mapped to the task contract with the project's own runner, the tooling in place, what CI runs, docs and other tools' instruction files, monorepo markers, and gaps.
 - `steps/analyse.md` and `templates/analysis.md`.
-- The `/adopt` command (`commands/adopt.md`): checks the repository before creating any state (`analyse.mjs --preflight` — an existing Claude setup, a monorepo, an unsupported toolchain or no project stops it), offers a `keelwright-adopt` branch, keeps the user's notes in `.keelwright/input.md`, and runs the adopt pipeline with gates, `status`, `report` and step re-runs. It runs `analyse` and gate 1; `document`, `research`, `gaps` and `generate` for `/adopt` come next.
+- The `/adopt` command (`commands/adopt.md`): checks the repository before creating any state (`analyse.mjs --preflight` — an existing Claude setup, a monorepo, an unsupported toolchain or no project stops it), offers a `keelwright-adopt` branch, keeps the user's notes in `.keelwright/input.md`, and runs the adopt pipeline with gates, `status`, `report` and step re-runs. It runs `analyse` and gate 1; `document`, `research`, `gaps` and `generate` for `/adopt` come next (`document` and `research` below).
 - The state CLI knows both pipelines: `init --mode adopt`, `mode`, `steps --mode`; status and report show the mode. States written before this have no mode and stay kickoffs.
 - `/kickoff` sends a project being adopted to `/adopt`, and offers `/adopt` when the folder already holds a project.
+- The `document` step: the architecture overview as built and ADRs recorded retroactively (`templates/adr-retroactive.md`), in the project's own ADR folder and numbering; alternatives and decision-makers are left as "Not recorded" rather than invented. `doccheck adr-retro` checks each one cites files that exist.
+- `research` in `/adopt`: packs for the stack in use, at the major versions in use; a pack rule that contradicts the project's recorded convention is flagged at the gate.
+
+### Changed
+
+- Stack packs: `plan` and `install` pick the cached pack for the project's major, not just the newest; the user cache keeps one file per pack and major (`<id>@<major>.md`), so a pack for an older major no longer replaces the current one.
 - `doccheck` type `analysis`: every convention cites a file that exists and says whether the code follows it consistently.
 
 ### Fixed

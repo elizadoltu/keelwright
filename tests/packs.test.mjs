@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import { after, before, describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { parseFrontMatter, plan, resolvedMajor, saveToCache, validatePack } from '../scripts/lib/packs.mjs';
@@ -122,6 +122,16 @@ describe('plan: reuse or research', () => {
     assert.equal(p.researchedAt, '2026-11-10');
   });
 
+  test('an older major in use gets the cached pack for that major, not the newest', () => {
+    mkdirSync(join(home, 'stack-packs'), { recursive: true });
+    writeFileSync(join(home, 'stack-packs', 'astro@6.md'), pack({ major: 6, researchedAt: '2026-11-01' }));
+    const [old] = plan(['astro'], { astro: '6.2.0' }, { pluginRoot: plugin, now: NOW });
+    assert.deepEqual([old.action, old.major, old.reason], ['reuse', 6, '15 days old, major 6 matches']);
+    const [cur] = plan(['astro'], { astro: '7.4.12' }, { pluginRoot: plugin, now: NOW });
+    assert.equal(cur.major, 7);
+    rmSync(join(home, 'stack-packs', 'astro@6.md'));
+  });
+
   test('the primary package decides the major, globs allowed', () => {
     const meta = { packages: ['@astrojs/*'] };
     assert.equal(resolvedMajor({ meta }, { astro: '7.4.12', '@astrojs/mdx': '8.1.6' }), 8);
@@ -133,7 +143,15 @@ describe('plan: reuse or research', () => {
     writeFileSync(join(dir, 'bad.md'), '# nope');
     assert.throws(() => saveToCache(join(dir, 'bad.md')), /not saved/);
     writeFileSync(join(dir, 'astro.md'), pack());
-    assert.ok(existsSync(saveToCache(join(dir, 'astro.md'))));
+    const legacy = join(home, 'stack-packs', 'astro.md');
+    assert.ok(existsSync(legacy));
+    const saved = saveToCache(join(dir, 'astro.md'));
+    assert.equal(basename(saved), 'astro@7.md');
+    assert.ok(!existsSync(legacy), 'the legacy file for the same major is replaced');
+    writeFileSync(join(dir, 'astro6.md'), pack({ major: 6 }));
+    saveToCache(join(dir, 'astro6.md'));
+    assert.ok(existsSync(join(home, 'stack-packs', 'astro@7.md')), 'another major is kept');
+    assert.ok(existsSync(join(home, 'stack-packs', 'astro@6.md')));
   });
 });
 

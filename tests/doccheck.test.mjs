@@ -141,3 +141,29 @@ describe('adopt analysis', () => {
     assert.deepEqual(citedPaths('`pnpm test` `src/**/*.ts` `src/app.ts` `v4.2` `https://x.dev/a.md`'), ['src/**/*.ts', 'src/app.ts']);
   });
 });
+
+describe('retroactive ADR', () => {
+  const exists = (p) => ['prisma/schema.prisma', 'package.json'].includes(p);
+  const issues = (text) => checkDocument(text, { type: 'adr-retro', exists }).issues.map((i) => i.issue);
+  const adr = (evidence, alternatives = 'Not recorded — the decision predates this record.') =>
+    `---\nstatus: proposed\ndate: 2026-11-18\ndecision-makers: unknown — recorded from the code\n---\n\n# 0002. Use PostgreSQL through Prisma\n\n## Context\n\nRecorded retroactively by KeelWright from the code on 2026-11-18.\n\n## Decision\n\nPrisma 5 with PostgreSQL.\n\nEvidence:\n${evidence}\n\n## Alternatives\n\n${alternatives}\n`;
+
+  test('a recorded decision with existing evidence passes', () => {
+    assert.deepEqual(issues(adr('- `prisma/schema.prisma` — the datasource\n- `package.json` — `@prisma/client` 5.22.0')), []);
+  });
+
+  test('no evidence, missing files, no retroactive note, no alternatives section', () => {
+    assert.deepEqual(issues(adr('- the schema')), ['cites no file — the Decision section names the files that show it']);
+    assert.deepEqual(issues(adr('- `db/schema.sql`')), ['cites `db/schema.sql`, which doesn\'t exist']);
+    const bare = '# 0002. Use Prisma\n\n## Decision\n\n`package.json`\n';
+    assert.deepEqual(issues(bare), [
+      'doesn\'t say it was "Recorded retroactively by KeelWright from the code"',
+      'no Alternatives section (say "Not recorded" when none are known)',
+    ]);
+  });
+
+  test('an unfilled template fails', () => {
+    const template = readFileSync(new URL('../templates/adr-retroactive.md', import.meta.url), 'utf8');
+    assert.ok(checkDocument(template, { type: 'adr-retro', exists }).issues.length > 0);
+  });
+});
