@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, describe, test } from 'node:test';
@@ -136,6 +136,29 @@ describe('hooks configured for another toolchain', () => {
     assert.match(r.stderr, /^Ruff found problems in app\/main.py that need a manual fix:\n.*F401/);
     assert.ok(spawnSync('test', ['-f', join(root, 'app/main.py.log')]).status === 0, 'formatter ran first');
     assert.equal(hook('format-on-edit.mjs', root, { tool_name: 'Edit', tool_input: { file_path: 'app/readme.md' } }).status, 0);
+  });
+
+  test('format-on-edit runs a workspace step in its folder, with its own binary or the hoisted one', () => {
+    const root = project({
+      'frontend/src/a.ts': 'x\n',
+      'backend/src/b.ts': 'x\n',
+      'frontend/bin/.keep': '',
+      'bin/.keep': '',
+      '.claude/hooks/config.json': JSON.stringify({
+        onEdit: [
+          { files: '^frontend/', cwd: 'frontend', run: ['bin/where', '{file}'] },
+          { files: '^backend/', cwd: 'backend', run: ['bin/where', '{file}'] },
+        ],
+      }),
+    });
+    tool(root, 'frontend/bin/where', 'pwd > "$1.cwd"; echo workspace >> "$1.cwd"');
+    tool(root, 'bin/where', 'pwd > "$1.cwd"; echo root >> "$1.cwd"');
+    assert.equal(hook('format-on-edit.mjs', root, { tool_name: 'Edit', tool_input: { file_path: 'frontend/src/a.ts' } }).status, 0);
+    assert.equal(hook('format-on-edit.mjs', root, { tool_name: 'Edit', tool_input: { file_path: 'backend/src/b.ts' } }).status, 0);
+    const [fCwd, fBin] = readFileSync(join(root, 'frontend/src/a.ts.cwd'), 'utf8').trim().split('\n');
+    const [bCwd, bBin] = readFileSync(join(root, 'backend/src/b.ts.cwd'), 'utf8').trim().split('\n');
+    assert.ok(fCwd.endsWith('/frontend') && fBin === 'workspace', `${fCwd} ${fBin}`);
+    assert.ok(bCwd.endsWith('/backend') && bBin === 'root', `${bCwd} ${bBin}`);
   });
 
   test('format-on-edit skips tools that are not installed', () => {

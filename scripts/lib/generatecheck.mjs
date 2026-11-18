@@ -33,11 +33,21 @@ function mdFiles(root, dir) {
   });
 }
 
-// /adopt: commands are the project's own (`pnpm verify`, `make lint`, `tox run -e style`). Only
-// command-looking text inside backticks or code blocks is read, so prose ("make sure") isn't a task.
-const ADOPT_RUN = /\b(npm run|pnpm run|pnpm|yarn run|yarn|bun run|uv run poe|poetry run poe|pdm run poe|pdm run|just|make|tox run -e|tox -e|nox -s|composer) ([\w:.\/-]+)/g;
-const PM_BUILTINS = new Set(['install', 'i', 'add', 'remove', 'rm', 'dlx', 'exec', 'why', 'update', 'up', 'upgrade', 'outdated', 'audit', 'create', 'init', 'link', 'publish', 'config', 'store', 'list', 'ls', 'import', 'dedupe', 'run']);
-const normaliseRun = (runner, task) => `${{ 'pnpm run': 'pnpm', 'yarn run': 'yarn', 'tox -e': 'tox run -e' }[runner] ?? runner} ${task}`;
+// /adopt: commands are the project's own (`pnpm verify`, `make lint`, `tox run -e style`, and in a
+// workspace repo `npm run lint --workspace backend`, `pnpm --filter web dev`). Only command-looking
+// text inside backticks or code blocks is read, so prose ("make sure") isn't a task. Each command
+// is reduced to the form analyse.mjs gives its tasks, then looked up.
+const PM_BUILTINS = new Set(['install', 'i', 'ci', 'add', 'remove', 'rm', 'dlx', 'exec', 'why', 'update', 'up', 'upgrade', 'outdated', 'audit', 'create', 'init', 'link', 'publish', 'config', 'store', 'list', 'ls', 'import', 'dedupe', 'run', 'workspace', 'workspaces', 'dev:all']);
+const W = '([\\w./@-]+)';
+const T = '([\\w:][\\w:.-]*)';
+const RUN_FORMS = [
+  // npm run S [--workspace W | -w W | --workspaces], npm --workspace W run S
+  [new RegExp(`\\bnpm (?:(?:--workspace[= ]|-w ?)${W} )?run(?:-script)? ${T}(?:\\s+(?:(?:--workspace[= ]|-w ?)${W}|(--workspaces|-ws)\\b))?`, 'g'), (m) => ({ runner: 'npm', task: m[2], ws: m[1] ?? m[3] ?? null, all: Boolean(m[4]) })],
+  [new RegExp(`\\bpnpm (?:(?:--filter[= ]|-F ?)${W} )?(?:run )?${T}`, 'g'), (m) => ({ runner: 'pnpm', task: m[2], ws: m[1] ?? null })],
+  [new RegExp(`\\byarn (?:workspace ${W} )?(?:run )?${T}`, 'g'), (m) => ({ runner: 'yarn', task: m[2], ws: m[1] ?? null })],
+  [new RegExp(`\\bbun run (?:--filter[= ]${W} )?${T}`, 'g'), (m) => ({ runner: 'bun run', task: m[2], ws: m[1] ?? null })],
+  [/\b(uv run poe|poetry run poe|pdm run poe|pdm run|just|make|tox run -e|tox -e|nox -s|composer) ([\w:.\/-]+)/g, (m) => ({ runner: { 'tox -e': 'tox run -e' }[m[1]] ?? m[1], task: m[2], ws: null })],
+];
 
 function codeText(text) {
   const fences = [...text.matchAll(/```[\s\S]*?```/g)].map((m) => m[0]);
@@ -45,12 +55,41 @@ function codeText(text) {
   return [...fences, ...spans].join('\n');
 }
 
+// The commands an adopted project accepts: its tasks' `run` forms, plus — in a workspace repo — a
+// workspace's script by name or path, and `npm run S --workspaces` for a script some workspace has.
+export function allowedRuns(facts) {
+  const allowed = new Set([...facts.tasks.defined.map((t) => t.run), ...Object.values(facts.tasks.contract)]);
+  for (const w of facts.workspaces ?? []) {
+    for (const t of w.tasks.defined) {
+      allowed.add(t.run);
+      for (const id of new Set([w.path, w.name])) {
+        allowed.add(`npm run ${t.name} --workspace ${id}`);
+        allowed.add(`pnpm --filter ${id} ${t.name}`);
+        allowed.add(`yarn workspace ${id} ${t.name}`);
+        allowed.add(`bun run --filter ${id} ${t.name}`);
+      }
+      allowed.add(`npm run ${t.name} --workspaces`);
+    }
+  }
+  return allowed;
+}
+
 export function adoptCommandIssues(text, allowed) {
   const out = [];
-  for (const m of codeText(text).matchAll(ADOPT_RUN)) {
-    if (['pnpm', 'yarn', 'composer'].includes(m[1]) && PM_BUILTINS.has(m[2])) continue;
-    const run = normaliseRun(m[1], m[2]);
-    if (!allowed.has(run)) out.push(`"${m[0]}" — not one of this project's tasks`);
+  const code = codeText(text);
+  for (const [re, parse] of RUN_FORMS) {
+    for (const m of code.matchAll(re)) {
+      const { runner, task, ws, all } = parse(m);
+      if (['pnpm', 'yarn'].includes(runner) && !ws && PM_BUILTINS.has(task)) continue;
+      if (runner === 'composer' && PM_BUILTINS.has(task)) continue;
+      const run =
+        runner === 'npm' ? `npm run ${task}${all ? ' --workspaces' : ws ? ` --workspace ${ws}` : ''}`
+        : runner === 'pnpm' ? (ws ? `pnpm --filter ${ws} ${task}` : `pnpm ${task}`)
+        : runner === 'yarn' ? (ws ? `yarn workspace ${ws} ${task}` : `yarn ${task}`)
+        : runner === 'bun run' ? (ws ? `bun run --filter ${ws} ${task}` : `bun run ${task}`)
+        : `${runner} ${task}`;
+      if (!allowed.has(run)) out.push(`"${m[0].trim()}" — not one of this project's tasks`);
+    }
   }
   return [...new Set(out)];
 }
@@ -89,7 +128,7 @@ export function checkGenerated(root) {
   }
   // /adopt: the project's own task commands and ADR folder.
   const facts = mode === 'adopt' ? analyse(root) : null;
-  const allowed = facts ? new Set([...facts.tasks.defined.map((t) => t.run), ...Object.values(facts.tasks.contract)]) : null;
+  const allowed = facts ? allowedRuns(facts) : null;
   const adrDir = (facts?.docs.adrDirs[0]?.dir ?? 'docs/decisions/').replace(/\/$/, '');
 
   // --- CLAUDE.md -------------------------------------------------------------------

@@ -16,7 +16,7 @@
 
 ## 2. The document set
 
-- More than one deployable (e.g. a web app and an API, a worker, a separately deployed database migration job) → add `c4`.
+- More than one deployable (e.g. a web app and an API, a worker, a separately deployed database migration job) → add `c4`. A workspace repo usually has one container per deployable workspace (shared packages are not containers; they appear in the code structure).
 - Then `STATE set documents adr,architecture-overview,development-workflow[,c4]`.
 
 ERD, API surface and the AI documents aren't written by `/adopt` yet; mention one at the gate when the project clearly has what it would describe (a schema, a public API, model calls).
@@ -47,7 +47,7 @@ Decisions too small for an ADR (a formatter, a utility library) stay in the over
 - **Stack:** one row per layer with the **locked** version and the ADR for it (retroactive or existing). Replace "Versions resolved on" with "Versions in use (locked) on <today>".
 - **System context and containers:** from the code and config; point to the C4 workspace when there is one.
 - **Routes** (web) / screens / commands / endpoints: from the router or route folders, with the rendering mode where the framework shows it. The Story column is "—". For a large app, group by area rather than listing every route.
-- **Code structure:** the real tree, one comment per folder, matching the analysis's Structure and Architecture — including where the code departs from its own style.
+- **Code structure:** the real tree, one comment per folder, matching the analysis's Structure and Architecture — including where the code departs from its own style. In a workspace repo, one subsection per workspace, and how they depend on each other (a shared package, HTTP between them, shared types).
 - **Key flows:** 1–3 sequence diagrams for flows that cross a container or where things go wrong (auth, a write path, a background job), traced through real files.
 - **Data:** what is stored and where (schema or migration files); "Nothing is stored" when nothing is.
 - **Cross-cutting concerns:** only the ones the code has, with the approach it actually uses (cite the error handler, the logger, the config loader).

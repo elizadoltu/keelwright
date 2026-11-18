@@ -120,10 +120,19 @@ export function detectStack(root, files) {
 // Dependencies with their locked versions
 // ---------------------------------------------------------------------------
 
-function nodeLocked(root, name) {
+// `ws`: a workspace folder — its own nested install first (npm), its importer block (pnpm).
+function nodeLocked(root, name, ws = null) {
   const lock = json(root, 'package-lock.json');
-  if (lock?.packages?.[`node_modules/${name}`]?.version) return lock.packages[`node_modules/${name}`].version;
-  const pnpm = read(root, 'pnpm-lock.yaml');
+  for (const key of [...(ws ? [`${ws}/node_modules/${name}`] : []), `node_modules/${name}`]) if (lock?.packages?.[key]?.version) return lock.packages[key].version;
+  let pnpm = read(root, 'pnpm-lock.yaml');
+  if (pnpm && ws) {
+    const start = pnpm.search(new RegExp(`\\n  '?${ws.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&')}'?:\\n`));
+    if (start >= 0) {
+      const rest = pnpm.slice(start + 1);
+      const end = rest.slice(1).search(/\n  \S|\n\S/);
+      pnpm = `\n${end >= 0 ? rest.slice(0, end + 1) : rest}`;
+    }
+  }
   if (pnpm) {
     // importers: . : dependencies: <name>: { specifier, version } — the version may carry peer suffixes.
     const esc = name.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&');
@@ -136,7 +145,7 @@ function nodeLocked(root, name) {
     const m = new RegExp(`(?:^|\\n)"?${esc}@[^\\n]*:\\n\\s+version:?\\s+"?([^"\\s]+)`).exec(yarn);
     if (m) return m[1];
   }
-  return json(root, `node_modules/${name}/package.json`)?.version ?? null;
+  return json(root, `${ws ? `${ws}/` : ''}node_modules/${name}/package.json`)?.version ?? json(root, `node_modules/${name}/package.json`)?.version ?? null;
 }
 
 // [[package]] name = "x" / version = "y" — uv.lock, poetry.lock, pdm.lock and Cargo.lock share it.
@@ -284,7 +293,7 @@ export function frameworks(deps) {
   return FRAMEWORKS.flatMap(([name, kind, pkgs]) => {
     const res = pkgs.map(globRe);
     const hit = deps.find((d) => res.some((r) => r.test(d.name)));
-    return hit ? [{ name, kind, package: hit.name, version: hit.locked ?? hit.spec }] : [];
+    return hit ? [{ name, kind, package: hit.name, version: hit.locked ?? hit.spec, ...(hit.workspace ? { workspace: hit.workspace } : {}) }] : [];
   });
 }
 
@@ -354,11 +363,32 @@ function poeTasks(text) {
   return [...names];
 }
 
+// A script that only prints (npm init's default test, "echo 'No tests yet' && exit 0") is not a task.
+const PLACEHOLDER = /^echo\s+(["'])[^"']*\1\s*(&&\s*exit\s+\d+)?$/;
+
+function contractOf(defined) {
+  const contract = {};
+  for (const [task, names] of Object.entries(CONTRACT)) {
+    const variants = (n) => [n, n.replace(/:/g, '-'), n.replace(/:/g, '_')];
+    const hit = names.flatMap(variants).map((n) => defined.find((d) => d.name === n)).find(Boolean);
+    if (hit) contract[task] = hit.run;
+  }
+  return contract;
+}
+
+// A workspace's script, run from the repository root the package manager's way.
+export function workspaceRun(pm, path, name, script) {
+  if (pm === 'pnpm') return `pnpm --filter ${name} ${script}`;
+  if (pm === 'yarn') return `yarn workspace ${name} ${script}`;
+  if (pm === 'bun') return `bun run --filter ${name} ${script}`;
+  return `npm run ${script} --workspace ${path}`;
+}
+
 export function tasks(root, toolchain, packageManager) {
   const defined = [];
   const add = (name, source, command) => defined.push({ name, source, run: `${runnerFor(toolchain, packageManager, source)} ${name}`, command });
   const pkg = json(root, 'package.json');
-  for (const [n, c] of Object.entries(pkg?.scripts ?? {})) add(n, 'package.json', c);
+  for (const [n, c] of Object.entries(pkg?.scripts ?? {})) if (!PLACEHOLDER.test(String(c).trim())) add(n, 'package.json', c);
   for (const n of poeTasks(read(root, 'pyproject.toml'))) add(n, 'poe');
   for (const f of ['justfile', 'Justfile', '.justfile']) for (const n of justRecipes(read(root, f))) add(n, 'just');
   for (const f of ['Makefile', 'makefile', 'GNUmakefile']) for (const n of makeTargets(read(root, f))) add(n, 'make');
@@ -367,12 +397,7 @@ export function tasks(root, toolchain, packageManager) {
   // npm's own shortcuts
   for (const t of defined) if (t.source === 'package.json' && packageManager === 'npm' && ['test', 'start'].includes(t.name)) t.run = `npm ${t.name}`;
 
-  const contract = {};
-  for (const [task, names] of Object.entries(CONTRACT)) {
-    const variants = (n) => [n, n.replace(/:/g, '-'), n.replace(/:/g, '_')];
-    const hit = names.flatMap(variants).map((n) => defined.find((d) => d.name === n)).find(Boolean);
-    if (hit) contract[task] = hit.run;
-  }
+  const contract = contractOf(defined);
   // Toolchains whose own CLI covers a task without a task runner.
   if (toolchain === 'rust') {
     contract.build ??= 'cargo build';
@@ -427,8 +452,10 @@ export function tooling(root, files, deps) {
   put('format', 'Ruff format', /\[tool\.ruff\.format\]/.test(pyproject) ? ['pyproject.toml'] : []);
   put('format', 'rustfmt', file(/(^|\/)\.?rustfmt\.toml$/));
   put('format', 'EditorConfig', file(/^\.editorconfig$/));
-  const tsconfig = read(root, 'tsconfig.json') ?? '';
-  put('types', /"strict"\s*:\s*true/.test(tsconfig) || /tsconfigs\/strict/.test(tsconfig) ? 'TypeScript (strict)' : 'TypeScript', file(/^tsconfig\.json$/));
+  // The root tsconfig, or the workspaces' (nested tsconfigs elsewhere are examples or tooling).
+  const tsconfigs = file(/^([\w@.-]+\/){0,2}tsconfig(\.[\w-]+)?\.json$/).filter((f) => !/(^|\/)(examples?|fixtures?|templates?|node_modules)\//.test(f));
+  const strict = tsconfigs.some((f) => /"strict"\s*:\s*true|tsconfigs\/strict/.test(read(root, f) ?? ''));
+  put('types', strict ? 'TypeScript (strict)' : 'TypeScript', tsconfigs);
   put('types', 'mypy', [...file(/(^|\/)mypy\.ini$/), ...(/\[tool\.mypy\]/.test(pyproject) ? ['pyproject.toml'] : [])]);
   put('types', 'Pyright', [...file(/(^|\/)pyrightconfig\.json$/), ...(/\[tool\.pyright\]/.test(pyproject) ? ['pyproject.toml'] : [])]);
   put('test', 'Vitest', [...file(/(^|\/)vitest\.(config|workspace)\.[cm]?[jt]s$/), ...(dep('vitest') ? ['package.json'] : [])]);
@@ -536,7 +563,58 @@ export function monorepo(root, files) {
   const MANIFEST = /(^|\/)(package\.json|pyproject\.toml|Cargo\.toml|pubspec\.yaml|go\.mod)$/;
   const packages = [...new Set(files.filter((f) => f.includes('/') && MANIFEST.test(f) && !/(^|\/)(examples?|fixtures?|templates?|test|tests|e2e)\//.test(f)).map((f) => f.replace(/\/[^/]+$/, '')))].sort();
   if (packages.length >= 2 && !markers.length) markers.push(`${packages.length} nested manifests`);
-  return { detected: markers.length > 0, markers, packages: packages.slice(0, 30) };
+  // A workspace repo adopted as ONE project (spec 5.2.1): package-manager workspaces (npm, pnpm,
+  // yarn; Turborepo on top is fine), one lockfile at the root, every nested project a Node.js
+  // workspace, at most MAX_WORKSPACES of them. Anything else is a monorepo: adopt one package.
+  const workspaces = workspacePaths(root, files);
+  const stray = packages.filter((p) => !workspaces.includes(p));
+  const why = [];
+  if (!markers.some((m) => m === 'package.json workspaces' || m === 'pnpm-workspace.yaml')) why.push('no npm, pnpm or yarn workspaces');
+  for (const m of markers.filter((x) => ['nx.json', 'lerna.json', 'rush.json'].includes(x) || x.startsWith('Cargo') || x.startsWith('pyproject'))) why.push(`${m} isn't supported yet`);
+  if (workspaces.length > MAX_WORKSPACES) why.push(`${workspaces.length} workspaces (at most ${MAX_WORKSPACES})`);
+  if (stray.length) why.push(`projects outside the workspaces: ${stray.slice(0, 5).join(', ')}`);
+  const detected = markers.length > 0;
+  return { detected, markers, packages: packages.slice(0, 30), workspaces, adoptable: detected && !why.length && workspaces.length > 0, notAdoptable: detected ? why : [] };
+}
+
+const MAX_WORKSPACES = 6;
+
+function workspacePaths(root, files) {
+  const pkg = json(root, 'package.json');
+  let globs = Array.isArray(pkg?.workspaces) ? pkg.workspaces : (pkg?.workspaces?.packages ?? []);
+  const pnpm = read(root, 'pnpm-workspace.yaml');
+  const block = pnpm ? (/^packages:\s*\n((?:[ \t]+-.*\n?)+)/m.exec(pnpm)?.[1] ?? '') : '';
+  globs = [...globs, ...[...block.matchAll(/-\s*['"]?([^'"\n#]+?)['"]?\s*(?:#.*)?$/gm)].map((m) => m[1].trim())];
+  const res = globs.filter((g) => !g.startsWith('!')).map((g) => new RegExp(`^${g.replace(/\/$/, '').replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*\*/g, '§').replace(/\*/g, '[^/]*').replace(/§/g, '.*')}$`));
+  const dirs = files.filter((f) => /\/package\.json$/.test(f) && !/(^|\/)node_modules\//.test(f)).map((f) => f.replace(/\/package\.json$/, ''));
+  return [...new Set(dirs.filter((d) => res.some((r) => r.test(d))))].sort();
+}
+
+// One workspace of an adopted workspace repo: its dependencies (locked from the root lockfile),
+// frameworks, tasks run from the root, and tests.
+export function workspace(root, files, path, pm) {
+  const pkg = json(root, `${path}/package.json`) ?? {};
+  const name = pkg.name ?? path;
+  const deps = [];
+  for (const [group, dev] of [['dependencies', false], ['devDependencies', true], ['peerDependencies', false]]) {
+    for (const [dep, spec] of Object.entries(pkg[group] ?? {})) {
+      if (!deps.some((d) => d.name === dep)) deps.push({ name: dep, spec, locked: nodeLocked(root, dep, path), dev, workspace: path });
+    }
+  }
+  const defined = Object.entries(pkg.scripts ?? {})
+    .filter(([, c]) => !PLACEHOLDER.test(String(c).trim()))
+    .map(([n, c]) => ({ name: n, source: 'package.json', workspace: path, run: workspaceRun(pm, path, name, n), command: c }));
+  const contract = contractOf(defined);
+  const own = files.filter((f) => f.startsWith(`${path}/`));
+  return {
+    path,
+    name,
+    dependencies: deps,
+    frameworks: frameworks(deps),
+    tasks: { defined, contract, missing: ['lint', 'test', 'typecheck', 'format:check'].filter((t) => !contract[t]) },
+    tests: testFiles(own),
+    files: own.length,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -547,18 +625,27 @@ export function gaps(a, files) {
   const out = [];
   const add = (id, issue) => out.push({ id, issue });
   const tl = a.tooling;
+  // In a workspace repo a task may live in a workspace rather than the root.
+  const task = (t) => a.tasks.contract[t] ?? a.workspaces?.map((w) => w.tasks.contract[t]).find(Boolean) ?? null;
+  const tests = a.tests.count;
   if (!tl.secrets.length) add('secrets', 'no secret scanning (gitleaks) in git hooks or CI');
   if (!tl.hooks.length) add('hooks', 'no git hooks (pre-commit checks run only in CI, if at all)');
   if (!tl.ci.length) add('ci', 'no CI configuration');
   else {
-    for (const k of ['lint', 'test']) if (a.tasks.contract[k] && !tl.ciRuns.includes(k)) add('ci-checks', `CI doesn't seem to run ${k}`);
+    for (const k of ['lint', 'test']) if (task(k) && !tl.ciRuns.includes(k)) add('ci-checks', `CI doesn't seem to run ${k}`);
   }
   if (!tl.dependencyUpdates.length) add('dependency-updates', 'no Dependabot or Renovate configuration');
-  if (!a.tasks.contract.lint && !tl.lint.length) add('lint', 'no linter configured');
-  else if (!a.tasks.contract.lint) add('tasks', 'no lint task (a linter is configured, but no script runs it)');
-  if (!a.tasks.contract.test) add('tasks', a.tests.count ? 'no test task (test files exist)' : 'no test task and no tests');
-  const parts = ['lint', 'typecheck', 'test'].filter((t) => a.tasks.contract[t]);
-  if (!a.tasks.contract.check && parts.length >= 2) add('check-task', `no single check task — ${parts.join(', ')} run separately, so the Claude stop hook and CI have no one command to run`);
+  if (!task('lint') && !tl.lint.length) add('lint', 'no linter configured');
+  else if (!task('lint')) add('tasks', 'no lint task (a linter is configured, but no script runs it)');
+  if (!task('test')) add('tasks', tests ? 'no test task (test files exist)' : 'no test task and no tests');
+  else if (!tests) add('tests', 'a test task exists, but there are no test files');
+  for (const w of a.workspaces ?? []) {
+    // Only where another workspace or the root has the task; none anywhere is one gap above.
+    const missing = ['lint', 'test'].filter((t) => task(t) && !w.tasks.contract[t]);
+    if (missing.length) add('tasks', `workspace ${w.path} has no ${missing.join(' or ')} task`);
+  }
+  const parts = ['lint', 'typecheck', 'test'].filter((t) => task(t));
+  if (!a.tasks.contract.check && parts.length >= 2) add('check-task', `no single check task${a.workspaces ? ' at the root' : ''} — ${parts.join(', ')} run separately${a.workspaces ? ` (across ${a.workspaces.map((w) => w.path).join(', ')})` : ''}, so the Claude stop hook and CI have no one command to run`);
   if (a.toolchain && a.dependencies.length && !a.lockfiles.length && a.toolchain !== 'godot' && a.toolchain !== 'editor') add('lockfile', 'no lockfile committed');
   if (a.toolchain && !Object.keys(a.runtime).length && ['node', 'python'].includes(a.toolchain)) add('runtime-pin', `no pinned ${a.toolchain === 'node' ? 'Node.js' : 'Python'} version`);
   const committedEnv = files.filter((f) => /(^|\/)\.env(\.[\w-]+)?$/.test(f) && !/\.(example|sample|template)$/.test(f) && !/(^|\/)(tests?|fixtures?|examples?|test_apps)\//.test(f));
@@ -572,22 +659,28 @@ export function gaps(a, files) {
 export function analyse(root, { pluginRoot = null } = {}) {
   const { git, files } = listFiles(root);
   const stack = detectStack(root, files);
-  const deps = dependencies(root, stack.toolchain);
+  const mono = monorepo(root, files);
+  const ws = mono.adoptable && stack.toolchain === 'node' ? mono.workspaces.map((p) => workspace(root, files, p, stack.packageManager)) : null;
+  // A workspace repo: the root's dependencies plus every workspace's, each tagged with its workspace.
+  const rootDeps = dependencies(root, stack.toolchain);
+  const deps = [...rootDeps, ...(ws ?? []).flatMap((w) => w.dependencies)];
   const a = {
     root,
     git,
     ...stack,
     dependencies: deps,
-    frameworks: frameworks(deps),
+    // Per workspace: the same framework may be on different versions in two workspaces.
+    frameworks: ws ? [...frameworks(rootDeps), ...ws.flatMap((w) => w.frameworks)] : frameworks(deps),
     packs: packCandidates(deps, pluginRoot),
     tasks: tasks(root, stack.toolchain, stack.packageManager),
     tooling: tooling(root, files, deps),
     structure: structure(files),
     tests: testFiles(files),
     docs: docs(files),
-    monorepo: monorepo(root, files),
+    monorepo: mono,
+    workspaces: ws,
   };
-  a.tooling.ciRuns = ciRuns(root, a.tooling.ciFiles, a.tasks.defined);
+  a.tooling.ciRuns = ciRuns(root, a.tooling.ciFiles, [...a.tasks.defined, ...(ws ?? []).flatMap((w) => w.tasks.defined)]);
   a.mode = a.docs.claude.length ? 'audit' : 'create';
   a.gaps = gaps(a, files);
   return a;
@@ -602,7 +695,20 @@ export function hookConfig(a, root = null) {
   const onEdit = [];
   const checkCmd = a.tasks.contract.check ?? null;
   let requires = null;
-  if (a.toolchain === 'node') {
+  if (a.toolchain === 'node' && a.workspaces) {
+    // Each workspace's own tools, run from its folder (ESLint finds its config from the working
+    // directory); binaries are looked up in the workspace first, then the hoisted root install.
+    const esc = (p) => p.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&');
+    const configIn = (kind, name, ws) => a.tooling[kind].some((t) => t.name === name && t.evidence.some((e) => e.startsWith(`${ws}/`)));
+    for (const w of a.workspaces) {
+      const uses = (dep, kind, name) => w.dependencies.some((d) => d.name === dep) || configIn(kind, name, w.path);
+      const scope = `^${esc(w.path)}/`;
+      if (uses('prettier', 'format', 'Prettier')) onEdit.push({ files: scope, cwd: w.path, run: ['node_modules/.bin/prettier', '--write', '--ignore-unknown', '--log-level', 'warn', '{file}'] });
+      if (uses('@biomejs/biome', 'lint', 'Biome')) onEdit.push({ files: `${scope}.*\\.(?:[cm]?[jt]sx?|json)$`, cwd: w.path, run: ['node_modules/.bin/biome', 'check', '--write', '--no-errors-on-unmatched', '{file}'], report: true, label: `Biome (${w.path})` });
+      if (uses('eslint', 'lint', 'ESLint')) onEdit.push({ files: `${scope}.*\\.(?:[cm]?[jt]sx?|astro|vue|svelte)$`, cwd: w.path, run: ['node_modules/.bin/eslint', '--fix', '--no-warn-ignored', '{file}'], report: true, label: `ESLint (${w.path})` });
+    }
+    requires = 'node_modules';
+  } else if (a.toolchain === 'node') {
     const bin = (b) => `node_modules/.bin/${b}`;
     const code = '\\.(?:[cm]?[jt]sx?|astro|vue|svelte)$';
     if (has('format', 'Prettier')) onEdit.push({ run: [bin('prettier'), '--write', '--ignore-unknown', '--log-level', 'warn', '{file}'] });
@@ -632,17 +738,20 @@ export function hookConfig(a, root = null) {
 export function preflight(a) {
   const blockers = [];
   if (a.mode === 'audit') blockers.push({ id: 'audit', detail: a.docs.claude });
-  if (a.monorepo.detected) blockers.push({ id: 'monorepo', detail: a.monorepo.packages });
+  if (a.monorepo.detected && !a.workspaces) blockers.push({ id: 'monorepo', detail: a.monorepo.packages, why: a.monorepo.notAdoptable });
   if (!a.structure.files || (!a.toolchain && !a.otherLanguages.length)) blockers.push({ id: 'no-project', detail: [] });
   else if (!a.toolchain) blockers.push({ id: 'toolchain', detail: a.otherLanguages });
-  return { mode: a.mode, toolchain: a.toolchain, packageManager: a.packageManager, blockers };
+  return { mode: a.mode, toolchain: a.toolchain, packageManager: a.packageManager, workspaces: a.workspaces?.map((w) => w.path) ?? null, blockers };
 }
 
 export function summary(a) {
   const L = [];
   const list = (xs) => (xs.length ? xs.join(', ') : 'none');
   L.push(`Mode: ${a.mode}${a.mode === 'audit' ? ` (Claude setup found: ${a.docs.claude.slice(0, 3).join(', ')})` : ''}`);
-  if (a.monorepo.detected) L.push(`Monorepo: ${a.monorepo.markers.join(', ')} — packages: ${list(a.monorepo.packages)}`);
+  if (a.workspaces) {
+    L.push(`Workspaces (adopted as one project): ${a.workspaces.map((w) => w.path).join(', ')}`);
+    for (const w of a.workspaces) L.push(`  ${w.path}: ${list(w.frameworks.map((f) => `${f.name} ${f.version ?? ''}`.trim()))}; tasks ${list(Object.entries(w.tasks.contract).map(([k, v]) => `${k} → ${v}`))}; test files ${w.tests.count}`);
+  } else if (a.monorepo.detected) L.push(`Monorepo: ${a.monorepo.markers.join(', ')} — packages: ${list(a.monorepo.packages)}${a.monorepo.notAdoptable.length ? ` (${a.monorepo.notAdoptable.join('; ')})` : ''}`);
   L.push(`Toolchain: ${a.toolchain ?? 'not supported'}${a.packageManager ? ` (${a.packageManager})` : ''}${a.otherLanguages.length ? `; other languages: ${a.otherLanguages.join(', ')}` : ''}`);
   L.push(`Runtime: ${list(Object.entries(a.runtime).map(([k, v]) => `${k} ${v}`))}`);
   L.push(`Lockfiles: ${list(a.lockfiles)}`);

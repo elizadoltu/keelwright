@@ -28,11 +28,13 @@ Rules for this document (spec 5.2.1):
 | Type | <web / mobile / game / ai / library> — <why, one line> |
 | Toolchain | <node / python / dart / rust / godot / editor> (<package manager>) |
 | Runtime | <e.g. Node.js 20 (`.nvmrc`)> |
-| Repository | <single project / monorepo: which package is adopted> |
+| Repository | <single project / workspace repo: each workspace and what it is, e.g. "`frontend/` — React SPA; `backend/` — Express API"> |
 
 ## Stack
 
 <!-- The versions IN USE (locked), not the latest. -->
+
+<!-- Workspace repo: name the workspace in the Layer column (e.g. "frontend: UI"). -->
 
 | Layer | Technology | Version in use | Evidence |
 |---|---|---|---|

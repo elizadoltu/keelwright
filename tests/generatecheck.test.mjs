@@ -207,3 +207,31 @@ describe('generated agent setup check: /adopt', () => {
     assert.ok(!issues(root).some((i) => i.includes('ASTRO-08')));
   });
 });
+
+describe('generated agent setup check: /adopt workspace repo', () => {
+  const ws = (overrides = {}) =>
+    project({
+      'package.json': JSON.stringify({ name: 'app', workspaces: ['frontend', 'backend'], scripts: { 'lint:backend': 'npm run lint --workspace backend' } }),
+      'package-lock.json': JSON.stringify({ lockfileVersion: 3, packages: {} }),
+      'frontend/package.json': JSON.stringify({ name: 'web', scripts: { lint: 'eslint .', dev: 'vite' } }),
+      'backend/package.json': JSON.stringify({ name: 'api', scripts: { lint: 'eslint .', build: 'tsc' } }),
+      '.keelwright/state.json': JSON.stringify({ mode: 'adopt', stack: { toolchain: 'node' } }),
+      'docs/prd.md': null,
+      'CLAUDE.md': '# App\n\nADRs live in `docs/decisions/`. Lint with `npm run lint --workspace frontend`, `npm run lint -w api`, `npm run lint --workspaces`, `npm run lint:backend`.\n\nAgents: reviewer, tester, docs-keeper.\n',
+      'CONTRIBUTING.md': '<!-- keelwright: status=generated date=2026-11-18 -->\n# Contributing\n\nCommits follow Conventional Commits. `npm ci`, then `npm run dev --workspace frontend`.\n',
+      '.claude/hooks/config.json': JSON.stringify({ onEdit: [{ files: '^frontend/', cwd: 'frontend', run: ['node_modules/.bin/eslint', '{file}'] }], check: null }),
+      ...overrides,
+    });
+
+  test('workspace scripts by path or name, and --workspaces, are the project’s tasks', () => {
+    assert.deepEqual(issues(ws()), []);
+  });
+
+  test('a script a workspace doesn’t have, or a root script that doesn’t exist, is reported', () => {
+    const root = ws({ 'CLAUDE.md': '# App\n\nADRs live in `docs/decisions/`. Run `npm run test --workspace backend` and `npm run build`.\n\nAgents: reviewer, tester, docs-keeper.\n' });
+    assert.deepEqual(issues(root), [
+      'commands: CLAUDE.md: "npm run test --workspace backend" — not one of this project\'s tasks',
+      'commands: CLAUDE.md: "npm run build" — not one of this project\'s tasks',
+    ]);
+  });
+});

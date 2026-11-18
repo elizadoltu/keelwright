@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { after, describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { analyse, hookConfig, summary } from '../scripts/lib/analyse.mjs';
+import { analyse, hookConfig, preflight, summary } from '../scripts/lib/analyse.mjs';
 
 const PLUGIN = join(dirname(fileURLToPath(import.meta.url)), '..');
 const roots = [];
@@ -179,9 +179,10 @@ describe('analyse: special cases', () => {
   test('--preflight: what stops /adopt before it creates any state', () => {
     const cli = (files) => JSON.parse(execFileSync('node', [join(PLUGIN, 'scripts/analyse.mjs'), '--root', repo(files), '--preflight'], { encoding: 'utf8' }));
     const ids = (files) => cli(files).blockers.map((b) => b.id);
-    assert.deepEqual(cli({ 'package.json': {}, 'src/a.js': 'x' }), { mode: 'create', toolchain: 'node', packageManager: 'npm', blockers: [] });
+    assert.deepEqual(cli({ 'package.json': {}, 'src/a.js': 'x' }), { mode: 'create', toolchain: 'node', packageManager: 'npm', workspaces: null, blockers: [] });
     assert.deepEqual(cli({ 'package.json': {}, 'CLAUDE.md': 'x' }).blockers[0], { id: 'audit', detail: ['CLAUDE.md'] });
-    assert.deepEqual(ids({ 'package.json': { workspaces: ['packages/*'] }, 'packages/a/package.json': {} }), ['monorepo']);
+    assert.deepEqual(ids({ 'package.json': { workspaces: ['packages/*'] }, 'packages/a/package.json': {}, 'services/api/pyproject.toml': '' }), ['monorepo']);
+    assert.deepEqual(cli({ 'package.json': { workspaces: ['web', 'api'] }, 'package-lock.json': '{}', 'web/package.json': {}, 'api/package.json': {} }).workspaces, ['api', 'web']);
     assert.deepEqual(cli({ 'go.mod': 'module x', 'main.go': 'x' }).blockers, [{ id: 'toolchain', detail: ['go'] }]);
     assert.deepEqual(ids({ 'notes.txt': 'x' }), ['no-project']);
   });
@@ -230,5 +231,78 @@ describe('analyse: hook config from the project’s own tools', () => {
   test('a project without a formatter or linter gets no edit hooks', () => {
     const root = repo({ 'package.json': { scripts: { test: 'node --test' } } });
     assert.deepEqual(hookConfig(analyse(root), root).onEdit, []);
+  });
+});
+
+describe('analyse: a workspace repo adopted as one project', () => {
+  const LOCK = {
+    lockfileVersion: 3,
+    packages: {
+      '': { workspaces: ['frontend', 'backend'] },
+      'node_modules/react': { version: '19.2.1' },
+      'node_modules/typescript': { version: '5.9.3' },
+      'node_modules/eslint': { version: '9.39.1' },
+      'node_modules/express': { version: '5.2.1' },
+      'backend/node_modules/typescript': { version: '5.8.2' },
+    },
+  };
+  const files = {
+    'package.json': { name: 'app', workspaces: ['frontend', 'backend'], scripts: { test: 'echo "Error: no test specified" && exit 1', lint: 'npm run lint --workspace frontend', 'lint:backend': 'npm run lint --workspace backend', prepare: 'husky' }, devDependencies: { husky: '^9.0.0' } },
+    'package-lock.json': LOCK,
+    '.husky/pre-push': 'npm run lint',
+    '.github/workflows/be.yml': 'steps:\n  - run: npm ci\n  - run: npm run lint:backend\n  - run: npm run test --workspace backend\n',
+    'frontend/package.json': { name: 'web', scripts: { lint: 'eslint .', test: 'vitest run', build: 'tsc -b && vite build' }, dependencies: { react: '^19.2.0' }, devDependencies: { typescript: '~5.9.3', eslint: '^9.39.0', prettier: '^3.0.0' } },
+    'frontend/tsconfig.json': '{ "compilerOptions": { "strict": true } }',
+    'frontend/eslint.config.js': 'x',
+    'frontend/src/App.tsx': 'x',
+    'frontend/src/App.test.tsx': 'x',
+    'backend/package.json': { name: 'api', scripts: { lint: 'eslint .', test: "echo 'No tests yet' && exit 0" }, dependencies: { express: '^5.2.1' }, devDependencies: { typescript: '~5.8.0', eslint: '^9.39.0' } },
+    'backend/tsconfig.json': '{}',
+    'backend/eslint.config.js': 'x',
+    'backend/src/index.ts': 'x',
+  };
+  const root = repo(files);
+  const a = analyse(root, { pluginRoot: PLUGIN });
+
+  test('workspaces are adoptable, with locked versions per workspace', () => {
+    assert.equal(a.monorepo.adoptable, true);
+    assert.deepEqual(a.workspaces.map((w) => [w.path, w.name]), [['backend', 'api'], ['frontend', 'web']]);
+    const be = a.workspaces[0];
+    assert.equal(be.dependencies.find((d) => d.name === 'typescript').locked, '5.8.2', 'nested install wins');
+    assert.equal(a.workspaces[1].dependencies.find((d) => d.name === 'typescript').locked, '5.9.3');
+    assert.deepEqual(a.frameworks.map((f) => `${f.name} ${f.version} (${f.workspace})`), ['Express 5.2.1 (backend)', 'TypeScript 5.8.2 (backend)', 'React 19.2.1 (frontend)', 'TypeScript 5.9.3 (frontend)']);
+    assert.equal(a.tooling.types[0].name, 'TypeScript (strict)');
+  });
+
+  test('tasks run from the root; placeholder scripts are not tasks', () => {
+    assert.equal(a.tasks.contract.test, undefined, "npm init's default test is not a test task");
+    assert.equal(a.workspaces[1].tasks.contract.test, 'npm run test --workspace frontend');
+    assert.equal(a.workspaces[0].tasks.contract.test, undefined, "echo 'No tests yet' is not a test task");
+    assert.ok(a.tooling.ciRuns.includes('lint') && a.tooling.ciRuns.includes('test'));
+  });
+
+  test('gaps look across workspaces', () => {
+    const ids = a.gaps.map((g) => `${g.id}: ${g.issue}`);
+    assert.ok(ids.includes('tasks: workspace backend has no test task'), ids.join('\n'));
+    assert.ok(!ids.some((g) => g.startsWith('hooks') || g.startsWith('lockfile') || g.startsWith('ci:')), ids.join('\n'));
+    assert.ok(ids.some((g) => g.startsWith('check-task') && g.includes('across backend, frontend')), ids.join('\n'));
+  });
+
+  test('preflight passes; the hook config runs each workspace’s tools from its folder', () => {
+    assert.deepEqual(preflight(a).blockers, []);
+    const c = hookConfig(a, root);
+    assert.deepEqual(c.onEdit.map((e) => [e.cwd, e.label ?? e.run[0]]), [['backend', 'ESLint (backend)'], ['frontend', 'node_modules/.bin/prettier'], ['frontend', 'ESLint (frontend)']]);
+    assert.ok(new RegExp(c.onEdit[0].files).test('backend/src/index.ts') && !new RegExp(c.onEdit[0].files).test('frontend/src/App.tsx'));
+  });
+
+  test('pnpm workspaces from pnpm-workspace.yaml run with --filter; too many or mixed projects stay a monorepo', () => {
+    const p = analyse(repo({ 'package.json': { name: 'r', packageManager: 'pnpm@9.0.0' }, 'pnpm-workspace.yaml': "packages:\n  - 'apps/*'\n  - packages/*  # shared\n", 'pnpm-lock.yaml': "lockfileVersion: '9.0'\n", 'apps/web/package.json': { name: '@r/web', scripts: { dev: 'vite' } }, 'packages/ui/package.json': { name: '@r/ui' } }));
+    assert.deepEqual(p.workspaces.map((w) => w.path), ['apps/web', 'packages/ui']);
+    assert.equal(p.workspaces[0].tasks.contract.dev, 'pnpm --filter @r/web dev');
+    const mixed = analyse(repo({ 'package.json': { workspaces: ['web'] }, 'web/package.json': {}, 'api/pyproject.toml': '' }));
+    assert.equal(mixed.workspaces, null);
+    assert.deepEqual(mixed.monorepo.notAdoptable, ['projects outside the workspaces: api']);
+    const nx = analyse(repo({ 'package.json': { workspaces: ['a'] }, 'nx.json': '{}', 'a/package.json': {} }));
+    assert.deepEqual(nx.monorepo.notAdoptable, ["nx.json isn't supported yet"]);
   });
 });
