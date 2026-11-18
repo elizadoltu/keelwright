@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { jiraItems, pageBody, parseFeatures, parseStories, plan, repoUrlFromRemote, requirementsByStory, updateRecord } from '../scripts/lib/publish.mjs';
+import { jiraItems, pageBody, productName, parseFeatures, parseStories, plan, repoUrlFromRemote, requirementsByStory, updateRecord } from '../scripts/lib/publish.mjs';
 
 const CLI = fileURLToPath(new URL('../scripts/publish.mjs', import.meta.url));
 const dirs = [];
@@ -188,5 +188,29 @@ describe('publish: plan and record', () => {
     assert.equal(plan('confluence', root).items.find((i) => i.path === 'docs/decisions/0002-use-expo.md').action, 'unchanged');
     cli('record', 'confluence', 'docs/prd.md', '102', '1', '--url', 'https://acme.atlassian.net/wiki/x/2');
     assert.equal(plan('confluence', root).items.find((i) => i.path === 'docs/decisions/0002-use-expo.md').action, 'update', 'its link to the PRD now resolves');
+  });
+});
+
+describe('publish: an adopted project', () => {
+  const dir = (files) => {
+    const root = mkdtempSync(join(tmpdir(), 'keelwright-pub-adopt-'));
+    for (const [f, c] of Object.entries(files)) {
+      mkdirSync(join(root, f, '..'), { recursive: true });
+      writeFileSync(join(root, f), c);
+    }
+    return root;
+  };
+
+  test('the product name comes from the analysis, then the manifest', () => {
+    assert.equal(productName(dir({ '.keelwright/analysis.md': '---\nstatus: approved\n---\n\n# Analysis: Orders API\n' })), 'Orders API');
+    assert.equal(productName(dir({ 'package.json': '{"name": "orders-api"}' })), 'orders-api');
+    assert.equal(productName(dir({ 'pyproject.toml': '[project]\nname = "etl"\n' })), 'etl');
+  });
+
+  test('Confluence plans the docs folder without a PRD; Jira needs one', () => {
+    const root = dir({ '.keelwright/analysis.md': '# Analysis: Orders API\n', 'docs/architecture/overview.md': '# Architecture overview: Orders API\n\nText.\n', 'docs/adr/0002-use-express.md': '# 0002. Use Express\n' });
+    const p = plan('confluence', root);
+    assert.deepEqual(p.items.map((i) => i.title), ['Orders API — Documentation', 'Orders API — Decisions', 'Orders API — Architecture', 'Orders API — 0002. Use Express', 'Architecture overview: Orders API']);
+    assert.throws(() => plan('jira', root), /docs\/prd.md not found/);
   });
 });

@@ -66,3 +66,9 @@ Get the pages with `PUBLISH plan confluence --json` (parents come before their c
 1. `PUBLISH status` — everything published is up to date.
 2. `STATE complete publish .keelwright/publish.json`
 3. Tell the user: the Jira project and how many epics, stories and tasks were created or updated (with a link to the project or a JQL `labels = keelwright`), the Confluence root page's link, orphaned items to close or archive by hand, and how to publish again after editing the documents (`/kickoff publish`). Remind them that Jira holds the work's progress, while requirements and decisions are edited in the repository.
+
+## In /adopt
+
+- **Confluence only.** Jira issues come from the PRD's stories and the backlog, which `/adopt` doesn't write: in section 1, offer Confluence alone and say why. (A team that wants the gaps or debt as Jira tasks can create them from `.keelwright/gaps.md` by hand.)
+- **What is published:** every Markdown file in `docs/` — the overview and ADRs written by `document`, and the project's own documents there. Show the list in the plan and let the user leave the project's own documents out if they're published elsewhere already (then don't publish those pages; they stay `create` in the plan). An ADR folder outside `docs/` isn't published; say so.
+- **Page titles** use the project's name from the analysis (or the manifest).

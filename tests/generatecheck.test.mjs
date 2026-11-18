@@ -162,3 +162,48 @@ describe('generated setup for another toolchain', () => {
     ]);
   });
 });
+
+describe('generated agent setup check: /adopt', () => {
+  // A pnpm project adopted with its own ADR folder, tasks and hook config.
+  const adopted = (overrides = {}) =>
+    project({
+      'package.json': JSON.stringify({ packageManager: 'pnpm@9.15.0', scripts: { dev: 'x', lint: 'x', test: 'x', verify: 'x' } }),
+      'pnpm-lock.yaml': "lockfileVersion: '9.0'\n",
+      '.keelwright/state.json': JSON.stringify({ mode: 'adopt', stack: { toolchain: 'node' } }),
+      'docs/decisions/0001-record-architecture-decisions.md': null,
+      'docs/adr/0001-use-express.md': '# Use Express',
+      'docs/prd.md': null,
+      'CLAUDE.md': '# Orders API\n\nADRs live in `docs/adr/`. Run `pnpm verify` before finishing; `pnpm lint` to lint. Make sure tests pass.\n\nAgents: reviewer, tester, docs-keeper.\n',
+      'CONTRIBUTING.md': '<!-- keelwright: status=merged date=2026-11-18 -->\n# Contributing\n\nCommits follow Conventional Commits. `pnpm install`, then `pnpm run verify`.\n',
+      '.claude/settings.json': JSON.stringify({ permissions: { allow: ['Bash(pnpm verify)'] }, hooks: { PreToolUse: [{ matcher: 'Edit|Write', hooks: [{ type: 'command', command: 'node "$CLAUDE_PROJECT_DIR"/.claude/hooks/guard-files.mjs' }] }] } }),
+      '.claude/hooks/config.json': JSON.stringify({ onEdit: [], check: { run: ['pnpm', 'verify'], requires: 'node_modules', label: 'pnpm verify' } }),
+      ...overrides,
+    });
+
+  test('the project’s own commands, ADR folder and hook config pass', () => {
+    assert.deepEqual(issues(adopted()), []);
+  });
+
+  test('npm commands in a pnpm project, unknown tasks, a hook config running a non-task, the wrong ADR folder', () => {
+    const root = adopted({
+      'CLAUDE.md': '# Orders API\n\nADRs live in `docs/decisions/`. Run `npm run check` and `pnpm typecheck`.\n\nAgents: reviewer, tester, docs-keeper.\n',
+      '.claude/hooks/config.json': JSON.stringify({ onEdit: [], check: { run: ['pnpm', 'check'] } }),
+    });
+    assert.deepEqual(issues(root), [
+      'claude-md: CLAUDE.md doesn\'t say where ADRs live (docs/adr/)',
+      'commands: CLAUDE.md: "npm run check" — not one of this project\'s tasks',
+      'commands: CLAUDE.md: "pnpm typecheck" — not one of this project\'s tasks',
+      'paths: CLAUDE.md: `docs/decisions/` doesn\'t exist',
+      'settings: .claude/hooks/config.json runs "pnpm check" on stop, but it isn\'t one of this project\'s tasks',
+    ]);
+  });
+
+  test('no hook config in an adopted project points to analyse --hook-config', () => {
+    assert.ok(issues(adopted({ '.claude/hooks/config.json': null })).some((i) => /analyse\.mjs" --hook-config/.test(i)));
+  });
+
+  test('rules set aside in the generate record are not required', () => {
+    const root = adopted({ '.claude/rules/astro.md': '- Something else.\n', '.keelwright/generate.md': '# Generate\n\n## Pack rules not applied\n\n| Rule | Why |\n|---|---|\n| ASTRO-08 | the project validates in middleware, see C-03 |\n' });
+    assert.ok(!issues(root).some((i) => i.includes('ASTRO-08')));
+  });
+});

@@ -8,6 +8,7 @@ import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { placeholders } from './doccheck.mjs';
 import { parseFrontMatter, parsePack } from './packs.mjs';
+import { analyse } from './analyse.mjs';
 import { TASK_COMMAND, TOOLCHAIN, definedTasks, detectToolchain } from './toolchains.mjs';
 
 // A folder with no files anywhere inside it: git doesn't track it.
@@ -32,7 +33,30 @@ function mdFiles(root, dir) {
   });
 }
 
-// Review rules from the project's stack packs, minus those the scaffold record marks not applicable.
+// /adopt: commands are the project's own (`pnpm verify`, `make lint`, `tox run -e style`). Only
+// command-looking text inside backticks or code blocks is read, so prose ("make sure") isn't a task.
+const ADOPT_RUN = /\b(npm run|pnpm run|pnpm|yarn run|yarn|bun run|uv run poe|poetry run poe|pdm run poe|pdm run|just|make|tox run -e|tox -e|nox -s|composer) ([\w:.\/-]+)/g;
+const PM_BUILTINS = new Set(['install', 'i', 'add', 'remove', 'rm', 'dlx', 'exec', 'why', 'update', 'up', 'upgrade', 'outdated', 'audit', 'create', 'init', 'link', 'publish', 'config', 'store', 'list', 'ls', 'import', 'dedupe', 'run']);
+const normaliseRun = (runner, task) => `${{ 'pnpm run': 'pnpm', 'yarn run': 'yarn', 'tox -e': 'tox run -e' }[runner] ?? runner} ${task}`;
+
+function codeText(text) {
+  const fences = [...text.matchAll(/```[\s\S]*?```/g)].map((m) => m[0]);
+  const spans = [...text.replace(/```[\s\S]*?```/g, '').matchAll(/`([^`\n]+)`/g)].map((m) => m[1]);
+  return [...fences, ...spans].join('\n');
+}
+
+export function adoptCommandIssues(text, allowed) {
+  const out = [];
+  for (const m of codeText(text).matchAll(ADOPT_RUN)) {
+    if (['pnpm', 'yarn', 'composer'].includes(m[1]) && PM_BUILTINS.has(m[2])) continue;
+    const run = normaliseRun(m[1], m[2]);
+    if (!allowed.has(run)) out.push(`"${m[0]}" — not one of this project's tasks`);
+  }
+  return [...new Set(out)];
+}
+
+// Review rules from the project's stack packs, minus those the scaffold record (/kickoff) or the
+// generate record marks not applicable — in /adopt, also the rules the user set aside at gate 2.
 export function applicableReviewRules(root) {
   const dir = join(root, '.keelwright/stack-packs');
   const ids = new Map();
@@ -41,8 +65,9 @@ export function applicableReviewRules(root) {
       for (const r of parsePack(readFileSync(join(dir, f), 'utf8')).rules) ids.set(r.id, (r.enforce ?? '').split(/[:\s]/)[0].toLowerCase());
     }
   }
-  const record = read(root, '.keelwright/scaffold.md') ?? '';
-  const notApplied = record.split(/^## /m).find((s) => s.startsWith('Pack rules not applied')) ?? '';
+  const notApplied = ['.keelwright/scaffold.md', '.keelwright/generate.md']
+    .map((f) => (read(root, f) ?? '').split(/^## /m).find((s) => s.startsWith('Pack rules not applied')) ?? '')
+    .join('\n');
   const excluded = new Set([...notApplied.matchAll(/\b([A-Z]+-\d{2})\b/g)].map((m) => m[1]));
   // "PLAYWRIGHT-09, -10" style ranges in the record
   for (const m of notApplied.matchAll(/\b([A-Z]+)-(\d{2})((?:,\s*-\d{2})+)/g)) for (const n of m[3].matchAll(/-(\d{2})/g)) excluded.add(`${m[1]}-${n[1]}`);
@@ -56,6 +81,16 @@ export function checkGenerated(root) {
   const toolchain = detectToolchain(root) ?? 'node';
   const runner = TOOLCHAIN[toolchain].runner;
   const tasks = new Set(definedTasks(root, toolchain));
+  let mode = 'kickoff';
+  try {
+    mode = JSON.parse(read(root, '.keelwright/state.json') ?? '{}').mode ?? 'kickoff';
+  } catch {
+    // no readable state: a kickoff project
+  }
+  // /adopt: the project's own task commands and ADR folder.
+  const facts = mode === 'adopt' ? analyse(root) : null;
+  const allowed = facts ? new Set([...facts.tasks.defined.map((t) => t.run), ...Object.values(facts.tasks.contract)]) : null;
+  const adrDir = (facts?.docs.adrDirs[0]?.dir ?? 'docs/decisions/').replace(/\/$/, '');
 
   // --- CLAUDE.md -------------------------------------------------------------------
   const claude = read(root, 'CLAUDE.md');
@@ -63,7 +98,7 @@ export function checkGenerated(root) {
   else {
     const lines = claude.split('\n').length;
     if (lines > CLAUDE_MD_MAX_LINES) add('claude-md', `CLAUDE.md has ${lines} lines (limit ${CLAUDE_MD_MAX_LINES}) — move path-specific guidance to .claude/rules/ and procedures to skills`);
-    if (!/docs\/decisions/.test(claude)) add('claude-md', 'CLAUDE.md doesn\'t say where ADRs live');
+    if (!claude.includes(adrDir)) add('claude-md', `CLAUDE.md doesn't say where ADRs live (${adrDir}/)`);
     for (const a of REQUIRED_AGENTS) if (!claude.includes(a)) add('claude-md', `CLAUDE.md doesn't mention the ${a} agent`);
   }
 
@@ -72,7 +107,8 @@ export function checkGenerated(root) {
   for (const f of texts) {
     const text = read(root, f);
     for (const p of placeholders(text)) add('placeholders', `${f}:${p.line}: ${p.issue}`);
-    for (const m of text.matchAll(TASK_COMMAND)) {
+    if (allowed) for (const i of adoptCommandIssues(text, allowed)) add('commands', `${f}: ${i}`);
+    else for (const m of text.matchAll(TASK_COMMAND)) {
       if (m[1] !== runner) add('commands', `${f}: "${m[0]}" — this project runs its tasks with ${runner ? `"${runner} <task>"` : 'no task runner'}`);
       else if (!tasks.has(m[2])) add('commands', `${f}: "${m[0]}" — no such ${toolchain === 'node' ? 'script in package.json' : 'task'}`);
     }
@@ -154,13 +190,18 @@ export function checkGenerated(root) {
   }
   // Hook config: which formatter, linter and check the hooks run (Node.js projects may rely on the defaults).
   const hookConfig = read(root, '.claude/hooks/config.json');
-  if (hookConfig === null && toolchain !== 'node' && toolchain !== 'editor') add('settings', `no .claude/hooks/config.json — without it the hooks run the Node.js defaults, not the ${toolchain} tools (node "<plugin root>/scripts/toolchains.mjs" hook-config ${toolchain})`);
+  if (hookConfig === null && mode === 'adopt') add('settings', 'no .claude/hooks/config.json — without it the hooks run `npm run check`, not this project\'s tools (node "<plugin root>/scripts/analyse.mjs" --hook-config)');
+  else if (hookConfig === null && toolchain !== 'node' && toolchain !== 'editor') add('settings', `no .claude/hooks/config.json — without it the hooks run the Node.js defaults, not the ${toolchain} tools (node "<plugin root>/scripts/toolchains.mjs" hook-config ${toolchain})`);
   if (hookConfig !== null) {
     try {
       const cfg = JSON.parse(hookConfig);
-      const cmd = cfg.check?.run?.join(' ') ?? '';
-      const m = /^(npm run|uv run poe|just) ([\w:-]+)/.exec(cmd.replace(/ --silent$/, ''));
-      if (m && !tasks.has(m[2])) add('settings', `.claude/hooks/config.json runs "${m[0]}" on stop, but there is no such task`);
+      const cmd = (cfg.check?.run?.join(' ') ?? '').replace(/ --silent$/, '');
+      if (allowed) {
+        if (cmd && !allowed.has(cmd)) add('settings', `.claude/hooks/config.json runs "${cmd}" on stop, but it isn't one of this project's tasks`);
+      } else {
+        const m = /^(npm run|uv run poe|just) ([\w:-]+)/.exec(cmd);
+        if (m && !tasks.has(m[2])) add('settings', `.claude/hooks/config.json runs "${m[0]}" on stop, but there is no such task`);
+      }
     } catch (err) {
       add('settings', `.claude/hooks/config.json is not valid JSON: ${err.message}`);
     }

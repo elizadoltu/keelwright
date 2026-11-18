@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { after, describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { analyse, summary } from '../scripts/lib/analyse.mjs';
+import { analyse, hookConfig, summary } from '../scripts/lib/analyse.mjs';
 
 const PLUGIN = join(dirname(fileURLToPath(import.meta.url)), '..');
 const roots = [];
@@ -146,7 +146,7 @@ describe('analyse: a Poetry project with a Makefile', () => {
     assert.deepEqual(a.tooling.hooks.map((x) => x.name), ['pre-commit']);
     assert.deepEqual(a.tooling.secrets.map((x) => x.name), ['gitleaks']);
     assert.deepEqual(a.tooling.ci.map((x) => x.name), ['GitLab CI']);
-    assert.deepEqual(a.gaps.map((g) => g.id), ['dependency-updates']);
+    assert.deepEqual(a.gaps.map((g) => g.id), ['dependency-updates', 'check-task']);
   });
 });
 
@@ -209,5 +209,26 @@ describe('analyse: special cases', () => {
     assert.equal(a.git, true);
     assert.ok(!a.structure.topLevel.includes('secret-notes.txt'));
     assert.ok(a.gaps.some((g) => g.id === 'env-committed' && g.issue.includes('.env')));
+  });
+});
+
+describe('analyse: hook config from the project’s own tools', () => {
+  test('pnpm with ESLint and Prettier: both on edit, the check task on stop', () => {
+    const root = repo({ ...expressApi, 'eslint.config.js': 'x', '.prettierrc': '{}' });
+    const c = hookConfig(analyse(root), root);
+    assert.deepEqual(c.onEdit.map((e) => e.run[0]), ['node_modules/.bin/prettier', 'node_modules/.bin/eslint']);
+    assert.deepEqual(c.check, { run: ['pnpm', 'verify'], requires: 'node_modules', label: 'pnpm verify' });
+  });
+
+  test('poetry with Ruff: ruff through poetry; no check task means no stop check', () => {
+    const root = repo({ 'pyproject.toml': '[tool.poetry]\nname = "x"\n\n[tool.ruff]\nline-length = 100\n', 'app/main.py': 'x' });
+    const c = hookConfig(analyse(root), root);
+    assert.deepEqual(c.onEdit.map((e) => e.run.join(' ')), ['poetry run ruff format {file}', 'poetry run ruff check --fix {file}']);
+    assert.equal(c.check, null);
+  });
+
+  test('a project without a formatter or linter gets no edit hooks', () => {
+    const root = repo({ 'package.json': { scripts: { test: 'node --test' } } });
+    assert.deepEqual(hookConfig(analyse(root), root).onEdit, []);
   });
 });
