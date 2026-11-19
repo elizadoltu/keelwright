@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Added — logo
+
+- The official KeelWright logo in `#FF4C24`: `assets/logo.svg` (also `assets/logo.png`, 512×512) and `assets/social-preview.png` (1280×640) for the GitHub social preview. Shown at the top of the README.
+
 ### Added — `/adopt` create mode (in progress)
 
 - Spec 5.2.1: how `/adopt` describes an existing project and builds the Claude setup on top of it — `analyse → { document, research } → gaps → generate → publish`, two gates, never changing application code or dependency versions; the Phase 2 build order.
