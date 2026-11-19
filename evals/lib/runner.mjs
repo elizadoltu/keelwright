@@ -31,7 +31,9 @@ export function nextMessage(state, c, answersUsed, { call = 1 } = {}) {
   const n = next(state);
   if (n.action === 'review') {
     if (n.gate >= c.stopAtGate) return { message: null, stop: `reached gate ${n.gate}` };
-    return { message: `Approve gate ${n.gate}. Keep open questions as they are.` };
+    // A fresh session: the pipeline resumes from its files, and carrying the earlier steps' context into
+    // the approval multiplies its cost (found in the esn-fm run: a two-minute approval cost $16).
+    return { message: `Approve gate ${n.gate}. Keep open questions as they are.`, fresh: true };
   }
   if (n.action === 'run' && state.steps[n.step].status === 'in_progress' && n.step === 'interview') {
     const answer = c.answers[answersUsed];
@@ -77,8 +79,17 @@ export async function runCase(c, { pluginDir, outDir, invoke = claudeInvoke, mod
   let stop = null;
   let message = adopt ? '/keelwright:adopt' : '/keelwright:kickoff input.md';
   let lastSignature = null;
+  let fresh = false;
 
   for (let i = 0; i < MAX_CALLS && message; i++) {
+    if (fresh) {
+      // Re-open the gate in a new session, then approve it there.
+      const open = adopt ? '/keelwright:adopt' : '/keelwright:kickoff';
+      log(`  call ${i + 1}: ${open} (fresh session)`);
+      const g = await invoke({ cwd: work, prompt: open, pluginDir, resume: null, model });
+      calls.push({ prompt: open, cost: g.total_cost_usd ?? 0, turns: g.num_turns ?? null, error: Boolean(g.is_error), reply: String(g.result ?? '').slice(-2000) });
+      session = g.session_id ?? null;
+    }
     log(`  call ${i + 1}: ${message.slice(0, 70)}`);
     const r = await invoke({ cwd: work, prompt: message, pluginDir, resume: session, model });
     session = r.session_id ?? session;
@@ -99,6 +110,7 @@ export async function runCase(c, { pluginDir, outDir, invoke = claudeInvoke, mod
     const step = nextMessage(state, c, answersUsed, { call: i + 1 });
     if (step.usedAnswer) answersUsed++;
     message = step.message;
+    fresh = Boolean(step.fresh);
     stop = step.stop ?? null;
   }
   if (!stop && message) stop = `stopped after ${MAX_CALLS} calls`;

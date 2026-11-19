@@ -81,6 +81,24 @@ describe('eval runner', () => {
     assert.equal(r.calls.length, 2);
   });
 
+  test('an earlier gate is approved in a fresh session', async () => {
+    const dir = temp();
+    write(dir, 'input.md', 'idea');
+    const seen = [];
+    const base = fakeClaude();
+    const r = await runCase({ ...CASE, stopAtGate: 2, dir }, { pluginDir: '/p', outDir: temp(), invoke: async (o) => {
+      seen.push({ prompt: o.prompt, resume: o.resume });
+      if (o.prompt === '/keelwright:kickoff') return { session_id: 'fresh', total_cost_usd: 0.1, result: 'Gate 1' };
+      if (o.prompt.startsWith('Approve gate 1')) { const s = S.load(o.cwd); S.approve(s, 1, { root: o.cwd, now: NOW }); S.save(o.cwd, s); return { session_id: 'fresh', total_cost_usd: 0.1, result: 'ok' }; }
+      return base(o);
+    } });
+    const i = seen.findIndex((c) => c.prompt === '/keelwright:kickoff');
+    assert.ok(i > 0, 'the gate is re-opened with the command');
+    assert.equal(seen[i].resume, null);
+    assert.deepEqual(seen[i + 1], { prompt: 'Approve gate 1. Keep open questions as they are.', resume: 'fresh' });
+    assert.ok(r.calls.some((c) => c.prompt === '/keelwright:kickoff'));
+  });
+
   test('next message approves earlier gates and answers the interview', () => {
     const s = S.create({ version: 't', now: NOW });
     S.start(s, 'interview', { now: NOW });

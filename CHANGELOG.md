@@ -21,9 +21,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - Workspace repos (npm / pnpm / yarn workspaces, one lockfile, up to six Node.js workspaces) are adopted as one project from the root: per-workspace dependencies, frameworks, tasks run from the root and tests; gaps across workspaces; a hook config that runs each workspace's tools from its folder (`format-on-edit` takes a `cwd`); `generatecheck` accepts workspace commands (`--workspace`, `--filter`, `yarn workspace`). Other monorepos still stop, with the reason.
 - Eval cases for `/adopt` on three sample repositories (`adopt-orders-api`, `adopt-etl-python`, `adopt-workspace-app`): the runner starts from a committed copy of the repo and records every file's hash before and after; graders check that every cited file exists, that no code changed, the planted conventions, gaps and versions, the ADR folder, retroactive ADRs and pack majors.
 - `analyse`: scripts that only `echo` (npm's default `test`, "No tests yet") are not tasks; TypeScript is found in workspace `tsconfig.json` files.
+- The first real `/adopt` run, on a two-workspace web app (`evals/runs/2026-11-18-esn-fm.md`): 29 documents used as-is, 8 tooling fixes applied, no code changed.
 
 ### Changed
 
+- `doccheck` no longer reads code in backticks (`req.body`, `res.status(500)`) as a cited file, and now checks dotfiles such as `.nvmrc`.
+- `/kickoff` and `/adopt` run `STATE start` as a command of its own, before any work, so a refused combined command can't lose it; headless runs may read git history.
+- The eval runner approves a gate in a fresh session, so the approval doesn't pay for the earlier steps' context.
 - Stack packs: `plan` and `install` pick the cached pack for the project's major, not just the newest; the user cache keeps one file per pack and major (`<id>@<major>.md`), so a pack for an older major no longer replaces the current one.
 - `doccheck` type `analysis`: every convention cites a file that exists and says whether the code follows it consistently.
 

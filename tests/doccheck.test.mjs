@@ -139,6 +139,8 @@ describe('adopt analysis', () => {
 
   test('commands and globs in backticks are not cited files', () => {
     assert.deepEqual(citedPaths('`pnpm test` `src/**/*.ts` `src/app.ts` `v4.2` `https://x.dev/a.md`'), ['src/**/*.ts', 'src/app.ts']);
+    // Code isn't a file: found in the first real /adopt run (esn-fm), where `req.body` failed the check.
+    assert.deepEqual(citedPaths('`req.body` `err.message` `index.ts` `.nvmrc` `package.json` `backend/src/` `res.status(500)`'), ['index.ts', '.nvmrc', 'package.json', 'backend/src/']);
   });
 });
 

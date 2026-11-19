@@ -660,7 +660,7 @@ Examples from building the steps:
 4. `gaps`, and `generate` reading the analysis (the project's own commands and conventions); `publish` (Confluence) for adopted projects.
    - 4.1 Workspace repos adopted as one project (found preparing the real run: the target repository is a `frontend/` + `backend/` npm workspace repo).
 5. Evaluation cases on fixture repositories, including a grader that every cited file exists: `adopt-orders-api`, `adopt-etl-python`, `adopt-workspace-app` (`evals/README.md`), with graders for cited files, untouched code, planted conventions and gaps, versions in use, the ADR folder, retroactive ADRs and pack majors.
-6. Run on a real repository without a Claude setup; record it in `evals/runs/` and feed the findings back.
+6. Run on a real repository without a Claude setup; record it in `evals/runs/` and feed the findings back. Done: `evals/runs/2026-11-18-esn-fm.md`.
 
 ## 10. Open questions
 
