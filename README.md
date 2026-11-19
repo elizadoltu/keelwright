@@ -48,6 +48,10 @@ Run in the root of an existing repository that has no Claude setup yet (`/keelwr
 | `/adopt [notes]` | Starts (or continues) adopting the project; notes are kept as input for the analysis |
 | `/adopt status`, `/adopt report`, `/adopt <step>` | As for `/kickoff` |
 
+### Health check: `/doctor`
+
+Run in any project with a Claude setup (`/keelwright:doctor`), made by KeelWright or by hand. It checks the project as it is today — the Claude setup against the code (commands, paths, settings), the documents against the code (cited files that were deleted, broken references, open questions), the stack packs against the versions in use, the tooling gaps, and the git history (commit style, hooks not installed) — and names the fix for each finding. It changes nothing but its own record, `.keelwright/doctor.md`, which keeps a history so you can see the trend. The checks are mechanical: no model calls, no cost.
+
 Pipeline state is kept in `.keelwright/state.json` and run metrics in `.keelwright/metrics.json` in your project — commit both. Metrics never leave your machine.
 
 ## Repository layout
@@ -63,6 +67,7 @@ Pipeline state is kept in `.keelwright/state.json` and run metrics in `.keelwrig
 | `templates/` | Document templates used by the steps |
 | `reference/` | Rules the steps read at runtime: stack rules per project type, toolchains, web scaffold, document catalog |
 | `scripts/versions.mjs` | Resolves the latest stable versions from the registries and checks peer compatibility |
+| `scripts/doctor.mjs` | The doctor's checks: health per area, with a history in `.keelwright/doctor.md` |
 | `scripts/doccheck.mjs` | Checks generated documents: length, leftover placeholders, acceptance criteria, ID traceability |
 | `scripts/packs.mjs` | Stack packs: decides reuse or research, installs packs into a project, validates them |
 | `scripts/preflight.mjs` | Checks the machine can build the project (Node.js, git, gitleaks, Supabase CLI) before scaffolding |

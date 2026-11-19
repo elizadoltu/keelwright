@@ -15,6 +15,7 @@ Claude Code plugin that bootstraps new projects (`/kickoff`) and brings existing
 - `templates/claude/` — templates for the generated Claude setup; `templates/claude/hooks/*.mjs` are copied into projects unchanged, so they must stay dependency-free and tested (`tests/hooks.test.mjs`)
 - `scripts/generatecheck.mjs` — checks the generated agent setup (the base for `/adopt` audit mode)
 - `scripts/analyse.mjs` + `scripts/lib/analyse.mjs` — `/adopt` create mode: the facts about an existing repository (toolchain, locked versions, tasks mapped to the task contract, tooling, docs, gaps), the preflight, the open gaps and the hook config from the project's own tools; read-only and offline. `steps/analyse.md` adds the judgement; `generatecheck` uses it for adopted projects
+- `commands/doctor.md` + `scripts/doctor.mjs` + `scripts/lib/doctor.mjs` — the doctor (spec 7.0): health per area from the existing checkers (`generatecheck`, `crosscheck`, `analyse`, packs) and git history; mechanical, read-only except `.keelwright/doctor.{md,json}`. Audit mode builds on it
 - `scripts/publish.mjs` + `scripts/lib/publish.mjs` — plans the `publish` step from the documents and `.keelwright/publish.json`; the step itself calls the Atlassian MCP tools
 - `stack-packs/` — shipped stack packs, produced with `scripts/research-pack.mjs` (costs money); `shipped.json` lists them
 

@@ -723,6 +723,7 @@ Examples from building the steps:
 **Phase 3 build order**
 
 1. Doctor, mechanical checks only: `scripts/doctor.mjs` reusing the existing checkers, `.keelwright/doctor.md` with history, `/keelwright:doctor`; tested on the esn-fm adoption and on a project with a hand-made Claude setup.
+   - Built first: setup, docs vs code, stack (offline: pack majors vs the lockfile, pack age, end of life as recorded by `gaps`), tooling and security, process (commit style, hooks installed). Next: delivery (PRD requirements without stories, stories without tests), stack checks against the registries (`versions.mjs`, a new major, end-of-life dates), CI pass rate.
 2. `/start`: the routing in the preflight, the command, `/kickoff` and `/adopt` kept as overrides.
 3. Audit mode: the doctor's findings as fixes, approved one by one (7.4); `/start`'s route for a project with a Claude setup.
 4. Profiles: `/keelwright:profile`, role-tagged questions, working sets at gates, in the report and in the doctor; pm-skills offered to the PM profile.
