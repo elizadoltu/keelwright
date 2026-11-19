@@ -198,6 +198,9 @@ function diffFile(snapshot, current) {
 // ---------------------------------------------------------------------------
 
 const minutes = (msValue) => (msValue == null ? '—' : `${Math.max(1, Math.round(msValue / 60000))} min`);
+// No step does its work in under 10 s: a shorter time means `STATE start` came after the work
+// (runs recorded before `startedLate` existed), so it wasn't measured.
+const stepTime = (s) => (s?.startedLate || (s?.durationMs != null && s.durationMs < 10_000) ? 'not measured' : minutes(s?.durationMs));
 const pct = (x) => `${Math.round(x * 100)}%`;
 
 export function report(m, state) {
@@ -216,7 +219,7 @@ export function report(m, state) {
     const g = s?.gate;
     const q = g?.markersAtReview != null ? `${g.markersAtReview} → ${g.markersAtApproval ?? '…'}` : '—';
     const counters = Object.entries(s?.counters ?? {}).map(([k, v]) => `${k}: ${v}`).join(', ') || '—';
-    lines.push(`| ${name} | ${st} | ${s?.runs ?? 0} | ${s?.startedLate ? 'not measured' : minutes(s?.durationMs)} | ${minutes(g?.reviewMs)} | ${q} | ${s?.editedAfterApproval ?? 0} | ${counters} |`);
+    lines.push(`| ${name} | ${st} | ${s?.runs ?? 0} | ${stepTime(s)} | ${minutes(g?.reviewMs)} | ${q} | ${s?.editedAfterApproval ?? 0} | ${counters} |`);
   }
 
   const edits = Object.entries(m.steps).flatMap(([step, s]) => Object.entries(s.gate?.edits ?? {}).map(([file, e]) => ({ step, file, ...e })));
