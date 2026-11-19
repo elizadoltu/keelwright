@@ -137,9 +137,15 @@ function apiSurfaceChecks(text) {
 
 // /adopt analysis (spec 5.2.1): every convention cites files that show it, and every cited file
 // exists — the analysis describes the code, so a claim without evidence is an invented one.
+// A cited path has a folder (`src/app.ts`, `docs/`), or is a dotfile (`.nvmrc`), or a bare file name
+// with a file extension (`package.json`) — not code like `req.body` or `err.message`.
 const PATHLIKE = /^[\w.@*-][\w./@*-]*(\/|\.[A-Za-z0-9*]+)$/;
+const FILE_EXT = /\.(?:[cm]?[jt]sx?|json5?|jsonc|md|mdx|ya?ml|toml|ini|cfg|txt|lock|sql|prisma|py|pyi|rs|dart|go|rb|java|kts?|swift|gd|tscn|tres|css|scss|html|astro|vue|svelte|dsl|sh|env|example|xml|gradle|csv|svg|png|\*)$/i;
 export function citedPaths(cell) {
-  return [...cell.matchAll(/`([^`\n]+)`/g)].map((m) => m[1].replace(/:\d+(-\d+)?$/, '')).filter((p) => PATHLIKE.test(p) && !/^v?\d+(\.\d+)*$|^https?:/.test(p));
+  return [...cell.matchAll(/`([^`\n]+)`/g)]
+    .map((m) => m[1].replace(/:\d+(-\d+)?$/, ''))
+    .filter((p) => (PATHLIKE.test(p) || /^\.[\w.-]+$/.test(p)) && !/^v?\d+(\.\d+)*$|^https?:/.test(p))
+    .filter((p) => p.includes('/') || /^\.[\w.-]+$/.test(p) || /^(Makefile|Dockerfile|justfile|Procfile)$/.test(p) || FILE_EXT.test(p));
 }
 
 function analysisChecks(text, { exists } = {}) {

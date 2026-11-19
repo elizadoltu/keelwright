@@ -102,7 +102,7 @@ Run as many steps as you can in one go; the pipeline only pauses at review gates
 
 1. Read `${CLAUDE_PLUGIN_ROOT}/steps/<step>.md`.
 2. **If it says the step is not implemented yet** (the whole step — an **In /adopt** note is about `/adopt` and doesn't apply here), tell the user: the step name, what it will produce, and that this version of KeelWright stops here. Don't change the state. Stop.
-3. Run `STATE start <step>` **before any of the step's work** — before writing or editing any file — so the step's time is measured. `STATE complete` warns when every output was written before the start.
+3. Run `STATE start <step>` **on its own** — one command, not chained with `&&` or `;` to anything else, so a refused combined command can't drop it — and **before any of the step's work** — before writing or editing any file — so the step's time is measured. `STATE complete` warns when every output was written before the start.
 4. Follow the step's instructions. They say what to read, what to produce, and when to ask the user.
 5. Finish with exactly one of:
    - `STATE complete <step> <every file or folder the step produced or updated>`, or

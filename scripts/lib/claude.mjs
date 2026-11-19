@@ -4,7 +4,8 @@
 
 import { spawn } from 'node:child_process';
 
-export const TOOLS = ['Bash(node:*)', 'Read', 'Write', 'Edit', 'Glob', 'Grep', 'WebSearch', 'WebFetch'];
+// Read-only git commands too: /adopt reads the history (commit style, who introduced a decision).
+export const TOOLS = ['Bash(node:*)', 'Bash(git log:*)', 'Bash(git show:*)', 'Bash(git status:*)', 'Bash(git ls-files:*)', 'Bash(git branch:*)', 'Read', 'Write', 'Edit', 'Glob', 'Grep', 'WebSearch', 'WebFetch'];
 export const MAX_TURNS_PER_CALL = 150;
 
 // Runs `claude -p` and returns its JSON result ({ result, total_cost_usd, session_id, is_error, … }).
