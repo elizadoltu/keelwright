@@ -27,6 +27,8 @@ One command that takes a project from **idea / specs / existing code** to:
 
 For existing projects: a way to **audit** the Claude setup and keep it up to date.
 
+One entry point works out which of these a folder needs (5.0), and each person sees the work through their role (5.7).
+
 ### Non-goals (for now)
 
 - A visual / web interface (planned for a later phase).
@@ -171,7 +173,24 @@ Guard rules:
 
 These rules are themselves researched content: they are re-checked when the web stack pack is refreshed (5.4).
 
-## 5. Architecture: two entry points, one pipeline
+## 5. Architecture: one entry point, three routes
+
+### 5.0 `/start` — one command that works out what is needed
+
+`/keelwright:start` looks at the folder and picks the route; `/kickoff` and `/adopt` stay as **overrides** for when the guess is wrong (an empty-looking folder that is really a template, an existing repo the user wants to restart).
+
+| The folder has | Route |
+|---|---|
+| `.keelwright/state.json` | Continue that pipeline, in its mode |
+| Nothing, or only notes, specs or a PRD | `/kickoff` (the notes are its input) |
+| Code, no Claude setup | `/adopt` create mode (5.2.1) |
+| Code with a Claude setup | Doctor (7.0), then audit mode's fixes (7.4) |
+| Unclear (a fresh scaffold with a few commits, code in a subfolder only) | Ask, showing what was found |
+
+- The decision comes from the same facts script as `/adopt`'s preflight (`ANALYSE --preflight`, extended with the kickoff and doctor cases); the blockers (`monorepo`, `toolchain`) still stop with their explanation.
+- **Inside the route it also says what it will produce and why** before starting: the document set and the steps it will skip (no ADR-0001 when ADRs exist, no `c4` for one deployable, no `publish` without Confluence or Jira).
+- The pipelines stay separate inside (`scripts/lib/pipeline.mjs`, one per mode); `/start` is a routing layer, not a merge.
+
 
 ```
  New project (idea + specs)            Existing codebase
@@ -287,7 +306,7 @@ The pipeline state is kept in `.keelwright/state.json` in the generated project.
 - **Create mode** — no Claude setup exists: analyse the codebase, docs and specs; infer architecture and conventions; hand off to the generator.
 - **Audit mode** — a Claude setup exists: check its quality and whether it is up to date (section 7).
 
-`/adopt` picks the mode itself: a `CLAUDE.md` or `.claude/` folder means audit mode (Phase 3; until then it says so and stops). Instruction files of other tools (`AGENTS.md`, `.cursorrules`, `.github/copilot-instructions.md`) don't count as a Claude setup — they are read as input.
+`/adopt` picks the mode itself: a `CLAUDE.md` or `.claude/` folder means audit mode (Phase 3, built on the doctor, 7.0; until then it says so and stops). Instruction files of other tools (`AGENTS.md`, `.cursorrules`, `.github/copilot-instructions.md`) don't count as a Claude setup — they are read as input.
 
 ### 5.2.1 Create mode
 
@@ -437,6 +456,26 @@ Optional, and only when the user asks for it (the `jira` and `confluence` catalo
 - **Re-runnable:** `scripts/publish.mjs` plans the publish from the documents and the record `.keelwright/publish.json` (the site, project and space, and per item its Jira key or page id and a hash of what was sent): new items are created, changed ones updated, unchanged ones left alone. Nothing is ever deleted: an item that is no longer in the documents is reported for the user to close or archive.
 - **Asked, not assumed:** before anything is written, the step shows the plan (how many epics, stories, tasks and pages to create or update, where) and waits for the user's go-ahead. An update overwrites only the summary / title and description / body; if a page was edited in Confluence since the last publish, the step asks before overwriting it.
 
+### 5.7 Profiles — who is running it
+
+Different roles work with different documents. A personal profile (`~/.keelwright/profile.json`, set with `/keelwright:profile` and asked once on the first run) holds the person's **name**, **role** (developer, project manager, business analyst, account manager) and defaults (Jira project, Confluence space, language). It never holds an email address, and it is not in the repository: several people with different roles work on one project.
+
+**The project's document set doesn't depend on who runs it** — a project kicked off by a PM still gets its architecture and Claude setup, because the next person needs them. The role decides:
+
+- **The working set** — the documents the person owns: shown in full at gates, rated in the report, listed first by the doctor. The rest are summarised in a line each and stay open to them.
+
+  | Role | Working set |
+  |---|---|
+  | Developer | architecture overview, ADRs, C4, ERD, API surface, development workflow, stack packs, the tooling gaps, the Claude setup |
+  | Project manager | PRD (goals, scope, release plan), feature breakdown and backlog, release checklist, Jira |
+  | Business analyst | PRD requirements and acceptance criteria, user stories, ERD (the data, not the SQL), screen flow, test scenarios |
+  | Account manager | open — to be defined (10) |
+
+- **The questions they're asked.** Every open question carries the role that can answer it: `[NEEDS CLARIFICATION (dev): …]`. A gate asks the person only the questions for their role; the others stay open for the right person and are listed as waiting on them.
+- **How results are shown** — a developer sees diffs, versions and files; a PM sees scope, risks and what is blocked; a BA sees requirements, criteria and data gaps.
+- **Defaults** — the name fills `owner` and `decision-makers` instead of a marker; the Jira project and Confluence space prefill `publish`.
+- **Extras on request** — documents only one role needs are offered, never part of the default set. For product work KeelWright **uses [pm-skills](https://github.com/phuryn/pm-skills)** (MIT) rather than copying it: when it is installed, the PM profile is offered its workflows on the project's documents (OKRs, outcome roadmap, pre-mortem, PRD red-team, stakeholder map, release notes); when it isn't, KeelWright says how to install it. KeelWright's own PRD stays the engineering-facing one that the architecture is built from.
+
 ## 6. Document catalog
 
 KeelWright doesn't produce a fixed set of documents. It has a **catalog**, and `/kickoff` proposes a set from it based on the project type (4.4) and the interview. At the first review gate the user can add or remove documents before anything is written; the chosen set is listed in the PRD's front matter so later runs and `/adopt` know what the project is meant to have.
@@ -514,7 +553,25 @@ Documents are generated from each other, so they stay consistent:
 - The architecture overview indexes the ADRs and links the C4 workspace and ERD instead of repeating them.
 - Feature breakdown and backlog IDs (`F-`, `BL-`) map to Jira epics and issues when Jira output is on.
 
-## 7. Audit mode: quality & drift
+## 7. Doctor and audit mode: health, drift and quality
+
+### 7.0 Doctor — is the project healthy now?
+
+`/keelwright:doctor` checks a project at any time, on any project with a Claude setup (made by KeelWright or not). It differs from `report` (8.2): the report looks back at one run of KeelWright; the doctor looks at the project as it is today and is meant to be run again and again.
+
+| Area | Checks |
+|---|---|
+| Claude setup | drift and quality (7.1, 7.2): commands, paths, hooks and skills still match the project |
+| Docs vs code | ADR versions vs the lockfile, the overview's routes and containers vs the code, `schema.sql` vs migrations, broken references, old open questions |
+| Stack | a new major since the packs were researched, end-of-life dates within six months, security advisories |
+| Tooling and security | the open gaps again (`ANALYSE --gaps`), gaps declined earlier worth another look, 7.3 |
+| Delivery | PRD requirements with no story, stories with no test, Jira status vs what the code has (when Jira is linked) |
+| Process | commits follow the project's style, CI pass rate, hooks skipped (`--no-verify` in history) |
+
+- **Output:** pass / warn / fail per area; each finding names its evidence and the command that fixes it (`/adopt research --refresh`, `/adopt gaps`, a document's step). Results go to `.keelwright/doctor.md` with a dated history, so a trend shows: getting healthier or not. The profile (5.7) orders the areas and sets the language; an account manager's view is a short status per area.
+- **Free by default:** the first version runs only mechanical checks (the existing `generatecheck`, `doccheck`, `analyse`, `packs` and `versions` scripts, plus git and CI history) — no model calls, so it is fast and costs nothing. Judgement checks (does the overview still describe the code?) come later behind `--deep`, with a cost limit.
+- **Read-only:** the doctor never changes a file except its own record. Fixing is audit mode (7.4).
+
 
 ### 7.1 Drift — is the setup out of date?
 
@@ -546,13 +603,14 @@ Documents are generated from each other, so they stay consistent:
 
 ### 7.4 Output
 
-- Short report with a score per area.
+- The doctor's report (7.0) with a score per area.
 - Fixes as **reviewable diffs**, approved one by one — never silently rewritten, since some unusual rules are intentional.
 
 ### 7.5 Build order
 
-1. **Drift checks** first — mechanical comparisons against real files, reliable.
-2. **Quality & security checks** next — judgment-based, refined over time.
+1. **Doctor, mechanical checks** first — comparisons against real files, reliable and free.
+2. **Audit fixes** — the doctor's findings as diffs, approved one by one.
+3. **Quality and judgement checks** next (`--deep`) — refined over time.
 
 ### 7.6 Extensions
 
@@ -634,8 +692,8 @@ Examples from building the steps:
 |---|---|
 | **1 — MVP** | The complete `/kickoff` pipeline (5.1): all steps, review gates and the state file (5.1.2); every project type (4.4) with stack recommendation (4.5) and live version resolution (4.6); the full document catalog (6.0); research step with stack packs, shipping the default web stack and Astro first (5.4); scaffold (5.5); generator with CLAUDE.md, rules, skills, hooks, CONTRIBUTING.md and the three subagents (5.3); optional Jira / Confluence output. Run metrics and the evaluation suite (8.2–8.4). Validated by a run on one real project (8.1). |
 | **2** | `/adopt` create mode. |
-| **3** | `/adopt` audit mode — drift checks, then quality & security; CI integration. |
-| **4** | Visual app on top of the plugin engine (headless Claude Code / Agent SDK). |
+| **3** | The doctor (7.0); `/start` (5.0) with audit mode (7.4) as its route for projects with a Claude setup; profiles (5.7). |
+| **4** | Visual app on top of the plugin engine (headless Claude Code / Agent SDK); the doctor's history is its first view. |
 
 **Phase 1 build order**
 
@@ -662,8 +720,16 @@ Examples from building the steps:
 5. Evaluation cases on fixture repositories, including a grader that every cited file exists: `adopt-orders-api`, `adopt-etl-python`, `adopt-workspace-app` (`evals/README.md`), with graders for cited files, untouched code, planted conventions and gaps, versions in use, the ADR folder, retroactive ADRs and pack majors.
 6. Run on a real repository without a Claude setup; record it in `evals/runs/` and feed the findings back. Done: `evals/runs/2026-11-18-esn-fm.md`.
 
+**Phase 3 build order**
+
+1. Doctor, mechanical checks only: `scripts/doctor.mjs` reusing the existing checkers, `.keelwright/doctor.md` with history, `/keelwright:doctor`; tested on the esn-fm adoption and on a project with a hand-made Claude setup.
+2. `/start`: the routing in the preflight, the command, `/kickoff` and `/adopt` kept as overrides.
+3. Audit mode: the doctor's findings as fixes, approved one by one (7.4); `/start`'s route for a project with a Claude setup.
+4. Profiles: `/keelwright:profile`, role-tagged questions, working sets at gates, in the report and in the doctor; pm-skills offered to the PM profile.
+5. Evaluation cases for routing, the doctor (planted drift) and role-tagged questions; a run on a real repository with a Claude setup.
+
 ## 10. Open questions
 
-None at the moment.
+- **Account manager profile** — what they need from KeelWright (being researched with account managers).
 
 Name decided: **KeelWright** — a wright is a builder; a keel is what keeps a vessel stable and on course.
