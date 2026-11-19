@@ -5,7 +5,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { diffLines, lcsLength, recordCounter, recordRating, withoutStatus } from '../scripts/lib/metrics.mjs';
+import { create } from '../scripts/lib/state.mjs';
+import { diffLines, lcsLength, recordCounter, recordRating, report, withoutStatus } from '../scripts/lib/metrics.mjs';
 
 const CLI = fileURLToPath(new URL('../scripts/state.mjs', import.meta.url));
 const roots = [];
@@ -141,6 +142,16 @@ describe('recorded through the state CLI', () => {
     assert.equal(s.startedLate, true);
     assert.equal(s.durationMs, null);
     assert.match(cli(root, 'report'), /\| interview \| done \| 1 \| not measured \|/);
+  });
+
+  test('a step time under 10 s from an older run is shown as not measured', () => {
+    const state = create({ version: 't', now: '2026-01-01T00:00:00.000Z' });
+    state.steps.interview.status = 'done';
+    state.steps.prd.status = 'done';
+    const m = { steps: { interview: { runs: 1, durationMs: 24, counters: {} }, prd: { runs: 1, durationMs: 180_000, counters: {} } }, ratings: {} };
+    const text = report(m, state);
+    assert.match(text, /\| interview \| done \| 1 \| not measured \|/);
+    assert.match(text, /\| prd \| done \| 1 \| 3 min \|/);
   });
 
   test('a broken metrics file warns but never blocks the pipeline', () => {
