@@ -16,7 +16,7 @@ Templates live in `<plugin root>/templates/`. Keys are used in the PRD's `docume
 | `backlog` | Deferred backlog | `docs/backlog.md` | `features` |
 | `development-workflow` | `CONTRIBUTING.md` | `CONTRIBUTING.md` | `generate` |
 
-In `/adopt` the baseline is `adr` (ADR-0001 only when the project has no ADRs, plus ADRs recorded retroactively from `templates/adr-retroactive.md`, in the project's own ADR folder), `architecture-overview` (as built) and `development-workflow`, all from the `document` and `generate` steps; `c4` is added when there is more than one deployable. No PRD and no backlog.
+In `/adopt` the baseline is `adr` (ADR-0001 only when the project has no ADRs, plus ADRs recorded retroactively from `templates/adr-retroactive.md`, in the project's own ADR folder), `architecture-overview` (as built) and `development-workflow`, all from the `document` and `generate` steps; `c4` is added when there is more than one deployable, and `threat-model` (as built) on the same condition as below. No PRD and no backlog.
 
 ## Conditional
 
@@ -36,6 +36,7 @@ Include a document only when its condition holds; give the reason either way whe
 | `ai-system-design` | the project calls an LLM or ML model | `docs/ai/system-design.md` | `architecture` |
 | `ai-eval-plan` | the project calls an LLM or ML model | `docs/evals/plan.md` + `evals/data/` | `architecture` |
 | `api-surface` | project type is library / CLI / API, or the project exposes an API that other systems or teams call (e.g. an AI service behind another product) | `docs/api-surface.md` | `architecture` |
+| `threat-model` | there is something to attack: a backend (including a managed one or serverless functions), user accounts, stored personal data, an API others call, an LLM with tools or user data, or a package or binary others install — see `reference/security.md`. Not for a static site with no forms or an offline game | `docs/security/threat-model.md` | `architecture` (`document` in `/adopt`) |
 
 ## Optional — only when the user asks
 
@@ -48,7 +49,7 @@ Include a document only when its condition holds; give the reason either way whe
 ## Template principles
 
 - **Short.** PRD 1–3 pages, ADR one page, GDD max 2 pages.
-- **Stable IDs**, never renumbered: `SC-001` success criteria, `US-1` user stories, `FR-001` / `NFR-001` requirements, `ADR-NNNN`, `A-1` / `F-01` activities / features, `BL-001` / `TD-001` backlog / tech debt, `EV-001` eval criteria, `S-01` screens, `P-01` / `T-01` prompts / tools, `API-001` public API items. Removed items are marked "dropped", not deleted.
+- **Stable IDs**, never renumbered: `SC-001` success criteria, `US-1` user stories, `FR-001` / `NFR-001` requirements, `ADR-NNNN`, `A-1` / `F-01` activities / features, `BL-001` / `TD-001` backlog / tech debt, `EV-001` eval criteria, `S-01` screens, `P-01` / `T-01` prompts / tools, `API-001` public API items, `SEC-01` threat model risks. Removed items are marked "dropped", not deleted.
 - **Testable.** Acceptance criteria use `WHEN … THE SYSTEM SHALL …` or Given / When / Then.
 - **What vs how.** The PRD says what and why; stack and architecture live in ADRs.
 - **Explicit non-goals and a `status`** in every document.

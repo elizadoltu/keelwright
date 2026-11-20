@@ -13,6 +13,6 @@ project's tracker (if the analysis or README names one), commands, test location
 3. **Tests first** where the project has tests for this area (<test locations and runner>): a failing test that shows the bug or the new behaviour. Run it and see it fail.
 4. **Build** the smallest change that makes it pass, following `.claude/rules/` for the files you touch and the code around it — this project's conventions win over general advice.
 5. **Check**: <the project's check command, or its lint, typecheck and test commands> pass.
-6. **Review**: ask the `reviewer` agent to review the change; fix what it finds.
-7. **Docs**: if structure, routes, data or decisions changed, ask the `docs-keeper` agent to update the overview and ADRs.
+6. **Review**: ask the `reviewer` agent to review the change; fix what it finds. <only with a threat model:> When the change touches a sensitive path (<globs from `docs/security/threat-model.md`>), adds or upgrades a dependency, adds a migration or an LLM tool, then ask the `security-reviewer` agent (the `security-review` skill); fix what it finds.
+7. **Docs**: if structure, routes, data or decisions changed, ask the `docs-keeper` agent to update the overview and ADRs (and the threat model, when there is one and an entry point, table, role or tool was added).
 8. **Commit** <in the project's commit style, e.g. "a Conventional Commit: `fix(orders): reject negative quantities (#142)`">.

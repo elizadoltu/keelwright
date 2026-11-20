@@ -361,10 +361,9 @@ const ident = (s) => {
 };
 const NAME = '((?:"[^"]+"|[\\w$]+)(?:\\.(?:"[^"]+"|[\\w$]+))?)';
 
-export function checkRls(root) {
-  if (!exposedDatabase(root)) return { status: 'skipped', reason: 'the database is not exposed through an API', findings: [] };
+// The tables the SQL migrations leave in the public schema, following them in order.
+export function migrationTables(root) {
   const files = sqlFiles(root, '');
-  if (!files.length) return { status: 'skipped', reason: 'no SQL migrations', findings: [] };
   const tables = new Map(); // table → { file, rls, policies }
   for (const f of files) {
     const sql = (read(root, f) ?? '').replace(/--[^\n]*/g, '').replace(/\/\*[\s\S]*?\*\//g, '');
@@ -386,12 +385,45 @@ export function checkRls(root) {
       }
     }
   }
+  return { files, tables };
+}
+
+export function checkRls(root) {
+  if (!exposedDatabase(root)) return { status: 'skipped', reason: 'the database is not exposed through an API', findings: [] };
+  const { files, tables } = migrationTables(root);
+  if (!files.length) return { status: 'skipped', reason: 'no SQL migrations', findings: [] };
   const findings = [];
   for (const [table, t] of tables) {
     if (!t.rls) findings.push({ check: 'rls', fingerprint: `rls:${table}`, severity: 'high', issue: `table public.${table} has no row-level security — anyone with the public API key can read and change it`, evidence: t.file, fix: `\`alter table public.${table} enable row level security;\` and add policies, in a new migration` });
     else if (!t.policies) findings.push({ check: 'rls', fingerprint: `rls-policy:${table}`, severity: 'low', issue: `table public.${table} has row-level security but no policy — the API can't reach it at all (fine if only the server uses it)`, evidence: t.file, fix: 'add a policy, or note in the threat model that only the server reads it' });
   }
   return { status: 'checked', findings, tables: tables.size };
+}
+
+// --- threat model vs code --------------------------------------------------------------------
+// A mitigated risk whose enforcing file is gone isn't mitigated any more; a table the migrations
+// added that the threat model never mentions is surface nobody has thought about.
+
+export const THREAT_MODEL = 'docs/security/threat-model.md';
+
+export function checkThreatModel(root) {
+  const text = read(root, THREAT_MODEL);
+  if (text === null) return { status: 'skipped', reason: 'no threat model', findings: [] };
+  const findings = [];
+  for (const row of text.split('\n').filter((l) => /^\|\s*SEC-\d{2}\s*\|/.test(l))) {
+    const [id, , , where = '', , enforced = '', status = ''] = row.split('|').slice(1, -1).map((c) => c.trim());
+    if (!/^mitigated/i.test(status)) continue;
+    const missing = [...`${where} ${enforced}`.matchAll(/`([^`\n]+)`/g)]
+      .map((m) => m[1].replace(/:\d+(-\d+)?$/, ''))
+      .filter((p) => p.includes('/') && !/[*<>{}\s]|^https?:/.test(p) && !existsSync(join(root, p.replace(/\/$/, ''))));
+    for (const p of missing) findings.push({ check: 'threat-model', fingerprint: `threat-model:${id}:${p}`, severity: 'medium', issue: `${id} is marked mitigated, but \`${p}\`, which it cites, no longer exists`, evidence: THREAT_MODEL, fix: `check the mitigation still holds; update ${id} (status open if it doesn't)` });
+  }
+  const { tables } = migrationTables(root);
+  const lower = text.toLowerCase();
+  for (const [table, t] of tables) {
+    if (!new RegExp(`(^|[^\\w])${table.replace(/[$]/g, '\\$')}([^\\w]|$)`).test(lower)) findings.push({ check: 'threat-model', fingerprint: `threat-model:table:${table}`, severity: 'low', issue: `table ${table} (${t.file}) isn't in the threat model`, evidence: t.file, fix: 'the docs-keeper adds it: its data (personal or not), who may read and change it, and a SEC- risk if it adds one' });
+  }
+  return { status: 'checked', findings, risks: (text.match(/^\|\s*SEC-\d{2}\s*\|/gm) ?? []).length };
 }
 
 // --- static analysis: Semgrep (optional) ---------------------------------------------------------
@@ -490,6 +522,7 @@ export const CHECKS = [
   { id: 'secrets', title: 'Secrets' },
   { id: 'rls', title: 'Data access (row-level security)' },
   { id: 'hygiene', title: 'Safety nets' },
+  { id: 'threat-model', title: 'Threat model vs code' },
   { id: 'semgrep', title: 'Static analysis (Semgrep, optional)' },
 ];
 
@@ -501,6 +534,7 @@ export async function audit(root, { now = new Date().toISOString(), offline = fa
     secrets: checkSecrets(root, { exec }),
     rls: checkRls(root),
     hygiene: checkHygiene(root, { exec }),
+    'threat-model': checkThreatModel(root),
     semgrep: offline ? offlineResult : checkSemgrep(root, { exec }),
   };
   const { findings, notes } = applyAccepted(Object.values(checks).flatMap((c) => c.findings), loadAccepted(root), now);
@@ -544,7 +578,7 @@ export function render(result, history) {
   ];
   for (const { id, title } of CHECKS) {
     const k = result.checks[id];
-    const extra = id === 'dependencies' && k.packages != null ? `${k.packages} locked packages` : id === 'rls' && k.tables != null ? `${k.tables} tables` : '';
+    const extra = id === 'dependencies' && k.packages != null ? `${k.packages} locked packages` : id === 'rls' && k.tables != null ? `${k.tables} tables` : id === 'threat-model' && k.risks != null ? `${k.risks} risks` : '';
     L.push(`| ${title} | ${STATUS[k.status] ?? k.status} | ${[k.reason, extra].filter(Boolean).join('; ') || '—'} |`);
   }
   const open = result.findings.filter((f) => f.status === 'open');

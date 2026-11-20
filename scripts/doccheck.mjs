@@ -11,6 +11,8 @@
 //                                          with cost and latency, public API items)
 //   analysis:.keelwright/analysis.md      /adopt analysis: conventions cite existing files, consistent / mixed
 //   adr-retro:<file>                       /adopt retroactive ADR: says so, cites existing files, Alternatives
+//   threat-model:docs/security/threat-model.md  framework edition, SEC- risks with mitigation, enforcement
+//                                          and status, sensitive paths; mitigated / open risks cite existing files
 //   tokens:design/tokens.json              W3C DTCG structure, references, WCAG AA text contrast
 //   c4:docs/architecture/c4/workspace.dsl  Structurizr workspace structure
 //   refs:docs                              every ID referenced is defined; no broken local links
