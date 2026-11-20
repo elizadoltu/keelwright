@@ -55,3 +55,4 @@ Template for the generated CLAUDE.md. Rules for this document:
 - `reviewer` — reviews a change against the conventions, ADRs and requirements; read-only
 - `tester` — turns acceptance criteria into Vitest and Playwright tests
 - `docs-keeper` — keeps docs, ERD, backlog and the ADR index in sync with the code
+<- `security-reviewer` — reviews changes to sensitive paths, dependencies, migrations and LLM tools against `docs/security/threat-model.md`; read-only (only with a threat model)>

@@ -108,13 +108,13 @@ describe('doctor', () => {
   test('the record keeps a history and the CLI exits 1 on a failing area', () => {
     const root = project();
     record(root, diagnose(root, { now: '2026-11-18T10:00:00.000Z' }));
-    const r = spawnSync('node', [CLI, '--root', root], { encoding: 'utf8' });
+    const r = spawnSync('node', [CLI, '--root', root, '--offline'], { encoding: 'utf8' });
     assert.equal(r.status, 1);
     const md = readFileSync(join(root, '.keelwright/doctor.md'), 'utf8');
     assert.match(md, /\| Tooling and security \| FAIL \|/);
     assert.match(md, /## History/);
     assert.equal(JSON.parse(readFileSync(join(root, '.keelwright/doctor.json'), 'utf8')).history.length, 2);
-    const dry = spawnSync('node', [CLI, '--root', root, '--no-write', '--json'], { encoding: 'utf8' });
+    const dry = spawnSync('node', [CLI, '--root', root, '--no-write', '--json', '--offline'], { encoding: 'utf8' });
     assert.equal(JSON.parse(dry.stdout).history, 3);
     assert.equal(JSON.parse(readFileSync(join(root, '.keelwright/doctor.json'), 'utf8')).history.length, 2, '--no-write records nothing');
     assert.ok(existsSync(join(root, 'CLAUDE.md')));

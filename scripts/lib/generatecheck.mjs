@@ -6,7 +6,7 @@
 
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { placeholders } from './doccheck.mjs';
+import { FRAMEWORK_EDITIONS, placeholders } from './doccheck.mjs';
 import { parseFrontMatter, parsePack } from './packs.mjs';
 import { analyse } from './analyse.mjs';
 import { TASK_COMMAND, TOOLCHAIN, definedTasks, detectToolchain } from './toolchains.mjs';
@@ -181,6 +181,35 @@ export function checkGenerated(root) {
     }
   }
 
+  // --- security reviewer (spec 5.3): only when the project has a threat model ----------------
+  const threatModel = read(root, 'docs/security/threat-model.md');
+  if (threatModel) {
+    const defined = new Set([...threatModel.matchAll(/^\|\s*(SEC-\d{2})\s*\|/gm)].map((m) => m[1]));
+    const framework = /^framework:\s*"?([^"\n#]+?)"?\s*(#.*)?$/m.exec(threatModel)?.[1]?.trim();
+    const agent = read(root, '.claude/agents/security-reviewer.md');
+    if (!agent) add('agents', 'the project has a threat model but no .claude/agents/security-reviewer.md');
+    else {
+      const fm = parseFrontMatter(agent) ?? {};
+      if (fm.name !== 'security-reviewer') add('agents', 'security-reviewer.md: front matter name should be "security-reviewer"');
+      if (!fm.description || fm.description.length < 40) add('agents', 'security-reviewer.md: description is missing or too short to know when to use it');
+      if (!fm.tools) add('agents', 'security-reviewer.md: no tools list — without one it inherits every tool');
+      const granted = list(fm.tools).filter((t) => WRITE_TOOLS.includes(t));
+      if (granted.length) add('agents', `security-reviewer.md: the security reviewer must be read-only but has ${granted.join(', ')}`);
+      if (!['Write', 'Edit'].every((t) => list(fm.disallowedTools).includes(t))) add('agents', 'security-reviewer.md: disallowedTools should include Write and Edit');
+      const edition = FRAMEWORK_EDITIONS.find((e) => agent.includes(e));
+      if (!edition) add('agents', `security-reviewer.md doesn't name a framework edition (${framework ?? 'the threat model\'s framework'})`);
+      else if (framework && edition !== framework && !agent.includes(framework)) add('agents', `security-reviewer.md names ${edition}, but the threat model's framework is ${framework}`);
+      const cited = new Set([...agent.matchAll(/\bSEC-\d{2}\b/g)].map((m) => m[0]));
+      for (const id of cited) if (!defined.has(id)) add('agents', `security-reviewer.md cites ${id}, which the threat model doesn't define`);
+      if (defined.size && !cited.size) add('agents', 'security-reviewer.md names none of the threat model\'s SEC- risks');
+    }
+    if (!existsSync(join(root, '.claude/skills/security-review/SKILL.md'))) add('skills', 'the project has a threat model but no security-review skill');
+    const rules = read(root, '.claude/rules/security.md');
+    if (!rules) add('rules', 'the project has a threat model but no .claude/rules/security.md');
+    else if (!list(parseFrontMatter(rules)?.paths).length) add('rules', '.claude/rules/security.md has no paths — scope it to the threat model\'s sensitive paths');
+    if (claude && !claude.includes('security-reviewer')) add('claude-md', 'CLAUDE.md doesn\'t mention the security-reviewer agent');
+  }
+
   // --- skills -----------------------------------------------------------------------------
   const skillsDir = join(root, '.claude/skills');
   const skills = existsSync(skillsDir) ? readdirSync(skillsDir).filter((n) => existsSync(join(skillsDir, n, 'SKILL.md'))) : [];
@@ -207,7 +236,7 @@ export function checkGenerated(root) {
   const { all, review } = applicableReviewRules(root);
   for (const id of review) if (!new RegExp(`\\b${id}\\b`).test(ruleText)) add('rules', `stack-pack review rule ${id} is not in CLAUDE.md or .claude/rules/`);
   for (const m of ruleText.matchAll(/\b([A-Z]+-\d{2})\b/g)) {
-    if (all.size && /^[A-Z]{3,}-\d{2}$/.test(m[1]) && !/^(?:FR|SC|BL|TD|EV|US|NFR|API)-/.test(m[1]) && !all.has(m[1])) add('rules', `${m[1]} is cited but no stack pack defines it`);
+    if (all.size && /^[A-Z]{3,}-\d{2}$/.test(m[1]) && !/^(?:FR|SC|BL|TD|EV|US|NFR|API|SEC)-/.test(m[1]) && !all.has(m[1])) add('rules', `${m[1]} is cited but no stack pack defines it`);
   }
 
   // --- settings and hooks -------------------------------------------------------------------

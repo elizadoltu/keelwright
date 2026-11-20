@@ -1,6 +1,8 @@
 // The doctor (spec 7.0): how healthy a project is now, area by area. Mechanical checks only —
-// no model calls and no network — built on the existing checkers. Read-only except its own record
-// (.keelwright/doctor.json and .keelwright/doctor.md).
+// no model calls — built on the existing checkers. Read-only except its own record
+// (.keelwright/doctor.json and .keelwright/doctor.md). The application-security area (7.7) comes
+// from scripts/lib/security.mjs, which the CLI runs first (it needs the network for OSV.dev) and
+// passes in; its details never go into doctor.md, only the counts.
 
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
@@ -10,6 +12,7 @@ import { crossCheck } from './crosscheck.mjs';
 import { citedPaths } from './doccheck.mjs';
 import { checkGenerated } from './generatecheck.mjs';
 import { MAX_AGE_DAYS, parsePack, resolvedMajor } from './packs.mjs';
+import { areaStatus as securityStatus } from './security.mjs';
 import * as S from './state.mjs';
 
 export const AREAS = [
@@ -17,6 +20,7 @@ export const AREAS = [
   { id: 'docs', title: 'Docs vs code' },
   { id: 'stack', title: 'Stack' },
   { id: 'tooling', title: 'Tooling and security' },
+  { id: 'security', title: 'Application security' },
   { id: 'process', title: 'Process' },
   { id: 'delivery', title: 'Delivery' },
 ];
@@ -176,7 +180,21 @@ function checkProcess(root, ctx, add) {
 
 // ---------------------------------------------------------------------------------------------
 
-export function diagnose(root, { now = new Date().toISOString(), pluginRoot = null } = {}) {
+// The security audit's findings as doctor findings: critical and high fail, medium and low warn,
+// accepted ones are a note. `secure` keeps their details out of doctor.md.
+function addSecurity(security, add) {
+  for (const f of security.findings) {
+    const level = f.status === 'accepted' ? 'info' : ['critical', 'high'].includes(f.severity) ? 'fail' : 'warn';
+    add(level, `${f.status === 'accepted' ? 'accepted: ' : ''}${f.severity}: ${f.issue}`, { evidence: f.evidence, fix: f.fix, secure: true });
+  }
+  for (const [id, c] of Object.entries(security.checks)) {
+    if (c.status === 'not-checked') add(id === 'semgrep' ? 'info' : 'warn', `${id} not checked: ${c.reason}`, { fix: id === 'dependencies' ? 'run the doctor online' : null });
+    if (c.status === 'not-installed') add('info', c.reason);
+  }
+  for (const n of security.notes) add('info', n);
+}
+
+export function diagnose(root, { now = new Date().toISOString(), pluginRoot = null, security = null, only = null } = {}) {
   const state = S.exists(root) ? S.load(root) : null;
   const ctx = { state, mode: state ? S.modeOf(state) : null, facts: null };
   try {
@@ -187,21 +205,27 @@ export function diagnose(root, { now = new Date().toISOString(), pluginRoot = nu
   const findings = [];
   const skipped = {};
   const adder = (area) => (level, issue, extra = {}) => findings.push({ area, level, issue, ...extra });
-  checkSetup(root, ctx, adder('setup'));
-  checkDocs(root, ctx, adder('docs'));
-  checkStack(root, ctx, adder('stack'), now);
-  checkTooling(root, ctx, adder('tooling'));
-  if (!checkProcess(root, ctx, adder('process'))) skipped.process = 'not a git repository';
+  const run = (id) => !only || only === id;
+  if (run('setup')) checkSetup(root, ctx, adder('setup'));
+  if (run('docs')) checkDocs(root, ctx, adder('docs'));
+  if (run('stack')) checkStack(root, ctx, adder('stack'), now);
+  if (run('tooling')) checkTooling(root, ctx, adder('tooling'));
+  if (run('security')) {
+    if (security) addSecurity(security, adder('security'));
+    else skipped.security = 'not run';
+  }
+  if (run('process') && !checkProcess(root, ctx, adder('process'))) skipped.process = 'not a git repository';
   skipped.delivery = 'not checked yet';
+  for (const { id } of AREAS) if (!run(id)) skipped[id] = `not run (only ${only})`;
 
   const areas = {};
   for (const { id } of AREAS) {
     const own = findings.filter((f) => f.area === id);
-    areas[id] = skipped[id] ? 'skipped' : own.some((f) => f.level === 'fail') ? 'fail' : own.some((f) => f.level === 'warn') ? 'warn' : 'pass';
+    areas[id] = skipped[id] ? 'skipped' : id === 'security' ? securityStatus(security) : own.some((f) => f.level === 'fail') ? 'fail' : own.some((f) => f.level === 'warn') ? 'warn' : 'pass';
   }
   findings.sort((a, b) => AREAS.findIndex((x) => x.id === a.area) - AREAS.findIndex((x) => x.id === b.area) || LEVELS.indexOf(a.level) - LEVELS.indexOf(b.level));
   const counts = Object.fromEntries(LEVELS.map((l) => [l, findings.filter((f) => f.level === l).length]));
-  return { at: now, mode: ctx.mode, keelwright: Boolean(state), areas, skipped, counts, findings };
+  return { at: now, mode: ctx.mode, keelwright: Boolean(state), areas, skipped, counts, findings, ...(security ? { security: security.counts } : {}) };
 }
 
 // --- the record ------------------------------------------------------------------------------
@@ -227,7 +251,11 @@ export function render(result, history) {
     const own = result.findings.filter((f) => f.area === id);
     if (!own.length) continue;
     lines.push('', `## ${title}`, '');
-    for (const f of own) lines.push(`- **${f.level}** ${f.issue}${f.fix ? ` → ${f.fix}` : ''}`);
+    if (id === 'security' && result.security) {
+      const c = result.security;
+      lines.push(`Open: ${c.critical} critical, ${c.high} high, ${c.medium} medium, ${c.low} low · ${c.accepted} accepted. The findings are in \`.keelwright/security/audit.md\`, which isn't committed (spec 7.7).`);
+    }
+    for (const f of own.filter((x) => !x.secure)) lines.push(`- **${f.level}** ${f.issue}${f.fix ? ` → ${f.fix}` : ''}`);
   }
   if (history.length > 1) {
     lines.push('', '## History', '', `| Date | ${AREAS.map((a) => a.title).join(' | ')} | To fix | To look at |`, `|---|${AREAS.map(() => '---|').join('')}---|---|`);

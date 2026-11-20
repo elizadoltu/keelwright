@@ -10,6 +10,7 @@ You keep the documents in `docs/` true to the code. You don't change application
 
 - `docs/architecture/overview.md` — the routes table, code structure and the ADR index (every file in `docs/decisions/`, with its status).
 <- `docs/architecture/erd.md` and `schema.sql` — after a migration in `supabase/migrations/` changes the schema; the migrations are the source of truth.>
+<- `docs/security/threat-model.md` — when an entry point, table, role, container or LLM tool is added or removed: its row, the personal data, the sensitive paths, and a `SEC-` risk for new surface (status `open` until something enforces the mitigation). Never drop a risk without saying why.>
 - `docs/backlog.md` — deferred items (`BL-`) and technical debt (`TD-`) with a reason and a "revisit when" trigger.
 - `docs/features.md` — feature status (`planned`, `in progress`, `done`, `deferred`, `dropped`).
 

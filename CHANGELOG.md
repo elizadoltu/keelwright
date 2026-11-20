@@ -5,6 +5,21 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Added — threat model and generated security reviewer (Phase 3, build step 2)
+
+- New catalog document `threat-model` (`docs/security/threat-model.md`, `templates/threat-model.md`): assets and personal data, roles, entry points, `SEC-` risks with where, mitigation, how it is enforced and a status, and the sensitive paths. Included when there is something to attack. `/kickoff` writes it in `architecture` (risks `planned`); `/adopt` writes it as built in `document`, citing the files that enforce each mitigation and recording unprotected risks as `open`.
+- `reference/security.md`: the framework edition per project type — OWASP Top 10 (2025), MASVS 2, LLM Top 10 (2025), API Security Top 10 (2023), supply chain for libraries and CLIs — and what the reviewer always checks.
+- `doccheck threat-model`: a known framework edition, every risk with a mitigation, enforcement and a valid status, sensitive paths; a `mitigated` or `open` risk must cite files that exist. `SEC-` IDs join the cross-document ID check.
+- `generate` writes a read-only `security-reviewer` agent, a `security-review` skill and `.claude/rules/security.md` (scoped to the sensitive paths) when there is a threat model; `implement-story` / `implement-change` hand off to it on sensitive changes, and the `docs-keeper` keeps the threat model current. Without a threat model the `reviewer` gets a short security checklist instead.
+- `generatecheck`: with a threat model, the security reviewer must exist, be read-only, name the threat model's framework edition and cite only `SEC-` IDs it defines; the skill and a path-scoped `security.md` rule must exist.
+- The doctor's security audit compares the threat model with the code: a `mitigated` risk whose enforcing file is gone (medium), a table in the migrations the threat model never mentions (low).
+
+### Added — security audit, mechanical checks (Phase 3, build step 1.1)
+
+- `/doctor` has an **Application security** area, and `/doctor security` runs only it (spec 7.7): every locked dependency, direct and transitive, from npm, pnpm, yarn, bun, uv, Poetry, PDM, Pipenv, Cargo and pub lockfiles, checked against OSV.dev — severity from the advisory or its CVSS score, aliases merged, the lowest fixed version named; gitleaks over the whole git history, redacted, one finding per secret; Supabase / PostgREST tables without row-level security (high) or without a policy (low), following the migrations in order; `.env` not git-ignored and CI actions not pinned to a SHA; Semgrep when it's installed. Fails on an open critical or high finding.
+- The findings go to `.keelwright/security/audit.md` and `audit.json`, a folder that git-ignores itself, so open vulnerabilities are never committed; `doctor.md` keeps only the counts per severity. Accepted risks go in `.keelwright/security-accepted.json` with a reason and an end date at most 90 days away, after which they're open again.
+- Only package names and versions leave the machine (to OSV.dev); `--offline` skips the network and marks the dependencies "not checked", never a pass.
+
 ### Added — the doctor (Phase 3, build step 1)
 
 - `/doctor` (`commands/doctor.md`, `scripts/doctor.mjs`): the project's health as it is today, per area — Claude setup (commands, paths and settings that no longer match; KeelWright's own conventions only for KeelWright projects), docs vs code (cited files since deleted, broken references, open questions, reviewed documents edited since approval), stack (packs researched for another major, old packs, recorded end-of-life gaps), tooling and security (the open gaps, declined ones), process (commits off the documented style, hooks not installed in the clone). Each finding names its fix. Mechanical and read-only: no model calls, no network; the record and its history go to `.keelwright/doctor.md` and `.keelwright/doctor.json`. Delivery checks come next.

@@ -52,7 +52,9 @@ Run in the root of an existing repository that has no Claude setup yet (`/keelwr
 
 ### Health check: `/doctor`
 
-Run in any project with a Claude setup (`/keelwright:doctor`), made by KeelWright or by hand. It checks the project as it is today — the Claude setup against the code (commands, paths, settings), the documents against the code (cited files that were deleted, broken references, open questions), the stack packs against the versions in use, the tooling gaps, and the git history (commit style, hooks not installed) — and names the fix for each finding. It changes nothing but its own record, `.keelwright/doctor.md`, which keeps a history so you can see the trend. The checks are mechanical: no model calls, no cost.
+Run in any project with a Claude setup (`/keelwright:doctor`), made by KeelWright or by hand. It checks the project as it is today — the Claude setup against the code (commands, paths, settings), the documents against the code (cited files that were deleted, broken references, open questions), the stack packs against the versions in use, the tooling gaps, the application's security, and the git history (commit style, hooks not installed) — and names the fix for each finding. It changes nothing but its own record, `.keelwright/doctor.md`, which keeps a history so you can see the trend. The checks are mechanical: no model calls, no cost.
+
+`/keelwright:doctor security` runs only the security audit: every locked dependency checked against OSV.dev for known vulnerabilities, gitleaks over the whole git history, row-level security on Supabase tables, `.env` and CI hygiene, and Semgrep when it's installed. Only package names and versions leave your machine (`--offline` skips that). The findings go to `.keelwright/security/audit.md`, which git-ignores itself so open vulnerabilities are never committed; `doctor.md` keeps only the counts. Findings you decide to live with go in `.keelwright/security-accepted.json` with a reason and an end date, at most 90 days away. It is not a penetration test.
 
 Pipeline state is kept in `.keelwright/state.json` and run metrics in `.keelwright/metrics.json` in your project — commit both. Metrics never leave your machine.
 
@@ -70,6 +72,7 @@ Pipeline state is kept in `.keelwright/state.json` and run metrics in `.keelwrig
 | `reference/` | Rules the steps read at runtime: stack rules per project type, toolchains, web scaffold, document catalog |
 | `scripts/versions.mjs` | Resolves the latest stable versions from the registries and checks peer compatibility |
 | `scripts/doctor.mjs` | The doctor's checks: health per area, with a history in `.keelwright/doctor.md` |
+| `scripts/lib/security.mjs` | The security audit's checks (dependencies, secrets, row-level security, hygiene, Semgrep), recorded in `.keelwright/security/` (not committed) |
 | `scripts/doccheck.mjs` | Checks generated documents: length, leftover placeholders, acceptance criteria, ID traceability |
 | `scripts/packs.mjs` | Stack packs: decides reuse or research, installs packs into a project, validates them |
 | `scripts/preflight.mjs` | Checks the machine can build the project (Node.js, git, gitleaks, Supabase CLI) before scaffolding |

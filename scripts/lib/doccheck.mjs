@@ -16,6 +16,7 @@ const LIMITS = {
   'ai-system-design': 1500,
   'ai-eval-plan': 1200,
   'api-surface': 1300,
+  'threat-model': 1000,
   analysis: 1800,
   'adr-retro': 450,
 };
@@ -135,6 +136,44 @@ function apiSurfaceChecks(text) {
   ];
 }
 
+// Threat model (spec 6.0, 7.7): the framework edition is one KeelWright knows (reference/security.md),
+// every SEC- risk has a mitigation, how it is enforced and a status, and the reviewer has sensitive
+// paths to scope to. A mitigated or open risk describes code that exists, so its cited files must
+// exist; a planned one (in /kickoff, before the code) may cite paths still to be built.
+export const FRAMEWORK_EDITIONS = [
+  'OWASP Top 10 (2025)',
+  'OWASP MASVS 2',
+  'OWASP Top 10 for LLM Applications (2025)',
+  'OWASP API Security Top 10 (2023)',
+  'Supply chain and input handling',
+];
+export const SEC_STATUSES = ['mitigated', 'planned', 'open', 'accepted', 'dropped'];
+
+function threatModelChecks(text, { exists } = {}) {
+  const issues = [];
+  const framework = /^framework:\s*"?([^"\n#]+?)"?\s*(#.*)?$/m.exec(text)?.[1]?.trim();
+  if (!framework) issues.push({ issue: 'no `framework:` in the front matter (an edition from reference/security.md)' });
+  else if (!FRAMEWORK_EDITIONS.includes(framework)) issues.push({ issue: `framework "${framework}" isn't one of: ${FRAMEWORK_EDITIONS.join('; ')}` });
+  const rows = idRows(text, 'SEC');
+  issues.push(...need(rows.length > 0, 'no risks (| SEC-01 | … rows)'));
+  issues.push(...need(idRows(text, 'SEC').length === 0 || hasSection(text, 'roles'), 'no Roles section'));
+  for (const row of rows) {
+    const [id, , , where = '', mitigation = '', enforced = '', status = ''] = row.split('|').slice(1, -1).map((c) => c.trim());
+    const st = status.toLowerCase().split(/[\s(—-]/)[0];
+    if (!SEC_STATUSES.includes(st)) issues.push({ issue: `${id}: status "${status}" isn't one of ${SEC_STATUSES.join(', ')}` });
+    if (st === 'dropped') continue;
+    if (!where || where === '—') issues.push({ issue: `${id} doesn't say where it can happen (paths, routes, tables or tools)` });
+    if (!mitigation || mitigation === '—') issues.push({ issue: `${id} has no mitigation` });
+    if (!enforced || enforced === '—') issues.push({ issue: `${id} doesn't say how the mitigation is enforced (a policy, test, lint rule, hook, CI step or "review")` });
+    if (exists && (st === 'mitigated' || st === 'open')) {
+      for (const p of citedPaths(`${where} ${enforced}`).filter((x) => !x.includes('*'))) if (!exists(p)) issues.push({ issue: `${id} is ${st} but cites \`${p}\`, which doesn't exist` });
+    }
+  }
+  const sensitive = sections(stripCode(text.replace(/`([^`\n]+)`/g, 'PATH:$1')))['sensitive paths'] ?? [];
+  issues.push(...need(sensitive.some((l) => /PATH:/.test(l)), 'no sensitive paths (globs in backticks) for the security reviewer to scope to'));
+  return issues;
+}
+
 // /adopt analysis (spec 5.2.1): every convention cites files that show it, and every cited file
 // exists — the analysis describes the code, so a claim without evidence is an invented one.
 // A cited path has a folder (`src/app.ts`, `docs/`), or is a dotfile (`.nvmrc`), or a bare file name
@@ -184,6 +223,7 @@ const TYPE_CHECKS = {
   'ai-system-design': aiSystemDesignChecks,
   'ai-eval-plan': aiEvalPlanChecks,
   'api-surface': apiSurfaceChecks,
+  'threat-model': threatModelChecks,
 };
 
 export const DOC_TYPES = Object.keys(LIMITS);
