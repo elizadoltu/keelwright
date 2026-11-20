@@ -23,6 +23,16 @@ export function loadRun(dir, c = {}) {
 }
 
 const adopted = (run) => run.state?.mode === 'adopt';
+// A cited path exists after the run: a file, or a folder (`src/routes/`) with files in it.
+// Found in the first adopt-security-shop run: ADRs citing `src/routes/` were failed as missing.
+const existsAfter = (run) => (p) => {
+  const path = p.replace(/^\.\//, '');
+  if (run.files.after[path] !== undefined) return true;
+  const dir = path.endsWith('/') ? path : `${path}/`;
+  return Object.keys(run.files.after).some((f) => f.startsWith(dir));
+};
+// Files the pipeline writes later (generate): an ADR-0001 may name them before they exist.
+const GENERATED_LATER = /^(CLAUDE\.md|CONTRIBUTING\.md|\.claude\/)/;
 // ADRs this run wrote: in the ADR folder after the run but not before.
 const newAdrs = (run) => run.adrs.filter((f) => !run.files || !run.files.before[`${run.adrDir}/${f}`]);
 const section = (text, name) => (new RegExp(`^##\\s+${name}[^\\n]*\\n([\\s\\S]*?)(?=^##\\s|(?![\\s\\S]))`, 'mi').exec(text ?? '') ?? [])[1] ?? '';
@@ -135,7 +145,7 @@ export const GRADERS = {
     for (const [file, type] of checks) {
       const text = read(run.dir, file);
       if (text === null) continue;
-      const r = checkDocument(text, { type, exists: run.files ? (p) => run.files.after[p] !== undefined : null });
+      const r = checkDocument(text, { type, exists: run.files ? existsAfter(run) : null });
       if (!r.ok) failures.push(`${file}: ${r.issues.map((i) => i.issue).join('; ')}`);
     }
     const tokens = read(run.dir, 'design/tokens.json');
@@ -181,17 +191,26 @@ export const GRADERS = {
   // Every file the analysis, the overview and the new ADRs cite exists in the project.
   'cited-files': (run) => {
     if (!adopted(run) || !run.files) return null;
-    const exists = (p) => run.files.after[p] !== undefined || Object.keys(run.files.after).some((f) => f.startsWith(p.endsWith('/') ? p : `${p}/`));
-    const sources = [['.keelwright/analysis.md', read(run.dir, '.keelwright/analysis.md')], ...newAdrs(run).map((f) => [`${run.adrDir}/${f}`, read(run.dir, `${run.adrDir}/${f}`)])];
+    const exists = existsAfter(run);
+    // The Gaps section proposes files that don't exist yet; that's its job.
+    const analysis = read(run.dir, '.keelwright/analysis.md');
+    const withoutGaps = analysis && analysis.replace(/^## Gaps[^\n]*\n[\s\S]*?(?=^## |(?![\s\S]))/m, '');
+    const sources = [['.keelwright/analysis.md', withoutGaps], ...newAdrs(run).map((f) => [`${run.adrDir}/${f}`, read(run.dir, `${run.adrDir}/${f}`)])];
     const missing = [];
     let cited = 0;
     for (const [file, text] of sources) {
       if (!text) continue;
       // Table rows and Evidence lists: the places that make claims about the code.
       for (const line of text.split('\n').filter((l) => /^\s*(\||- `)/.test(l))) {
-        for (const p of citedPaths(line).filter((x) => !x.includes('*') && !x.startsWith('.keelwright/'))) {
+        const paths = citedPaths(line).filter((x) => !x.includes('*') && !x.startsWith('.keelwright/') && !GENERATED_LATER.test(x));
+        const dirs = paths.filter((x) => x.endsWith('/'));
+        for (const p of paths) {
+          // "no `.nvmrc`" says the file is missing — a correct claim, not a citation.
+          if (new RegExp(`\\bno \`${p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\``, 'i').test(line)) continue;
           cited++;
-          if (!exists(p.replace(/\/$/, '/'))) missing.push(`${file} cites \`${p}\``);
+          // A bare file name in a row about a folder (`src/routes/` … `orders.js`) is in that folder.
+          const found = exists(p) || (!p.includes('/') && dirs.some((d) => exists(`${d}${p}`)));
+          if (!found) missing.push(`${file} cites \`${p}\``);
         }
       }
     }
@@ -275,7 +294,7 @@ export const GRADERS = {
     if (!adopted(run) || !run.files) return null;
     const retro = newAdrs(run).filter((f) => /Recorded retroactively/.test(read(run.dir, `${run.adrDir}/${f}`) ?? ''));
     if (!retro.length) return ['awaiting_review', 'approved'].includes(run.state?.steps?.document?.status) ? result(false, 'no retroactive ADRs') : null;
-    const exists = (p) => run.files.after[p] !== undefined;
+    const exists = existsAfter(run);
     const problems = [];
     for (const f of retro) {
       const text = read(run.dir, `${run.adrDir}/${f}`);

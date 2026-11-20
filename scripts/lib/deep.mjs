@@ -150,7 +150,8 @@ export function reviewPrompt(area, { brief, framework }) {
   ];
   if (brief?.risks.length) L.push('', 'Risks it records:', ...brief.risks.slice(0, 30).map((r) => `- ${r}`));
   L.push('', 'The files of this area (read the ones that handle input, data access, auth, secrets or model calls; follow calls into other areas only as far as you need to trace a path):', ...area.files.map((f) => `- ${f}`));
-  L.push('', `Report at most ${MAX_FINDINGS_PER_AREA} findings, most severe first, only ones whose attack path you traced. \`file\` is the path from the project root and \`line\` the line where the fix belongs. An empty list is a good answer.`);
+  L.push('', `Report at most ${MAX_FINDINGS_PER_AREA} findings, most severe first, only ones whose attack path you traced and whose fix belongs in **this area's files** — another area's review reports its own. \`file\` is the path from the project root and \`line\` the line where the fix belongs. An empty list is a good answer.`);
+  L.push('', 'Already covered by the mechanical checks, so leave them out: known advisories in locked dependencies, secrets in the git history (gitleaks), and tables without row-level security or a policy in the migrations. Do report what those checks can\'t see — e.g. a policy that lets every user read every row, or a service-role key used on a request path.');
   return L.join('\n');
 }
 
@@ -186,9 +187,15 @@ export function citesRealCode(root, f) {
   return Number.isInteger(f.line) && f.line >= 1 && f.line <= text.split('\n').length;
 }
 
+// Same file, same framework category (`A05:2025 Injection` and `A05` match), lines close together.
+const categoryId = (c) => String(c).split(/[\s:]/)[0].toUpperCase();
+export function sameProblem(a, b) {
+  return a.file === b.file && categoryId(a.category) === categoryId(b.category) && Math.abs(a.line - b.line) <= 5;
+}
+
 export function fingerprint(f) {
   const h = createHash('sha256').update(String(f.title).toLowerCase().replace(/\s+/g, ' ').trim()).digest('hex').slice(0, 8);
-  return `deep:${f.category.split(/\s/)[0]}:${f.file}:${h}`;
+  return `deep:${categoryId(f.category)}:${f.file}:${h}`;
 }
 
 // --- the run -------------------------------------------------------------------------------------
@@ -240,6 +247,10 @@ export async function run(root, { pluginRoot, maxCost, invoke, now = new Date().
           if (!verdict) return dropped.push({ ...f, area: area.name, reason: 'not verified: no verdict' });
           if (!verdict.holds) return dropped.push({ ...f, area: area.name, reason: `disproved: ${verdict.reason}` });
           const severity = verdict.severity && SEVERITIES.indexOf(verdict.severity) > SEVERITIES.indexOf(f.severity) ? verdict.severity : f.severity;
+          // The same problem reported from two areas (found in the first real run: the `src` area
+          // followed calls into `src/routes` and reported its injection too) is one finding.
+          const dup = findings.find((x) => sameProblem(x, f));
+          if (dup) return dropped.push({ ...f, area: area.name, reason: `duplicate of a finding in ${dup.area}` });
           findings.push({ ...f, severity, area: area.name, verified: verdict.reason });
         });
       }

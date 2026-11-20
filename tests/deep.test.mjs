@@ -94,7 +94,7 @@ function fake({ review = {}, holds = () => ({ holds: true, reason: 'traced' }), 
       const area = /\*\*(.+?)\*\*/.exec(prompt)[1];
       return { structured_output: { findings: review[area] ?? [] }, total_cost_usd: cost };
     }
-    const titles = [...prompt.matchAll(/^\d+\. \[\w+\] \S+ — (.+)$/gm)].map((m) => m[1]);
+    const titles = [...prompt.matchAll(/^\d+\. \[\w+\] .+? — (.+)$/gm)].map((m) => m[1]);
     return { result: `\`\`\`json\n${JSON.stringify({ verdicts: titles.map((t, index) => ({ index, ...holds(t) })) })}\n\`\`\``, total_cost_usd: cost };
   };
   return { invoke, calls };
@@ -157,5 +157,23 @@ describe('deep review: the run', () => {
     unlinkSync(join(root, 'src/api/orders.ts'));
     assert.equal((await Sec.audit(root, { offline: true, exec: noTools })).findings.filter((f) => f.check === 'deep').length, 0);
     assert.equal(Sec.checkDeep(project({})).status, 'skipped');
+  });
+});
+
+describe('deep review: findings from the first real run', () => {
+  test('the same problem reported from two areas is one finding', async () => {
+    const root = project({ ...SHOP, 'src/server.js': 'import "./api/orders.ts";\n' });
+    const sqli = (title) => ({ ...SQLI, category: 'A05:2025 Injection', title });
+    const { invoke } = fake({ review: { 'src/api': [sqli('SQL injection in orders lookup')], src: [{ ...sqli('SQL injection via the id parameter'), line: 4 }] } });
+    const r = await D.run(root, { pluginRoot: PLUGIN, maxCost: 5, invoke });
+    assert.equal(r.findings.length, 1);
+    assert.match(r.dropped.find((d) => /duplicate/.test(d.reason)).reason, /duplicate of a finding in src\/api/);
+    assert.match(r.findings[0].fingerprint, /^deep:A05:/);
+  });
+
+  test('the prompt keeps each area to its own files and leaves the mechanical checks’ findings out', () => {
+    const p = D.reviewPrompt({ name: 'src/api', files: ['src/api/orders.ts'] }, { brief: null, framework: 'OWASP Top 10 (2025)' });
+    assert.match(p, /fix belongs in \*\*this area's files\*\*/);
+    assert.match(p, /secrets in the git history \(gitleaks\)/);
   });
 });
