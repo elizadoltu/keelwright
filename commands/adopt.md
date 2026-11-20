@@ -19,7 +19,7 @@ You are running the KeelWright `/adopt` pipeline in the current directory (the p
 ## Modes
 
 - **Create mode** — the project has no Claude setup. This command runs it.
-- **Audit mode** — the project already has a `CLAUDE.md` or a `.claude/` folder (anywhere except templates, fixtures and examples). Not built yet (Phase 3): say so and stop.
+- **Audit mode** — the project already has a `CLAUDE.md` or a `.claude/` folder (anywhere except templates, fixtures and examples). Its health check is `/keelwright:doctor`; fixing the findings one by one is not built yet (Phase 3). Say so and stop.
 
 Other tools' instruction files (`AGENTS.md`, `.cursorrules`, `.github/copilot-instructions.md`) are not a Claude setup; the `analyse` step reads them as input.
 
@@ -60,10 +60,10 @@ analyse → { document, research } → gaps → generate → publish
 
 1. Run `STATE mode`.
 2. **`adopt`** — an adoption is in progress. Check for edits (section 3), then continue with the loop (section 5).
-3. **`kickoff`** — this project was set up by `/kickoff` and already has its Claude setup: keeping it current is audit mode, which isn't built yet. Say so; suggest `/kickoff status` and `/kickoff <step>` meanwhile. Stop.
+3. **`kickoff`** — this project was set up by `/kickoff` and already has its Claude setup: keeping it current is audit mode. Suggest `/keelwright:doctor` for its health, and `/kickoff status` and `/kickoff <step>` for the kickoff itself. Stop.
 4. **`none`** — a new adoption:
    1. Run `ANALYSE --preflight`. It prints the mode, the toolchain and the `blockers`. For each blocker, tell the user and **stop without creating anything**:
-      - `audit` — the project already has a Claude setup (`detail`: its files); audit mode isn't built yet (Phase 3).
+      - `audit` — the project already has a Claude setup (`detail`: its files); suggest `/keelwright:doctor` (or `/keelwright:start`, which picks it).
       - `monorepo` — this kind of monorepo isn't supported yet (`why`: e.g. Nx, more than six workspaces, a project outside the workspaces). List the packages (`detail`) and say: run `/adopt` from the folder of the package to adopt; that folder becomes the project root.
       - `toolchain` — the project's languages (`detail`) aren't supported yet. Name the supported ones: node, python, dart, rust, godot.
       - `no-project` — there's no project here; `/adopt` is for existing code and `/kickoff` starts new projects.

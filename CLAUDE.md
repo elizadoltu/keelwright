@@ -4,6 +4,7 @@ Claude Code plugin that bootstraps new projects (`/kickoff`) and brings existing
 
 ## Layout
 
+- `commands/start.md` — the entry point (spec 5.0): routing only, from `analyse.mjs --preflight`'s `route`; it runs `kickoff.md`, `adopt.md` or `doctor.md` and never holds their logic
 - `commands/kickoff.md`, `commands/adopt.md` — the commands; orchestrate steps and gates, never hold step logic. They share their state, gate and report sections — change both together
 - `steps/<step>.md` — one instruction file per pipeline step; a step not yet built says "Not implemented yet"
 - `scripts/state.mjs` + `scripts/lib/` — state CLI; `scripts/lib/pipeline.mjs` is the single definition of both pipelines (steps, order, gates — `/kickoff` and `/adopt`), project types, toolchains and document keys

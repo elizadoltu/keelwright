@@ -683,6 +683,8 @@ export function analyse(root, { pluginRoot = null } = {}) {
   a.tooling.ciRuns = ciRuns(root, a.tooling.ciFiles, [...a.tasks.defined, ...(ws ?? []).flatMap((w) => w.tasks.defined)]);
   a.mode = a.docs.claude.length ? 'audit' : 'create';
   a.gaps = gaps(a, files);
+  // The file list, for /start's route; not enumerable, so --json stays short.
+  Object.defineProperty(a, 'files', { value: files, enumerable: false });
   return a;
 }
 
@@ -735,13 +737,80 @@ export function hookConfig(a, root = null) {
 
 // What /adopt checks before it creates any state: an existing Claude setup (audit mode), a
 // monorepo (adopt one package, from its folder), a toolchain KeelWright supports, and a project at all.
-export function preflight(a) {
+// With `pipeline` (the state's mode and next action) and `commits`, it also carries `/start`'s route (spec 5.0).
+export function preflight(a, { pipeline = null, commits = null } = {}) {
   const blockers = [];
   if (a.mode === 'audit') blockers.push({ id: 'audit', detail: a.docs.claude });
   if (a.monorepo.detected && !a.workspaces) blockers.push({ id: 'monorepo', detail: a.monorepo.packages, why: a.monorepo.notAdoptable });
   if (!a.structure.files || (!a.toolchain && !a.otherLanguages.length)) blockers.push({ id: 'no-project', detail: [] });
   else if (!a.toolchain) blockers.push({ id: 'toolchain', detail: a.otherLanguages });
-  return { mode: a.mode, toolchain: a.toolchain, packageManager: a.packageManager, workspaces: a.workspaces?.map((w) => w.path) ?? null, blockers };
+  const base = { mode: a.mode, toolchain: a.toolchain, packageManager: a.packageManager, workspaces: a.workspaces?.map((w) => w.path) ?? null, blockers };
+  return { ...base, route: route(a, blockers, { pipeline, commits }) };
+}
+
+// ---------------------------------------------------------------------------
+// /start (spec 5.0): which route the folder needs. `kickoff`, `adopt` and `doctor` are the routes;
+// `continue` resumes a pipeline, `ask` shows what was found and lets the user choose, `stop` is a
+// blocker `/adopt` can't get past. /kickoff and /adopt stay as overrides when the guess is wrong.
+// ---------------------------------------------------------------------------
+
+// Files that say nothing about which route: KeelWright's own record, editor and OS clutter, licence.
+const NOT_CONTENT = /^(\.keelwright\/|\.vscode\/|\.idea\/|\.git(ignore|attributes|keep)$|\.editorconfig$|LICEN[CS]E(\.\w+)?$|COPYING$)|(^|\/)(\.DS_Store|Thumbs\.db|\.gitkeep)$/i;
+// Notes, specs and PRDs: the input of a kickoff, not a project.
+const NOTE_FILE = /\.(md|mdx|txt|rst|adoc|org|pdf|docx?|odt|rtf|pages|pptx?|key|xlsx?|csv|png|jpe?g|gif|svg|webp|heic)$/i;
+const CODE_FILE = /\.(?:[cm]?[jt]sx?|py|dart|rs|gd|go|java|kt|swift|rb|php|cs|astro|vue|svelte|c|cc|cpp|h|hpp|sql|sh)$/;
+const SUBFOLDER_MANIFEST = /\/(package\.json|pyproject\.toml|requirements\.txt|Cargo\.toml|pubspec\.yaml|project\.godot|go\.mod)$/;
+// "A fresh scaffold with a few commits" (spec 5.0): too little history and code to describe.
+export const FRESH = { commits: 3, codeFiles: 25 };
+
+export function route(a, blockers, { pipeline = null, commits = null } = {}) {
+  const files = (a.files ?? []).filter((f) => !NOT_CONTENT.test(f));
+  const notes = files.filter((f) => NOTE_FILE.test(f));
+  const code = files.filter((f) => CODE_FILE.test(f) && !/(^|\/)(node_modules|vendor)\//.test(f));
+  const claude = a.docs.claude;
+  const facts = {
+    files: files.length,
+    codeFiles: code.length,
+    commits,
+    claude: claude.slice(0, 5),
+    adrDirs: a.docs.adrDirs.map((d) => d.dir),
+    notes: notes.slice(0, 20),
+  };
+  const r = (to, why, extra = {}) => ({ to, why, ...extra, facts });
+
+  if (pipeline) {
+    // A finished pipeline is not resumed: the project now has its Claude setup, so health is next.
+    if (pipeline.next?.action === 'complete') return r(claude.length ? 'doctor' : 'continue', `the ${pipeline.mode} pipeline is complete`, { pipeline: pipeline.mode });
+    return r('continue', `a ${pipeline.mode} pipeline is in progress`, { pipeline: pipeline.mode });
+  }
+  if (!files.length) return r('kickoff', 'the folder is empty');
+  const projectBlocker = blockers.find((b) => b.id === 'monorepo' || b.id === 'toolchain');
+  const nested = [...new Set(files.filter((f) => SUBFOLDER_MANIFEST.test(f) && !/(^|\/)(examples?|fixtures?|templates?|node_modules)\//.test(f)).map((f) => f.replace(/\/[^/]+$/, '')))].sort();
+
+  if (!a.toolchain && !a.otherLanguages.length) {
+    if (nested.length && !a.monorepo.detected) return r('ask', 'code-in-subfolder', { detail: nested.slice(0, 10), options: ['subfolder', 'kickoff'] });
+    if (nested.length) return r('stop', 'monorepo', { blocker: projectBlocker ?? { id: 'monorepo', detail: nested, why: a.monorepo.notAdoptable } });
+    if (files.every((f) => NOTE_FILE.test(f)) || !code.length) {
+      if (claude.length && !notes.some((n) => !claude.includes(n))) return r('ask', 'claude-setup-without-code', { options: ['kickoff', 'doctor'] });
+      return r('kickoff', notes.length ? 'only notes, specs or a PRD' : 'no code', { inputs: notes.filter((n) => !claude.includes(n)).slice(0, 20) });
+    }
+    return r('ask', 'unrecognised', { detail: code.slice(0, 10), options: ['kickoff', 'adopt'] });
+  }
+  // The blockers are /adopt's: the doctor is read-only and works on any repository.
+  if (claude.length) return r('doctor', 'code with a Claude setup', projectBlocker ? { note: projectBlocker } : {});
+  if (projectBlocker) return r('stop', projectBlocker.id, { blocker: projectBlocker });
+  if (a.git && commits !== null && commits <= FRESH.commits && code.length <= FRESH.codeFiles) {
+    return r('ask', 'fresh-scaffold', { options: ['kickoff', 'adopt'] });
+  }
+  return r('adopt', 'code without a Claude setup');
+}
+
+export function commitCount(root) {
+  try {
+    return Number(execFileSync('git', ['rev-list', '--count', 'HEAD'], { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim());
+  } catch {
+    return 0;
+  }
 }
 
 export function summary(a) {

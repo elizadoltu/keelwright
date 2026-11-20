@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { after, describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { analyse, hookConfig, preflight, summary } from '../scripts/lib/analyse.mjs';
+import { FRESH, analyse, hookConfig, preflight, summary } from '../scripts/lib/analyse.mjs';
 
 const PLUGIN = join(dirname(fileURLToPath(import.meta.url)), '..');
 const roots = [];
@@ -179,7 +179,9 @@ describe('analyse: special cases', () => {
   test('--preflight: what stops /adopt before it creates any state', () => {
     const cli = (files) => JSON.parse(execFileSync('node', [join(PLUGIN, 'scripts/analyse.mjs'), '--root', repo(files), '--preflight'], { encoding: 'utf8' }));
     const ids = (files) => cli(files).blockers.map((b) => b.id);
-    assert.deepEqual(cli({ 'package.json': {}, 'src/a.js': 'x' }), { mode: 'create', toolchain: 'node', packageManager: 'npm', workspaces: null, blockers: [] });
+    const { route, ...rest } = cli({ 'package.json': {}, 'src/a.js': 'x' });
+    assert.deepEqual(rest, { mode: 'create', toolchain: 'node', packageManager: 'npm', workspaces: null, blockers: [] });
+    assert.equal(route.to, 'adopt');
     assert.deepEqual(cli({ 'package.json': {}, 'CLAUDE.md': 'x' }).blockers[0], { id: 'audit', detail: ['CLAUDE.md'] });
     assert.deepEqual(ids({ 'package.json': { workspaces: ['packages/*'] }, 'packages/a/package.json': {}, 'services/api/pyproject.toml': '' }), ['monorepo']);
     assert.deepEqual(cli({ 'package.json': { workspaces: ['web', 'api'] }, 'package-lock.json': '{}', 'web/package.json': {}, 'api/package.json': {} }).workspaces, ['api', 'web']);
@@ -304,5 +306,76 @@ describe('analyse: a workspace repo adopted as one project', () => {
     assert.deepEqual(mixed.monorepo.notAdoptable, ['projects outside the workspaces: api']);
     const nx = analyse(repo({ 'package.json': { workspaces: ['a'] }, 'nx.json': '{}', 'a/package.json': {} }));
     assert.deepEqual(nx.monorepo.notAdoptable, ["nx.json isn't supported yet"]);
+  });
+});
+
+describe('/start routing (spec 5.0)', () => {
+  const go = (files, opts = {}) => preflight(analyse(repo(files, opts)), opts).route;
+  const commit = (root, n) => {
+    for (let i = 0; i < n; i++) execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '--allow-empty', '-m', `c${i}`], { cwd: root });
+  };
+  const cli = (root) => JSON.parse(execFileSync('node', [join(PLUGIN, 'scripts/analyse.mjs'), '--root', root, '--preflight'], { encoding: 'utf8' })).route;
+
+  test('an empty folder, or one with only notes, specs or a PRD, is a kickoff; the notes are its input', () => {
+    assert.equal(go({}).to, 'kickoff');
+    assert.equal(go({ '.gitignore': 'x', 'LICENSE': 'MIT', '.DS_Store': '' }).to, 'kickoff');
+    const r = go({ 'notes.md': 'x', 'specs/prd.pdf': 'x', 'mockups/home.png': 'x' });
+    assert.equal(r.to, 'kickoff');
+    assert.deepEqual(r.inputs, ['mockups/home.png', 'notes.md', 'specs/prd.pdf']);
+  });
+
+  test('code without a Claude setup is adopted; with one, the doctor runs', () => {
+    assert.equal(go({ 'package.json': {}, 'src/a.ts': 'x' }).to, 'adopt');
+    const d = go({ 'package.json': {}, 'src/a.ts': 'x', 'CLAUDE.md': 'x' });
+    assert.equal(d.to, 'doctor');
+    assert.deepEqual(d.facts.claude, ['CLAUDE.md']);
+  });
+
+  test('a fresh scaffold with a few commits is unclear: ask', () => {
+    const files = { 'package.json': {}, 'src/a.ts': 'x' };
+    const root = repo(files, { git: true });
+    commit(root, 1);
+    assert.equal(cli(root).to, 'ask');
+    assert.equal(cli(root).why, 'fresh-scaffold');
+    commit(root, FRESH.commits);
+    assert.equal(cli(root).to, 'adopt');
+    // Lots of code is a project, however short its history.
+    const big = Object.fromEntries([['package.json', {}], ...Array.from({ length: FRESH.codeFiles + 1 }, (_, i) => [`src/m${i}.ts`, 'x'])]);
+    const root2 = repo(big, { git: true });
+    commit(root2, 1);
+    assert.equal(cli(root2).to, 'adopt');
+  });
+
+  test('code only in a subfolder: ask, naming the folder', () => {
+    const r = go({ 'README.md': 'x', 'app/package.json': {}, 'app/src/a.ts': 'x' });
+    assert.equal(r.to, 'ask');
+    assert.equal(r.why, 'code-in-subfolder');
+    assert.deepEqual(r.detail, ['app']);
+  });
+
+  test('the blockers still stop: an unsupported monorepo or toolchain', () => {
+    const m = go({ 'package.json': { workspaces: ['packages/*'] }, 'packages/a/package.json': {}, 'services/api/pyproject.toml': '' });
+    assert.equal(m.to, 'stop');
+    assert.equal(m.blocker.id, 'monorepo');
+    const t = go({ 'go.mod': 'module x', 'main.go': 'x' });
+    assert.deepEqual([t.to, t.blocker.id], ['stop', 'toolchain']);
+    // They are /adopt's blockers: a project with a Claude setup still gets the doctor.
+    const d = go({ 'go.mod': 'module x', 'main.go': 'x', 'CLAUDE.md': 'x' });
+    assert.deepEqual([d.to, d.note.id], ['doctor', 'toolchain']);
+  });
+
+  test('a pipeline in progress continues in its mode; a finished one goes to the doctor', () => {
+    const files = { 'package.json': {}, 'src/a.ts': 'x', 'CLAUDE.md': 'x' };
+    assert.deepEqual(go(files, { pipeline: { mode: 'adopt', next: { action: 'run', step: 'gaps' } } }).to, 'continue');
+    assert.equal(go(files, { pipeline: { mode: 'kickoff', next: { action: 'complete' } } }).to, 'doctor');
+    const root = repo({ 'notes.md': 'x' });
+    execFileSync('node', [join(PLUGIN, 'scripts/state.mjs'), 'init', '--input', 'notes.md'], { cwd: root });
+    const r = cli(root);
+    assert.deepEqual([r.to, r.pipeline], ['continue', 'kickoff']);
+  });
+
+  test('a Claude setup with no code is unclear; unknown files are too', () => {
+    assert.equal(go({ 'CLAUDE.md': 'x', '.claude/settings.json': '{}' }).why, 'claude-setup-without-code');
+    assert.equal(go({ 'main.c': 'x' }).to, 'ask');
   });
 });

@@ -5,6 +5,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Added — `/start` (Phase 3, build step 3)
+
+- `/start` (`commands/start.md`): one command that looks at the folder and picks the route (spec 5.0) — a pipeline in progress continues in its mode; an empty folder, or one with only notes, specs or a PRD, gets `/kickoff` with the notes as its input; code without a Claude setup gets `/adopt`; code with a Claude setup, or a finished pipeline, gets the doctor. It says what it found, why, and what the route will produce and skip before running it. A fresh scaffold (at most 3 commits and 25 code files), code only in a subfolder, a Claude setup with no code, or code KeelWright doesn't know is unclear: it asks, showing what it found. An unsupported monorepo or toolchain still stops with its explanation. `/kickoff` and `/adopt` stay as overrides.
+- `analyse.mjs --preflight` returns the route (`route.to`, `why`, the facts it rests on); `/adopt` points projects with a Claude setup to the doctor.
+
 ### Added — threat model and generated security reviewer (Phase 3, build step 2)
 
 - New catalog document `threat-model` (`docs/security/threat-model.md`, `templates/threat-model.md`): assets and personal data, roles, entry points, `SEC-` risks with where, mitigation, how it is enforced and a status, and the sensitive paths. Included when there is something to attack. `/kickoff` writes it in `architecture` (risks `planned`); `/adopt` writes it as built in `document`, citing the files that enforce each mitigation and recording unprotected risks as `open`.
