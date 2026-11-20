@@ -12,7 +12,7 @@ You are running the KeelWright doctor (spec 7.0) in the current directory (the p
 
 ## Rules
 
-- **Read-only.** The doctor changes no file except its own record (`.keelwright/doctor.md`, `.keelwright/doctor.json`). Don't fix anything in this command, even when the fix is obvious: name the fix, and the user runs it.
+- **Read-only.** The doctor changes no file except its own record (`.keelwright/doctor.md`, `.keelwright/doctor.json`). Don't fix anything in this command, even when the fix is obvious: name the fix. Fixing them one by one, with approval, is audit mode: `/keelwright:adopt audit`.
 - **Report what the script found.** Don't add findings of your own from reading the code; that is the later `--deep` mode. Don't soften a `fail`.
 - **Security findings stay out of git.** Their details are in `.keelwright/security/audit.md`, a folder that git-ignores itself; never copy them into a committed file, a commit message, a PR or an issue. A leaked secret is fixed by rotating it first — say so before anything else.
 - **The network.** The only data sent anywhere is the locked packages' names and versions, to OSV.dev (and Semgrep's rules download, when it is installed). If the user doesn't want that, pass `--offline`; dependencies are then "not checked".
@@ -27,7 +27,7 @@ Run `DOCTOR --json` once — `DOCTOR security --json` when the argument is `secu
 2. A table: each area and its status. Areas that were skipped say why in a few words.
 3. The findings, **failing areas first**, grouped by area: each in one line with its fix. Group repeated findings ("3 commands in `.claude/rules/` name scripts that don't exist") rather than listing every one; the full list is in `.keelwright/doctor.md`.
 4. If there is a history, one line on the trend since the last check (e.g. "Tooling went from fail to pass; 2 fewer findings").
-5. The next step, in one or two lines: the fix for the most serious finding — for example `/keelwright:adopt gaps`, `/keelwright:adopt research --refresh`, or which file to correct.
+5. The next step, in one or two lines: the fix for the most serious finding — for example `/keelwright:adopt gaps`, `/keelwright:adopt research --refresh`, or which file to correct — and that `/keelwright:adopt audit` goes through all of them as fixes to approve.
 
 Say that the record is in `.keelwright/doctor.md` and that it is safe to commit (it lets the team see the trend). For the application-security area show the counts per severity and the open critical and high findings, each with its fix; the full list is in `.keelwright/security/audit.md`, which isn't committed. A finding the team decides to live with is accepted in `.keelwright/security-accepted.json` (committed) with a reason and an end date at most 90 days away — show the fingerprint to use. Say once that this is not a penetration test.
 
