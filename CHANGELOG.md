@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Added — the doctor (Phase 3, build step 1)
+
+- `/doctor` (`commands/doctor.md`, `scripts/doctor.mjs`): the project's health as it is today, per area — Claude setup (commands, paths and settings that no longer match; KeelWright's own conventions only for KeelWright projects), docs vs code (cited files since deleted, broken references, open questions, reviewed documents edited since approval), stack (packs researched for another major, old packs, recorded end-of-life gaps), tooling and security (the open gaps, declined ones), process (commits off the documented style, hooks not installed in the clone). Each finding names its fix. Mechanical and read-only: no model calls, no network; the record and its history go to `.keelwright/doctor.md` and `.keelwright/doctor.json`. Delivery checks come next.
+
 ### Added — logo
 
 - The official KeelWright logo in `#FF4C24`: `assets/logo.svg` (also `assets/logo.png`, 512×512) and `assets/social-preview.png` (1280×640) for the GitHub social preview. Shown at the top of the README.
