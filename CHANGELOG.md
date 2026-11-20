@@ -5,6 +5,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Added — profiles (Phase 3, build step 6)
+
+- `/profile` (`commands/profile.md`, `scripts/profile.mjs`, spec 5.7): your name, role (developer, project manager, business analyst, account manager) and defaults (Jira project, Confluence space, language) in `~/.keelwright/profile.json` — personal, never in the repository, never an email address. `/kickoff`, `/adopt` and `/doctor` ask once on the first run.
+- The role never changes the document set. It decides the **working set** — the documents shown in full at review gates and rated in the report, with the rest summarised in a line each — and which open questions you're asked: questions are now tagged with the role that can answer them (`[NEEDS CLARIFICATION (pm): …]`), `STATE markers --role` lists yours and counts the ones waiting on others, and another role's questions never block your approval.
+- The name fills documents' `owner` and ADR-0001's decision-makers; the Jira project and Confluence space prefill `publish`. The doctor shows its areas in the role's order and terms; its committed record doesn't change. A project manager is offered pm-skills workflows when it is installed.
+
 ### Fixed — from the skier-portfolio run
 
 - `implement-story` and `implement-change` have a **Look at it running** step for projects with a UI: start the app, look at every changed screen at phone and desktop width, and for animated or scroll-driven work capture screenshots at several scroll positions. The run's tests passed while the first review of the site found nine broken scroll animations. `generatecheck` requires the step for web, mobile and game projects, and audit mode offers to add it.

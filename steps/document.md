@@ -24,7 +24,7 @@ ERD, API surface and the AI documents aren't written by `/adopt` yet; mention on
 
 ## 3. ADRs
 
-**ADR-0001** (from `templates/adr-0001-record-architecture-decisions.md`) only when the project has no ADRs. Use the project's ADR folder and naming. Date: today; decision-makers: "recorded by KeelWright" unless the user named people.
+**ADR-0001** (from `templates/adr-0001-record-architecture-decisions.md`) only when the project has no ADRs. Use the project's ADR folder and naming. Date: today; decision-makers: the profile's name, or the people the user named, else "recorded by KeelWright". Retroactive ADRs never take the profile's name: their decisions predate it.
 
 **One retroactive ADR per row** of the analysis's "Decisions in the code" whose Existing ADR column is empty, from `templates/adr-retroactive.md`:
 
@@ -42,7 +42,7 @@ Decisions too small for an ADR (a formatter, a utility library) stay in the over
 
 `docs/architecture/overview.md` from `templates/architecture-overview.md`, following the catalog's rules, describing the system **as built**:
 
-- Front matter: `status: draft`, today's date, owner: the user's name if known, else leave the marker `[NEEDS CLARIFICATION: owner]`.
+- Front matter: `status: draft`, today's date, owner: the profile's name (the command passes it) or the user's name if known, else leave the marker `[NEEDS CLARIFICATION (dev): owner]`.
 - **Quality goals:** only the qualities the code or docs show it cares about (a performance budget in CI, strict types, an accessibility test suite, a stated SLA in the README), each with the evidence as its scenario. The NFR column is "—": `/adopt` writes no PRD. If nothing shows any, write one line saying so and leave a marker for the user.
 - **Constraints:** what the code and config fix in place (hosting config, runtime pins, a target platform).
 - **Stack:** one row per layer with the **locked** version and the ADR for it (retroactive or existing). Replace "Versions resolved on" with "Versions in use (locked) on <today>".

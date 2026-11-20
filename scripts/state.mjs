@@ -24,7 +24,7 @@ const HELP = `Usage: node state.mjs <command> [args] [--root <dir>] [--json]
   approve <gate>                       Approve a review gate (kickoff: 1–3, adopt: 1–2)
   changes                              Approved files edited since approval
   accept-changes [--keep-downstream]   Take the edits as the new baseline
-  markers                              Open [NEEDS CLARIFICATION] markers in files under review
+  markers [--role <tag>]               Open [NEEDS CLARIFICATION] markers in files under review; --role: yours first
   metric <step> <name> <n|+n>          Set (or add to) a step-specific counter in metrics.json
   rate <file> <rating>                 Rate a document: as-is | small-edits | rewritten | deleted
   report [--write]                     Run report from metrics.json (--write: also .keelwright/report.md)
@@ -33,7 +33,7 @@ const HELP = `Usage: node state.mjs <command> [args] [--root <dir>] [--json]
   set input <text>
   set stack '<json object>'            Merged into state.stack (nested objects key by key)`;
 
-const VALUE_FLAGS = new Set(['--root', '--type', '--input', '--reason', '--mode']);
+const VALUE_FLAGS = new Set(['--root', '--type', '--input', '--reason', '--mode', '--role']);
 
 function parse(argv) {
   const positional = [];
@@ -243,8 +243,15 @@ function run(argv) {
     }
 
     case 'markers': {
+      // --role <tag>: this person's questions (their role's and untagged ones) first, then the
+      // ones waiting on another role (spec 5.7).
       const m = S.markers(S.load(root), root);
-      return out(m.length ? m.map((x) => `${x.file}:${x.line}  ${x.text}`).join('\n') : 'No open markers.', m);
+      const tag = typeof flags.role === 'string' ? flags.role : null;
+      if (!tag) return out(m.length ? m.map((x) => `${x.file}:${x.line}  ${x.text}`).join('\n') : 'No open markers.', m);
+      const mine = m.filter((x) => !x.role || x.role === tag);
+      const waiting = m.filter((x) => x.role && x.role !== tag);
+      const text = [mine.length ? mine.map((x) => `${x.file}:${x.line}  ${x.text}`).join('\n') : 'No open markers for you.', ...(waiting.length ? ['', `Waiting on others: ${[...new Set(waiting.map((x) => x.role))].map((r) => `${r} ${waiting.filter((x) => x.role === r).length}`).join(', ')}`] : [])].join('\n');
+      return out(text, { mine, waiting });
     }
 
     case 'metric': {

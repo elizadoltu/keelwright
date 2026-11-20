@@ -13,6 +13,7 @@ You are running the KeelWright `/adopt` pipeline in the current directory (the p
 - Step instructions: `${CLAUDE_PLUGIN_ROOT}/steps/<step>.md`
 - Document templates: `${CLAUDE_PLUGIN_ROOT}/templates/`
 - State CLI (call it `STATE` below): `node "${CLAUDE_PLUGIN_ROOT}/scripts/state.mjs"`
+- Profile script (call it `PROFILE` below): `node "${CLAUDE_PLUGIN_ROOT}/scripts/profile.mjs"`
 - Facts script (call it `ANALYSE` below): `node "${CLAUDE_PLUGIN_ROOT}/scripts/analyse.mjs"` (run in the project root)
 - Audit script (call it `AUDIT` below): `node "${CLAUDE_PLUGIN_ROOT}/scripts/audit.mjs"` (run in the project root)
 - Arguments: `$ARGUMENTS`
@@ -45,6 +46,16 @@ analyse → { document, research } → gaps → generate → publish
 - If a `STATE` command prints `error: …`, stop and tell the user what failed. Don't work around it.
 - Steps record their outputs with `STATE complete <step> <files…>`; this is how edits are detected later. Record a folder only when the step owns everything in it; otherwise list the files.
 - A step never edits a file an earlier, finished step produced — that counts as a user edit and triggers the edit question. If a step needs such a change, it tells the user which step to re-run.
+
+## Who is running it (profile)
+
+Before section 1, run `PROFILE show --json` once. The profile is personal (`~/.keelwright/profile.json`, spec 5.7) — never in the repository — and it **never changes the document set**: the next person needs every document whoever ran the adoption.
+
+- **First run** (`asked: false`): ask once (AskUserQuestion) for the role — **Developer** · **Project manager** · **Business analyst** · **Account manager** · **Skip** — with the name through "Other". Save it with `PROFILE set --role <developer|project-manager|business-analyst|account-manager> [--name "…"]`, or `PROFILE skip`. Say `/keelwright:profile` changes it any time. Never ask for or store an email address.
+- **`name`** is the `owner` of the documents this run writes and the decision-makers of its ADRs, instead of a marker — pass it to the steps.
+- **`defaults`**: `jiraProject` and `confluenceSpace` prefill `publish`'s questions (still confirmed); `language` is the language you talk to the user in — documents stay in the language of the project's input.
+- **`role`** decides the working set at gates (section 7) and in the report (section 8), which open questions the user is asked, and how results are shown (`shows`: a developer sees diffs, versions and files; a PM scope, risks and what is blocked; a BA requirements, criteria and data gaps). No role: everything is shown as before.
+- **A project manager** with `pmSkills: true` is offered pm-skills' workflows on the project's documents (OKRs, outcome roadmap, pre-mortem, PRD red-team, stakeholder map, release notes) after gate 1 and at the end — one line each time, never part of the document set. With `pmSkills: false`, say once that it can be installed (`/plugin marketplace add phuryn/pm-skills`).
 
 ## 1. Read the arguments
 
@@ -131,18 +142,18 @@ If the step can't be finished in this run (for example, it is waiting for the us
 
 When `STATE next` returns a review:
 
-1. Run `STATE markers` to find open `[NEEDS CLARIFICATION: …]` markers.
+1. Run `STATE markers --role <the profile's tag> --json` (without `--role` when there is no role) to find the open `[NEEDS CLARIFICATION …]` markers: `mine` are the user's (their role's and untagged ones), `waiting` belong to another role. Run `PROFILE split <every file under review> --json`: `mine` is the user's working set.
 2. Show the user:
-   - the gate number and the files to review (one line each: path and what it contains),
+   - the gate number and the files to review: the working set (`mine`) first, each with its path and what it contains, then the others in one line each — still open to the user,
    - the step files' gate content (e.g. the `analyse` step's mixed conventions and gaps),
-   - the open markers (file and line), and
+   - the user's open markers (file and line), and how many wait on other roles ("2 waiting on a developer") — those stay open for the right person, and
    - that they can edit any of these files directly — when they continue, their edited files are the source of truth.
 3. Ask (AskUserQuestion):
    - **Approve gate N** — the documents are right.
-   - **Resolve the open questions with me** — only offer when there are markers; go through each marker, update the file with the answer, then ask again.
+   - **Resolve the open questions with me** — only offer when the user has markers; go through each of theirs, update the file with the answer, then ask again. Never answer another role's question for them.
    - **I'll edit the files first** — stop; the user runs `/adopt` again when ready.
 4. Before approving, **re-read every file under review from disk** — the user may have edited them. If an edit changes something another document in the same gate depends on, update that document first.
-5. If markers are still open, say so and ask for explicit confirmation; approved markers stay as open questions in their documents.
+5. If the user's markers are still open, say so and ask for explicit confirmation (markers waiting on another role don't block the user's approval — list them); approved markers stay as open questions in their documents.
 6. For each step in the gate, if its step file has an **"On approval"** section, do what it says.
 7. Run `STATE approve <N>`, then continue the loop (section 5).
 
@@ -151,7 +162,7 @@ When `STATE next` returns a review:
 Run metrics are recorded automatically by `STATE` (`.keelwright/metrics.json`); steps add their own counters with `STATE metric <step> <name> <n|+n>`.
 
 1. Run `STATE report` and show the scorecard: steps, runs, time, open questions, and how much of each document the user changed at review.
-2. Ask the user to rate each generated document they reviewed (AskUserQuestion, up to 4 documents per question round), with the options **Used as-is**, **Small edits**, **Rewritten**, **Deleted**. Skip documents already rated unless the user wants to change a rating.
+2. Ask the user to rate each generated document in their working set (`PROFILE split <the reviewed documents>`; everything without a role) (AskUserQuestion, up to 4 documents per question round), then offer once to rate the others too, with the options **Used as-is**, **Small edits**, **Rewritten**, **Deleted**. Skip documents already rated unless the user wants to change a rating.
 3. Record each answer: `STATE rate <file> <as-is|small-edits|rewritten|deleted>`.
 4. Run `STATE report --write` and tell the user the report is in `.keelwright/report.md`.
 
@@ -178,7 +189,7 @@ For each fix, in order:
    - **`command`** — show the exact command; run it on approval.
    - **`upgrade`** — under the version policy (spec 4.6): within the same major, raise the package to the fixed version with the project's package manager (`npm install <pkg>@<version>`, `pnpm update <pkg>@<version>`, `uv lock --upgrade-package <pkg>==<version>`, `cargo update -p <pkg> --precise <version>`); a transitive package through the direct dependency that pulls it in, or the package manager's override field when none has a fix yet. A **new major** is a decision: propose an ADR and offer to defer the upgrade as a piece of work of its own. Then run the project's `check` task — an upgrade that breaks it is reverted.
    - **`rotate`** — a leaked secret. **Rotating it comes first and only the team can do it**: name the kind of key (the gitleaks rule) and where it is used. Removing it from the code doesn't remove it from the history, and rewriting history is the team's call, not audit mode's. After rotation: move the value to an environment variable the code reads, or — for a test fixture or false positive — add the finding to `.gitleaksignore`.
-   - **`answer`** — open questions: go through each `[NEEDS CLARIFICATION]` marker with the user and write the answer into the file.
+   - **`answer`** — open questions: go through each `[NEEDS CLARIFICATION]` marker that is the user's (their role's tag, or untagged) and write the answer into the file. Questions tagged for another role are listed as waiting on them; never answer for them. When none are the user's, record the fix as deferred.
 3. **Ask** (AskUserQuestion): **Apply** · **Skip** (ask why in one line) · **Later** · **Accept the risk** (security findings only: a reason, and for how long — at most 90 days) · **Stop here**.
 4. **Record** right away, so a stopped run resumes cleanly:
    - Apply → apply exactly what was shown, then `AUDIT decide <FIX-NN> applied`. It re-runs the doctor and refuses while the finding is still there: finish the fix or revert it — never leave it half-done. When the checking tool isn't installed (gitleaks, Semgrep), add `--unverified` and say so.
@@ -203,7 +214,7 @@ For each fix, in order:
 - **Describe, don't redesign.** Write what the code does, citing files. A pattern you'd do differently is not a gap; a missing safety net (secret scanning, CI, tests) is.
 - **Never change application code, structure or dependency versions.** Tooling fixes happen only in `gaps`, one by one, with approval.
 - **Templates.** Every document is written from its template in `${CLAUDE_PLUGIN_ROOT}/templates/`. Keep the template's structure, front matter and stable IDs; remove the template's instruction comments and example rows.
-- **Unknowns are marked, not guessed.** What the code and docs don't settle is a `[NEEDS CLARIFICATION: …]` marker, resolved at a gate.
+- **Unknowns are marked, not guessed.** What the code and docs don't settle is a `[NEEDS CLARIFICATION: …]` marker, resolved at a gate. Tag it with the role that can answer it — `[NEEDS CLARIFICATION (pm): launch date?]`: `dev` (technical), `pm` (scope, priorities, dates, budget), `ba` (requirements, rules, data), `am` (the client relationship); untagged when anyone can.
 - **Existing documents are linked, not rewritten.** Existing ADRs keep their numbers; new ones are numbered after them.
 - **The user's files win.** Before writing a file that already exists, read it; keep the user's edits and change only what the step needs to change.
 - **Keep the user informed** with one short line per step started and finished; put detail in the documents, not the chat.

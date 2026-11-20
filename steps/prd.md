@@ -20,7 +20,7 @@ Draft the PRD's content in your head before choosing anything technical — the 
 - **Non-functional requirements (`NFR-`)** — measurable: performance (e.g. LCP < 2.5 s on 4G; app start < 2 s; 60 fps; p95 latency), accessibility (WCAG 2.2 AA), SEO / AI-search (content in the initial HTML, sitemap, metadata), security and privacy (for AI: what data may reach the model provider), compatibility (supported OS, runtime or engine versions). Only those that apply.
 - **Non-goals** — the input's out-of-scope items, plus anything the interview ruled out.
 - **Assumptions and risks** — labelled as such in their table, each with how to verify or mitigate it; never stated as facts elsewhere in the PRD.
-- **Open questions** — every unresolved point as `[NEEDS CLARIFICATION: …]`. An open question that blocks a stack decision is called out at the gate.
+- **Open questions** — every unresolved point as `[NEEDS CLARIFICATION (<role>): …]`, tagged with the role that can answer it (`dev`, `pm`, `ba`, `am`; untagged when anyone can). An open question that blocks a stack decision is called out at the gate.
 
 **Length: 1–3 pages — at most about 1,800 words, tables included.** To stay within it:
 - Merge stories that serve the same user goal; 2–4 acceptance criteria per story, the ones a test would check first. Story text is one sentence.
@@ -57,7 +57,7 @@ If an open question blocks a stack decision (e.g. whether a form must store subm
 Follow the template rules in `reference/catalog.md` (keep structure and IDs; remove instruction comments and placeholder rows).
 
 **`docs/prd.md`** from `templates/prd.md`:
-- Front matter: `status: draft`, today's date, `owner` from the input or interview (else `[NEEDS CLARIFICATION: owner]`), `documents:` = the chosen keys.
+- Front matter: `status: draft`, today's date, `owner` from the profile's name (the command passes it), the input or the interview (else `[NEEDS CLARIFICATION (pm): owner]`), `documents:` = the chosen keys.
 - Technical constraints: platforms; a one-paragraph stack summary linking the ADRs; a table of every resolved package and version; "Versions resolved on: <date>".
 - Release plan: MVP = the P1 stories; later releases = P2 / P3. Items deliberately left out go to the backlog in the `features` step — list them under Non-goals or later releases here.
 

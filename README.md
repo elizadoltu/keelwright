@@ -56,6 +56,10 @@ Run in the root of an existing repository that has no Claude setup yet (`/keelwr
 | `/adopt [notes]` | Starts (or continues) adopting the project; notes are kept as input for the analysis |
 | `/adopt status`, `/adopt report`, `/adopt <step>` | As for `/kickoff` |
 
+### Who you are: `/profile`
+
+`/keelwright:profile` records your name and role — developer, project manager, business analyst or account manager — and optional defaults (Jira project, Confluence space, language) in `~/.keelwright/profile.json`, never in the repository. KeelWright asks once, on your first run. The role never changes the project's documents: it decides which of them are shown to you in full at review gates and rated in the report, which open questions you're asked (each is tagged with the role that can answer it, e.g. `[NEEDS CLARIFICATION (pm): launch date?]` — the rest wait for the right person), and how the doctor's results are ordered and worded. A project manager is offered [pm-skills](https://github.com/phuryn/pm-skills) workflows when it is installed.
+
 ### Fixing what the doctor finds: audit mode
 
 On a project that already has a Claude setup, `/keelwright:adopt` (or `/keelwright:adopt audit`, or `/keelwright:start`) runs the doctor and then goes through its findings as fixes: a leaked secret first (you rotate it; it never rewrites history), then each failure and warning — a diff to a rule or document that drifted, a missing safety net, a dependency upgrade within its major, a KeelWright step to re-run. Each is applied only when you approve it, and only recorded as applied once the doctor no longer finds it. Declined fixes are kept with your reason in `.keelwright/audit.md` and not offered again; a security risk can be accepted for at most 90 days. Nothing is committed.
@@ -77,6 +81,7 @@ Pipeline state is kept in `.keelwright/state.json` and run metrics in `.keelwrig
 | `keelwright-spec.md` | The full specification — the source of truth |
 | `.claude-plugin/` | Plugin manifest and marketplace entry |
 | `scripts/audit.mjs` | Audit mode: the doctor's findings as a fix plan, and the decisions on them |
+| `commands/profile.md`, `scripts/profile.mjs` | The personal profile: role, name, defaults; working sets and role-tagged questions |
 | `commands/start.md` | The entry point: picks the route from `analyse.mjs --preflight` and runs that command |
 | `commands/kickoff.md`, `commands/adopt.md` | The commands: argument handling, the step loop, review gates |
 | `steps/` | Instructions for each pipeline step, read by `/kickoff` and `/adopt` |

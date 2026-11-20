@@ -4,6 +4,7 @@
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { markerTag } from './profile.mjs';
 import {
   DOCUMENT_KEYS,
   MODES,
@@ -213,7 +214,7 @@ export function markers(state, root) {
       for (const f of listFiles(root, file)) {
         const lines = readFileSync(join(root, f), 'utf8').split('\n');
         lines.forEach((text, i) => {
-          if (text.includes(MARKER)) found.push({ step: step.name, file: f, line: i + 1, text: text.trim() });
+          if (text.includes(MARKER)) found.push({ step: step.name, file: f, line: i + 1, text: text.trim(), role: markerTag(text) });
         });
       }
     }

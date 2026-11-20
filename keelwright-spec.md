@@ -485,6 +485,12 @@ Different roles work with different documents. A personal profile (`~/.keelwrigh
 - **Defaults** — the name fills `owner` and `decision-makers` instead of a marker; the Jira project and Confluence space prefill `publish`.
 - **Extras on request** — documents only one role needs are offered, never part of the default set. For product work KeelWright **uses [pm-skills](https://github.com/phuryn/pm-skills)** (MIT) rather than copying it: when it is installed, the PM profile is offered its workflows on the project's documents (OKRs, outcome roadmap, pre-mortem, PRD red-team, stakeholder map, release notes); when it isn't, KeelWright says how to install it. KeelWright's own PRD stays the engineering-facing one that the architecture is built from.
 
+**How it is built** (`scripts/profile.mjs`, `commands/profile.md`):
+- The tags are `dev`, `pm`, `ba` and `am`; an untagged question is anyone's, and an unknown tag counts as untagged. `STATE markers --role <tag>` lists the person's questions and counts the ones waiting on each other role. A gate's approval is never blocked by another role's questions — they stay open in the document for the right person.
+- The working sets are file patterns per role (`WORKING_SETS` in `scripts/lib/profile.mjs`); no role means everything is in the working set, as before profiles. Until the account manager's set is defined, everything is summarised for them.
+- The doctor's committed record (`.keelwright/doctor.md`) is the team's and doesn't change with the profile; only what the command shows does — the areas in the role's order (`DOCTOR_ORDER`) and in the role's terms.
+- pm-skills counts as installed when a plugin from its marketplace is in Claude Code's installed plugins.
+
 ## 6. Document catalog
 
 KeelWright doesn't produce a fixed set of documents. It has a **catalog**, and `/kickoff` proposes a set from it based on the project type (4.4) and the interview. At the first review gate the user can add or remove documents before anything is written; the chosen set is listed in the PRD's front matter so later runs and `/adopt` know what the project is meant to have.
@@ -798,7 +804,7 @@ Examples from building the steps:
 3. `/start`: the routing in the preflight, the command, `/kickoff` and `/adopt` kept as overrides. Built: `route` in `analyse.mjs --preflight` and `commands/start.md`; the doctor route names the fixes until audit mode (step 4) applies them.
 4. Audit mode: the doctor's findings as fixes, approved one by one (7.4); `/start`'s route for a project with a Claude setup. Built: `scripts/audit.mjs` (plan, check, decide, accept) and `/adopt` section 9.
 5. The security audit's judgement review (`--deep`, 7.7): area-by-area review, the disproving second pass, the plugin's `security-auditor` for projects without a `security-reviewer`, Jira issues for critical and high findings on request. Built: `scripts/deep.mjs`, `agents/security-auditor.md`, `/doctor` section 3; not yet run against a real model — its first run is with the security fixture (step 7).
-6. Profiles: `/keelwright:profile`, role-tagged questions, working sets at gates, in the report and in the doctor; pm-skills offered to the PM profile.
+6. Profiles: `/keelwright:profile`, role-tagged questions, working sets at gates, in the report and in the doctor; pm-skills offered to the PM profile. Built: `scripts/profile.mjs`, `commands/profile.md`, `STATE markers --role`, and the profile sections of `/kickoff`, `/adopt`, `/doctor`.
 7. Evaluation cases for routing, the doctor (planted drift), role-tagged questions and security: a fixture repository with planted vulnerabilities (an injectable query, a table without RLS, a hard-coded key in history, a dependency with a known advisory, a route missing its role check), graded on each one found, no finding citing missing code, and the threat model naming the planted surface; a run on a real repository with a Claude setup.
 
 ## 10. Open questions

@@ -88,7 +88,7 @@ As a <user>, I want <capability> so that <benefit>.
 
 ## Open questions
 
-- [NEEDS CLARIFICATION: <question>]
+- [NEEDS CLARIFICATION (<dev|pm|ba|am — the role that can answer>): <question>]
 
 ## Release plan
 
