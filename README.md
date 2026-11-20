@@ -28,6 +28,12 @@ claude --plugin-dir /path/to/keelwright
 
 ## Usage
 
+### Start here: `/start`
+
+`/keelwright:start` looks at the folder and picks the route: an empty folder, or one with only notes, specs or a PRD, gets a kickoff (the notes are its input); existing code without a Claude setup is adopted; a project with a Claude setup gets the doctor; a pipeline in progress continues. It says what it found, which route and why, and what that route will produce, then runs it. When the folder is unclear — a fresh scaffold with a few commits, code only in a subfolder — it asks. `/kickoff` and `/adopt` below override its choice.
+
+### New projects: `/kickoff`
+
 Run in an empty folder (or the root of a new repository):
 
 Plugin commands are namespaced, so the command is `/keelwright:kickoff` (shown as `/kickoff` below for short).
@@ -64,6 +70,7 @@ Pipeline state is kept in `.keelwright/state.json` and run metrics in `.keelwrig
 |---|---|
 | `keelwright-spec.md` | The full specification — the source of truth |
 | `.claude-plugin/` | Plugin manifest and marketplace entry |
+| `commands/start.md` | The entry point: picks the route from `analyse.mjs --preflight` and runs that command |
 | `commands/kickoff.md`, `commands/adopt.md` | The commands: argument handling, the step loop, review gates |
 | `steps/` | Instructions for each pipeline step, read by `/kickoff` and `/adopt` |
 | `scripts/state.mjs` | State CLI — the only way the pipeline reads or changes `state.json` |
