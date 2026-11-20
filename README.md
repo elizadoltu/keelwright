@@ -56,6 +56,10 @@ Run in the root of an existing repository that has no Claude setup yet (`/keelwr
 | `/adopt [notes]` | Starts (or continues) adopting the project; notes are kept as input for the analysis |
 | `/adopt status`, `/adopt report`, `/adopt <step>` | As for `/kickoff` |
 
+### Fixing what the doctor finds: audit mode
+
+On a project that already has a Claude setup, `/keelwright:adopt` (or `/keelwright:adopt audit`, or `/keelwright:start`) runs the doctor and then goes through its findings as fixes: a leaked secret first (you rotate it; it never rewrites history), then each failure and warning — a diff to a rule or document that drifted, a missing safety net, a dependency upgrade within its major, a KeelWright step to re-run. Each is applied only when you approve it, and only recorded as applied once the doctor no longer finds it. Declined fixes are kept with your reason in `.keelwright/audit.md` and not offered again; a security risk can be accepted for at most 90 days. Nothing is committed.
+
 ### Health check: `/doctor`
 
 Run in any project with a Claude setup (`/keelwright:doctor`), made by KeelWright or by hand. It checks the project as it is today — the Claude setup against the code (commands, paths, settings), the documents against the code (cited files that were deleted, broken references, open questions), the stack packs against the versions in use, the tooling gaps, the application's security, and the git history (commit style, hooks not installed) — and names the fix for each finding. It changes nothing but its own record, `.keelwright/doctor.md`, which keeps a history so you can see the trend. The checks are mechanical: no model calls, no cost.
@@ -70,6 +74,7 @@ Pipeline state is kept in `.keelwright/state.json` and run metrics in `.keelwrig
 |---|---|
 | `keelwright-spec.md` | The full specification — the source of truth |
 | `.claude-plugin/` | Plugin manifest and marketplace entry |
+| `scripts/audit.mjs` | Audit mode: the doctor's findings as a fix plan, and the decisions on them |
 | `commands/start.md` | The entry point: picks the route from `analyse.mjs --preflight` and runs that command |
 | `commands/kickoff.md`, `commands/adopt.md` | The commands: argument handling, the step loop, review gates |
 | `steps/` | Instructions for each pipeline step, read by `/kickoff` and `/adopt` |

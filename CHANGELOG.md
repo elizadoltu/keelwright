@@ -5,6 +5,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Added — audit mode (Phase 3, build step 4)
+
+- `/adopt` on a project with a Claude setup (or a complete KeelWright pipeline), and `/adopt audit`, is **audit mode** (spec 7.4): it runs the doctor and offers a fix for each finding — a leaked secret first (rotate, then an environment variable or `.gitleaksignore`; history is never rewritten), then a diff for drift in the setup and documents, the `gaps` fix guide for missing tooling, a dependency upgrade within its major (one per package, to the highest fixed version), the step to re-run, a command, or the open questions to answer. Each is applied only on approval. `/start` routes projects with a Claude setup here.
+- `scripts/audit.mjs` (`plan`, `check`, `decide`, `accept`, `status`): a fix is recorded as applied only once the doctor no longer finds it; declined fixes need a reason and aren't offered again; security risks are accepted for at most 90 days in `security-accepted.json`. Decisions go to `.keelwright/audit.md`; security decisions only to the git-ignored `.keelwright/security/`.
+
 ### Added — `/start` (Phase 3, build step 3)
 
 - `/start` (`commands/start.md`): one command that looks at the folder and picks the route (spec 5.0) — a pipeline in progress continues in its mode; an empty folder, or one with only notes, specs or a PRD, gets `/kickoff` with the notes as its input; code without a Claude setup gets `/adopt`; code with a Claude setup, or a finished pipeline, gets the doctor. It says what it found, why, and what the route will produce and skip before running it. A fresh scaffold (at most 3 commits and 25 code files), code only in a subfolder, a Claude setup with no code, or code KeelWright doesn't know is unclear: it asks, showing what it found. An unsupported monorepo or toolchain still stops with its explanation. `/kickoff` and `/adopt` stay as overrides.

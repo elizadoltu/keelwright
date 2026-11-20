@@ -1,5 +1,5 @@
 ---
-description: Start here — KeelWright looks at the folder and picks what it needs (a kickoff for an idea or notes, an adoption for existing code, the doctor for a project with a Claude setup), says why, and runs it
+description: Start here — KeelWright looks at the folder and picks what it needs (a kickoff for an idea or notes, an adoption for existing code, the doctor and its fixes for a project with a Claude setup), says why, and runs it
 argument-hint: "[<project description, notes or file>]"
 ---
 
@@ -21,7 +21,7 @@ Run `ANALYSE --preflight` and read `route`:
 | `continue` | `.keelwright/state.json` with a pipeline in progress (`route.pipeline`) | That pipeline, in its mode |
 | `kickoff` | nothing, or only notes, specs or a PRD (`route.inputs`) | `/kickoff` — the notes are its input |
 | `adopt` | code, no Claude setup | `/adopt` create mode |
-| `doctor` | code with a Claude setup (`route.facts.claude`), or a finished pipeline | The doctor, then its fixes |
+| `doctor` | code with a Claude setup (`route.facts.claude`), or a finished pipeline | Audit mode: the doctor, then its fixes |
 | `ask` | something unclear (`route.why`) | Ask, showing what was found |
 | `stop` | a blocker `/adopt` can't get past (`route.blocker`) | Explain and stop |
 
@@ -33,7 +33,7 @@ Before running anything, tell the user in two to four lines: **what was found, w
 
 - **kickoff** — an interview, then the PRD and the documents its project type needs (chosen at the PRD step), stack research, a scaffold and the Claude setup, with review gates. The notes listed in `route.inputs` are read as the project description.
 - **adopt** — an analysis of the code, the architecture overview and threat model **as built**, tooling fixes only with approval, and a Claude setup that follows the project's own conventions. No ADR-0001 when there are ADRs already (`route.facts.adrDirs`); a C4 model only when there is more than one deployable (`workspaces`); no `publish` step unless the user wants Confluence.
-- **doctor** — a read-only health check of every area (Claude setup, docs vs code, stack, tooling, application security, process). Fixing the findings one by one with approval is audit mode, which is not built yet: for now the doctor names each fix.
+- **doctor** — audit mode: a health check of every area (Claude setup, docs vs code, stack, tooling, application security, process), then a fix for each finding, shown as a diff and applied only when the user approves it, one by one.
 - **continue** — which pipeline (`route.pipeline`) and that it resumes where it stopped.
 
 Then say once that `/keelwright:kickoff` or `/keelwright:adopt` overrides the choice.
@@ -45,7 +45,7 @@ Read the route's command file in full and follow it **as if the user had run tha
 - **`continue`** — `commands/<route.pipeline>.md` with `$ARGUMENTS`.
 - **`kickoff`** — `commands/kickoff.md`. If `$ARGUMENTS` is empty and `route.inputs` lists notes, those files are the project description: use their paths as the arguments (one `STATE init --input` naming the main one; mention the others in `.keelwright/input.md`). With neither, kickoff asks for the description.
 - **`adopt`** — `commands/adopt.md`, starting at its section 2; its preflight passes, since this one did.
-- **`doctor`** — `commands/doctor.md` (no arguments). After the result, if `route.why` is a finished pipeline, say which one and that `/<pipeline> status` still shows it. `route.note` is an `/adopt` blocker (a monorepo, an unsupported toolchain): it doesn't stop the doctor, but mention it in one line, since `/adopt` steps such as `gaps` won't run here.
+- **`doctor`** — audit mode: `commands/adopt.md`, section 9 (with `--offline` if `$ARGUMENTS` has it). After the doctor's result, if `route.why` is a finished pipeline, say which one and that `/<pipeline> status` still shows it. `route.note` is an `/adopt` blocker (a monorepo, an unsupported toolchain): it doesn't stop the doctor, but mention it in one line, since `/adopt`'s create-mode steps won't run here.
 - **`ask`** — AskUserQuestion, with what was found (`route.facts`, `route.detail`) in the question itself:
   - `fresh-scaffold` (code, at most a few commits): **Kick off — plan this project from the start** (the scaffold becomes the starting point the interview asks about) or **Adopt — describe what is here**.
   - `code-in-subfolder` (`route.detail` lists the folders): **Run from `<folder>`** — tell the user to open that folder and run `/keelwright:start` there, then stop — or **Kick off here** (the folder becomes one part of a new project).

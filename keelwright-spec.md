@@ -311,7 +311,7 @@ The pipeline state is kept in `.keelwright/state.json` in the generated project.
 - **Create mode** — no Claude setup exists: analyse the codebase, docs and specs; infer architecture and conventions; hand off to the generator.
 - **Audit mode** — a Claude setup exists: check its quality and whether it is up to date (section 7).
 
-`/adopt` picks the mode itself: a `CLAUDE.md` or `.claude/` folder means audit mode (Phase 3, built on the doctor, 7.0; until then it says so and stops). Instruction files of other tools (`AGENTS.md`, `.cursorrules`, `.github/copilot-instructions.md`) don't count as a Claude setup — they are read as input.
+`/adopt` picks the mode itself: a `CLAUDE.md` or `.claude/` folder, or a complete KeelWright pipeline, means audit mode (7.4, built on the doctor, 7.0); `/adopt audit` asks for it directly. Instruction files of other tools (`AGENTS.md`, `.cursorrules`, `.github/copilot-instructions.md`) don't count as a Claude setup — they are read as input.
 
 ### 5.2.1 Create mode
 
@@ -619,6 +619,21 @@ The setup itself; the project's code and dependencies are the security audit (7.
 - The doctor's report (7.0) with a score per area.
 - Fixes as **reviewable diffs**, approved one by one — never silently rewritten, since some unusual rules are intentional.
 
+**Audit mode** (`/adopt audit`, and `/start`'s route for a project with a Claude setup) runs the doctor and turns each finding into a fix (`scripts/audit.mjs`, `commands/adopt.md` section 9):
+
+| Kind | For | The fix |
+|---|---|---|
+| `rotate` | a leaked secret — always first | the team rotates it; then an environment variable, or `.gitleaksignore` for a fixture; history is never rewritten |
+| `edit` | drift in the Claude setup or documents, RLS, CI pinning, the threat model | a minimal diff; a superseding ADR instead of editing an accepted one; a new migration, never an edited one |
+| `gap` | missing tooling | the `gaps` step's fix guide |
+| `step` | a stale stack pack, regenerated setup, edited documents | the KeelWright step to re-run |
+| `upgrade` | a dependency with a known advisory (all of one package's advisories are one fix) | the fixed version within the major; a new major is an ADR and work of its own |
+| `command` | hooks not installed in the clone | the command |
+| `answer` | open questions | the answers, written into the file |
+
+- Each fix is applied, declined (with a reason; not offered again), deferred, or — for a security finding — accepted for at most 90 days (`security-accepted.json`). **The doctor decides when a fix is done**: `applied` is recorded only when the doctor no longer finds it.
+- Decisions go to `.keelwright/audit.md` (committed); security decisions to `.keelwright/security/fixes.json` (git-ignored), and `audit.md` only counts them. Audit mode commits nothing; it suggests one commit per fix.
+
 ### 7.5 Build order
 
 1. **Doctor, mechanical checks** first — comparisons against real files, reliable and free.
@@ -777,7 +792,7 @@ Examples from building the steps:
    - 1.1 The security audit's mechanical checks (7.7): OSV lookup of the locked versions, gitleaks over history, the security gaps, RLS in migrations, the optional Semgrep run; `/keelwright:doctor security`; `.keelwright/security/` git-ignoring itself and `security-accepted.json` with expiry. Built first: all of these; the threat model vs code check comes with the threat model (step 2).
 2. Security reviewer: the `threat-model` catalog key and template, written by `architecture` (`/kickoff`) and `document` (`/adopt`, as built) with a `doccheck threat-model` (length, `SEC-` IDs, every cited file exists); `reference/security.md` with the framework editions; the `security-reviewer` agent, `security-review` skill and `.claude/rules/security.md` in `generate`, the hand-off from `implement-story` / `implement-change`; `generatecheck` checks for them. Changes `scripts/lib/pipeline.mjs`, both commands and 5.1.2 / 5.2.1 / 6.0 together. Built, with the threat model vs code check of 7.7; `doccheck threat-model` requires existing files only for `mitigated` and `open` risks, since `/kickoff` writes its risks as `planned` before the code exists.
 3. `/start`: the routing in the preflight, the command, `/kickoff` and `/adopt` kept as overrides. Built: `route` in `analyse.mjs --preflight` and `commands/start.md`; the doctor route names the fixes until audit mode (step 4) applies them.
-4. Audit mode: the doctor's findings as fixes, approved one by one (7.4); `/start`'s route for a project with a Claude setup.
+4. Audit mode: the doctor's findings as fixes, approved one by one (7.4); `/start`'s route for a project with a Claude setup. Built: `scripts/audit.mjs` (plan, check, decide, accept) and `/adopt` section 9.
 5. The security audit's judgement review (`--deep`, 7.7): area-by-area review, the disproving second pass, the plugin's `security-auditor` for projects without a `security-reviewer`, Jira issues for critical and high findings on request.
 6. Profiles: `/keelwright:profile`, role-tagged questions, working sets at gates, in the report and in the doctor; pm-skills offered to the PM profile.
 7. Evaluation cases for routing, the doctor (planted drift), role-tagged questions and security: a fixture repository with planted vulnerabilities (an injectable query, a table without RLS, a hard-coded key in history, a dependency with a known advisory, a route missing its role check), graded on each one found, no finding citing missing code, and the threat model naming the planted surface; a run on a real repository with a Claude setup.

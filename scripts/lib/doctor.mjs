@@ -185,7 +185,7 @@ function checkProcess(root, ctx, add) {
 function addSecurity(security, add) {
   for (const f of security.findings) {
     const level = f.status === 'accepted' ? 'info' : ['critical', 'high'].includes(f.severity) ? 'fail' : 'warn';
-    add(level, `${f.status === 'accepted' ? 'accepted: ' : ''}${f.severity}: ${f.issue}`, { evidence: f.evidence, fix: f.fix, secure: true });
+    add(level, `${f.status === 'accepted' ? 'accepted: ' : ''}${f.severity}: ${f.issue}`, { evidence: f.evidence, fix: f.fix, secure: true, check: f.check, fingerprint: f.fingerprint, severity: f.severity });
   }
   for (const [id, c] of Object.entries(security.checks)) {
     if (c.status === 'not-checked') add(id === 'semgrep' ? 'info' : 'warn', `${id} not checked: ${c.reason}`, { fix: id === 'dependencies' ? 'run the doctor online' : null });

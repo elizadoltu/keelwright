@@ -1,6 +1,6 @@
 ---
-description: Bring an existing project into KeelWright — analyse the code, record its architecture and decisions, fill tooling gaps with your approval, and generate a Claude setup that follows the project's own conventions
-argument-hint: "[status | report | <step> | research --refresh | <notes about the project>]"
+description: Bring an existing project into KeelWright — analyse the code, record its architecture and decisions, fill tooling gaps with your approval, and generate a Claude setup that follows the project's own conventions. On a project that already has a Claude setup, audit mode fixes what the doctor finds, one approved fix at a time
+argument-hint: "[status | report | audit [--offline] | <step> | research --refresh | <notes about the project>]"
 ---
 
 # /adopt
@@ -14,12 +14,13 @@ You are running the KeelWright `/adopt` pipeline in the current directory (the p
 - Document templates: `${CLAUDE_PLUGIN_ROOT}/templates/`
 - State CLI (call it `STATE` below): `node "${CLAUDE_PLUGIN_ROOT}/scripts/state.mjs"`
 - Facts script (call it `ANALYSE` below): `node "${CLAUDE_PLUGIN_ROOT}/scripts/analyse.mjs"` (run in the project root)
+- Audit script (call it `AUDIT` below): `node "${CLAUDE_PLUGIN_ROOT}/scripts/audit.mjs"` (run in the project root)
 - Arguments: `$ARGUMENTS`
 
 ## Modes
 
 - **Create mode** — the project has no Claude setup. This command runs it.
-- **Audit mode** — the project already has a `CLAUDE.md` or a `.claude/` folder (anywhere except templates, fixtures and examples). Its health check is `/keelwright:doctor`; fixing the findings one by one is not built yet (Phase 3). Say so and stop.
+- **Audit mode** — the project already has a `CLAUDE.md` or a `.claude/` folder (anywhere except templates, fixtures and examples), or its KeelWright pipeline is complete. It runs the doctor and offers a fix for each finding, applied only on approval (section 9).
 
 Other tools' instruction files (`AGENTS.md`, `.cursorrules`, `.github/copilot-instructions.md`) are not a Claude setup; the `analyse` step reads them as input.
 
@@ -51,6 +52,7 @@ analyse → { document, research } → gaps → generate → publish
 |---|---|---|
 | `status` | Show progress | Run `STATE status` and show the result in a short, readable form. Stop. |
 | `report` | Run report and document ratings | Section 8 |
+| `audit` (optionally `--offline`) | Audit mode, on a project with a Claude setup | Section 9 |
 | a step name (`analyse`, `document`, `research`, `gaps`, `generate`, `publish`) | Re-run that step | Section 4 |
 | `research --refresh` | Re-run research and force new stack packs | Section 4, passing the refresh flag to the step |
 | anything else | Notes about the project (e.g. "the `/v1` routes are deprecated") | Section 2; save the notes as below |
@@ -59,11 +61,11 @@ analyse → { document, research } → gaps → generate → publish
 ## 2. Start or continue
 
 1. Run `STATE mode`.
-2. **`adopt`** — an adoption is in progress. Check for edits (section 3), then continue with the loop (section 5).
-3. **`kickoff`** — this project was set up by `/kickoff` and already has its Claude setup: keeping it current is audit mode. Suggest `/keelwright:doctor` for its health, and `/kickoff status` and `/kickoff <step>` for the kickoff itself. Stop.
+2. **`adopt`** — an adoption is in progress. Check for edits (section 3), then continue with the loop (section 5); a complete adoption goes to audit mode (section 9).
+3. **`kickoff`** — this project was set up by `/kickoff`. If `STATE next --json` says `complete`, it has its Claude setup: audit mode (section 9). Otherwise the kickoff is still running: tell the user to continue it with `/kickoff` and stop.
 4. **`none`** — a new adoption:
    1. Run `ANALYSE --preflight`. It prints the mode, the toolchain and the `blockers`. For each blocker, tell the user and **stop without creating anything**:
-      - `audit` — the project already has a Claude setup (`detail`: its files); suggest `/keelwright:doctor` (or `/keelwright:start`, which picks it).
+      - `audit` — the project already has a Claude setup (`detail`: its files): not a blocker — go to audit mode (section 9) instead of creating a state. The other blockers don't apply to audit mode either: the doctor works on any repository.
       - `monorepo` — this kind of monorepo isn't supported yet (`why`: e.g. Nx, more than six workspaces, a project outside the workspaces). List the packages (`detail`) and say: run `/adopt` from the folder of the package to adopt; that folder becomes the project root.
       - `toolchain` — the project's languages (`detail`) aren't supported yet. Name the supported ones: node, python, dart, rust, godot.
       - `no-project` — there's no project here; `/adopt` is for existing code and `/kickoff` starts new projects.
@@ -109,7 +111,7 @@ Repeat:
 2. On `{"action": "run", "step": …}` → run the step (section 6), then repeat.
    - If the step is `publish` (`"optional": true`), first ask whether the user wants the documents in Confluence (Jira isn't offered: it needs a PRD). If not, run `STATE start publish` and `STATE skip publish --reason "not requested"`, then repeat.
 3. On `{"action": "review", "gate": N}` → hold the review gate (section 7) and stop.
-4. On `{"action": "complete"}` → tell the user the adoption is finished, with a short summary of what exists now and what was declined in `gaps`, and suggest `/adopt report` to rate the documents. Stop.
+4. On `{"action": "complete"}` → tell the user the adoption is finished, with a short summary of what exists now and what was declined in `gaps`, and suggest `/adopt report` to rate the documents, and `/adopt` again later for audit mode. Stop. (When `/adopt` starts on an adoption that is **already** complete, section 2 sends it to audit mode instead.)
 
 Run as many steps as you can in one go; the pipeline only pauses at review gates, when a step needs answers from the user, or when a step is not implemented yet.
 
@@ -152,6 +154,49 @@ Run metrics are recorded automatically by `STATE` (`.keelwright/metrics.json`); 
 2. Ask the user to rate each generated document they reviewed (AskUserQuestion, up to 4 documents per question round), with the options **Used as-is**, **Small edits**, **Rewritten**, **Deleted**. Skip documents already rated unless the user wants to change a rating.
 3. Record each answer: `STATE rate <file> <as-is|small-edits|rewritten|deleted>`.
 4. Run `STATE report --write` and tell the user the report is in `.keelwright/report.md`.
+
+## 9. Audit mode (spec 7.4)
+
+The project has a Claude setup. Audit mode keeps it — and the project around it — healthy: it runs the doctor and turns each finding into a fix, shown as a diff and applied **only when the user approves it**, one by one. Some unusual rules are intentional; nothing is rewritten silently. Audit mode has no pipeline state: its record is `.keelwright/audit.md` (committed) and, for security findings, `.keelwright/security/fixes.json` (git-ignored).
+
+### 9.1 Plan
+
+1. Run `AUDIT plan --json` (with `--offline` when the user asked for it). It runs the doctor — recording `.keelwright/doctor.md` as `/keelwright:doctor` does — and prints `fixes`, in order: a leaked secret first, then failures, then warnings. Each fix has an `id` (`FIX-NN`), the `kind`, `how`, the `issues` it covers (repeats are grouped: every advisory of one package is one upgrade), the `evidence`, `secure` (a security finding) and `previously` (deferred last time). `kinds` explains each kind.
+2. Show the doctor's result as `/keelwright:doctor` does (`${CLAUDE_PLUGIN_ROOT}/commands/doctor.md`, section 2): the counts and the area table. Then the fixes in one line each: id, kind, the issue. Declined fixes and accepted risks aren't offered again (`AUDIT plan --all` shows them, if the user asks).
+3. No fixes: say the project is healthy as far as the mechanical checks go, and stop.
+4. Ask (AskUserQuestion): **Go through the fixes** (recommended) · **Only the failures** · **Stop** (the record is written; nothing else changes).
+
+### 9.2 One fix at a time
+
+For each fix, in order:
+
+1. **Explain** in one line what is wrong and what it risks, citing the evidence.
+2. **Propose** the fix by kind — read the files involved first and change as little as the fix needs:
+   - **`edit`** — the diff for each file. A document that cites a moved file gets the new path; an **accepted ADR is never edited** — propose a new ADR that supersedes it. A rule or CLAUDE.md line that no longer matches the project is corrected from the project's real commands and paths (`ANALYSE --json`). RLS: a **new** migration, never an edit to one that has run. CI actions: the full commit SHA with the version in a comment (`node "${CLAUDE_PLUGIN_ROOT}/scripts/versions.mjs" github:<owner>/<repo>`).
+   - **`gap`** — a tooling fix: follow `${CLAUDE_PLUGIN_ROOT}/steps/gaps.md`, its **Rules** and the **Fix guide** entry for the gap id in `how` (the project's own tools; protected paths; every command shown). When `.keelwright/gaps.md` exists, update the gap's row there too.
+   - **`step`** — a KeelWright step to re-run (`how`, e.g. `/keelwright:adopt research --refresh`). Say what it will regenerate; on approval run it as in section 4, then come back to the next fix.
+   - **`command`** — show the exact command; run it on approval.
+   - **`upgrade`** — under the version policy (spec 4.6): within the same major, raise the package to the fixed version with the project's package manager (`npm install <pkg>@<version>`, `pnpm update <pkg>@<version>`, `uv lock --upgrade-package <pkg>==<version>`, `cargo update -p <pkg> --precise <version>`); a transitive package through the direct dependency that pulls it in, or the package manager's override field when none has a fix yet. A **new major** is a decision: propose an ADR and offer to defer the upgrade as a piece of work of its own. Then run the project's `check` task — an upgrade that breaks it is reverted.
+   - **`rotate`** — a leaked secret. **Rotating it comes first and only the team can do it**: name the kind of key (the gitleaks rule) and where it is used. Removing it from the code doesn't remove it from the history, and rewriting history is the team's call, not audit mode's. After rotation: move the value to an environment variable the code reads, or — for a test fixture or false positive — add the finding to `.gitleaksignore`.
+   - **`answer`** — open questions: go through each `[NEEDS CLARIFICATION]` marker with the user and write the answer into the file.
+3. **Ask** (AskUserQuestion): **Apply** · **Skip** (ask why in one line) · **Later** · **Accept the risk** (security findings only: a reason, and for how long — at most 90 days) · **Stop here**.
+4. **Record** right away, so a stopped run resumes cleanly:
+   - Apply → apply exactly what was shown, then `AUDIT decide <FIX-NN> applied`. It re-runs the doctor and refuses while the finding is still there: finish the fix or revert it — never leave it half-done. When the checking tool isn't installed (gitleaks, Semgrep), add `--unverified` and say so.
+   - Skip → `AUDIT decide <FIX-NN> declined --note "<reason>"` (not offered again; the row in `.keelwright/audit.md` shows why).
+   - Later → `AUDIT decide <FIX-NN> deferred`.
+   - Accept → `AUDIT accept <FIX-NN> --reason "<reason>" --days <n>` (writes `.keelwright/security-accepted.json`, which the doctor reads).
+   - Stop here → stop; the next `/adopt audit` plans again from the doctor.
+
+### 9.3 Finish
+
+1. Run `AUDIT plan` once more (it records the doctor again, so the trend shows in `.keelwright/doctor.md`) and `AUDIT status`.
+2. Tell the user in a few lines: what was applied, declined, deferred and accepted; how the areas changed; anything the team must do by hand (rotate a key, install a tool); and suggested commits, one per fix (`fix(deps): upgrade lodash`, `docs: update the overview after the api/ move`). Nothing is committed by audit mode.
+
+### Rules for audit mode
+
+- **Approved, one by one.** Audit mode may change any file a fix needs — including dependency versions and migrations, unlike create mode — but only what the user saw and approved.
+- **Security details stay out of git** (spec 7.7): never in `.keelwright/audit.md`, a commit message, a PR or an issue. A commit for a vulnerability fix names the package and version, not the attack.
+- **The doctor decides when a fix is done**, not the model: `AUDIT decide … applied` checks it.
 
 ## Rules for every step
 
