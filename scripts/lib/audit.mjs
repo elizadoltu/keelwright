@@ -40,6 +40,7 @@ export function classify(f, { mode = null } = {}) {
   const keelwrightStep = /^\/keelwright:\w+/.test(fix) ? fix.split(/\s+—/)[0] : null;
   switch (f.area) {
     case 'setup':
+      if (/Look at it running/.test(f.issue)) return { kind: 'edit', how: "add step 6, Look at it running, from the plugin's templates/claude/skills/ with this project's dev command and design documents" };
       if (/^(agents|skills|contributing)$/.test(f.evidence ?? '') && mode) return { kind: 'step', how: `/keelwright:${mode} generate` };
       if (/settings\.local\.json/.test(f.issue)) return { kind: 'gap', how: 'hygiene' };
       return { kind: 'edit', how: fix || 'correct the file to match the project' };
@@ -62,6 +63,7 @@ export function classify(f, { mode = null } = {}) {
     case 'process':
       if (/not installed/.test(f.issue)) return { kind: 'command', how: fix };
       if (/Conventional Commits/.test(f.issue)) return { kind: 'gap', how: 'hooks' };
+      if (/^no commits yet/.test(f.issue)) return { kind: 'command', how: f.fix };
       return fix ? { kind: 'edit', how: fix } : null;
     default:
       return fix ? { kind: 'edit', how: fix } : null;

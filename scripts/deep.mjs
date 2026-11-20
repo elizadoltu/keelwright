@@ -40,7 +40,7 @@ try {
       for (const a of plan.review) console.log(`  ${a.sensitive ? '*' : ' '} ${a.name} (${a.files.length} file${a.files.length === 1 ? '' : 's'})`);
       if (plan.skipped.length) console.log(`Not reviewed (beyond ${maxAreas} areas): ${plan.skipped.map((s) => s.name).join(', ')}`);
       if (plan.review.some((a) => a.sensitive)) console.log('* = a sensitive path or entry point in the threat model');
-      else console.log('No threat model to put the sensitive areas first — `/keelwright:adopt document` writes one.');
+      else console.log('No threat model to put the sensitive areas first. A project with something to attack gets one from `/keelwright:kickoff architecture` or `/keelwright:adopt document`; one without (a static site) has little for a deep review to find.');
     }
   } else {
     const maxCost = Number(opt('--max-cost'));

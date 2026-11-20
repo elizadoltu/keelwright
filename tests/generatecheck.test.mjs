@@ -235,3 +235,16 @@ describe('generated agent setup check: /adopt workspace repo', () => {
     ]);
   });
 });
+
+describe('generatecheck: a project with a UI', () => {
+  const SKILL = (body) => `---\nname: implement-story\ndescription: Implement one user story end to end, from its acceptance criteria to passing checks.\n---\n\n${body}\n`;
+  test('the implement skill looks at the result running (web, mobile, game)', () => {
+    const web = { '.keelwright/state.json': JSON.stringify({ projectType: 'web' }) };
+    const missing = issues(project({ ...web, '.claude/skills/implement-story/SKILL.md': SKILL('5. Check.\n6. Review.') }));
+    assert.ok(missing.some((i) => /implement-story: no "Look at it running" step/.test(i)), missing.join('\n'));
+    const ok = issues(project({ ...web, '.claude/skills/implement-story/SKILL.md': SKILL('6. **Look at it running**: start it.') }));
+    assert.ok(!ok.some((i) => /Look at it running/.test(i)));
+    const lib = issues(project({ '.keelwright/state.json': JSON.stringify({ projectType: 'library' }), '.claude/skills/implement-story/SKILL.md': SKILL('5. Check.') }));
+    assert.ok(!lib.some((i) => /Look at it running/.test(i)));
+  });
+});
