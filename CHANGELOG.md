@@ -5,6 +5,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Added — Phase 3 evaluation cases (build step 7)
+
+- Six eval cases: `/start`'s routing (`start-notes`, `start-code`), the doctor and audit mode on a drifted hand-made setup (`doctor-drift`), role-tagged questions in a kickoff run by a project manager (`pm-kickoff-booking`), the threat model of an adopted project (`adopt-security-shop`), and the deep security review with five planted vulnerabilities (`security-shop-deep`). Graded by eight new code graders: `route`, `doctor-found`, `only-keelwright`, `marker-roles`, `threat-surface`, `planted-found`, `findings-real`, `mechanical-found`.
+- The eval runner: `command` and `deep` cases, fixtures shared from `evals/fixtures/`, scripted git history (a secret only in an earlier commit, assembled at run time so none is committed here), and a profile folder per run — without it every run since profiles would have stopped at the profile question.
+
+### Fixed
+
+- `generatecheck` (and so the doctor) reports a rule scoped to folders that existed and are gone — it never loads. Found by the `doctor-drift` fixture.
+
 ### Added — profiles (Phase 3, build step 6)
 
 - `/profile` (`commands/profile.md`, `scripts/profile.mjs`, spec 5.7): your name, role (developer, project manager, business analyst, account manager) and defaults (Jira project, Confluence space, language) in `~/.keelwright/profile.json` — personal, never in the repository, never an email address. `/kickoff`, `/adopt` and `/doctor` ask once on the first run.

@@ -22,6 +22,9 @@ export const MAX_AREAS = 15;
 export const MAX_FILES_PER_AREA = 60;
 export const MAX_FINDINGS_PER_AREA = 8;
 export const PROJECT_AGENT = '.claude/agents/security-reviewer.md';
+// Read-only: reading and searching the code, and read-only git. No writes, no network.
+export const TOOLS = ['Read', 'Grep', 'Glob', 'Bash(git log:*)', 'Bash(git show:*)', 'Bash(ls:*)'];
+export const DISALLOWED_TOOLS = ['Write', 'Edit', 'MultiEdit', 'NotebookEdit', 'WebFetch', 'WebSearch'];
 // Folders that hold the code itself: an area is one level below them (`src/routes`, `apps/web`).
 const CONTAINERS = new Set(['src', 'app', 'apps', 'lib', 'packages', 'services', 'server', 'api', 'backend', 'frontend', 'supabase', 'functions']);
 const NOT_REVIEWED = /(^|\/)(__tests__|tests?|spec|e2e|fixtures?|mocks?|__mocks__|examples?|docs|scripts\/dev|migrations\/seed)\/|\.(test|spec|stories|d)\.[cm]?[jt]sx?$|(^|\/)test_[^/]+\.py$|_test\.(py|go|dart)$|\.min\.js$/;

@@ -1,0 +1,31 @@
+{
+  "description": "/start in an existing Python repository without a Claude setup (the adopt-etl-python repo): routes to /adopt create mode. Stops after the adoption's state is created. Four earlier commits make it an established project, not a fresh scaffold (which /start would ask about).",
+  "mode": "command",
+  "repo": "../adopt-etl-python/repo",
+  "command": "/keelwright:start",
+  "replies": [
+    "Stay on the current branch. This is a routing check: stop right after the adoption is set up, before the analysis."
+  ],
+  "expect": {
+    "route": "adopt"
+  },
+  "judges": [],
+  "history": [
+    {
+      "message": "chore: start the ETL job",
+      "files": {}
+    },
+    {
+      "message": "feat: load orders from the CSV export",
+      "files": {}
+    },
+    {
+      "message": "feat: write to the warehouse",
+      "files": {}
+    },
+    {
+      "message": "fix: skip empty rows",
+      "files": {}
+    }
+  ]
+}

@@ -5,7 +5,8 @@
 //
 //   --case <name>         run one case (repeatable; default: all in evals/cases)
 //   --runs <n>            runs per case (default 3)
-//   --stop-at <gate>      override every case's stop gate (e.g. 1 for a cheaper smoke run)
+//   --stop-at <gate>      override every case's stop gate (e.g. 1 for a cheaper smoke run); leaves
+//                         out deep cases unless named with --case
 //   --max-cost <usd>      stop starting new runs once spent (default 30)
 //   --concurrency <n>     runs in parallel (default 1)
 //   --threshold <0..1>    minimum pass rate per grader and case (default 0.67)
@@ -25,7 +26,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { httpFetchJson } from '../scripts/lib/versions.mjs';
-import { GRADERS, JUDGES, gradeVersions, judgePrompt, loadRun, majority, parseVerdict } from './lib/graders.mjs';
+import { GRADERS, JUDGES, PHASE3_GRADERS, gradeVersions, judgePrompt, loadRun, majority, parseVerdict } from './lib/graders.mjs';
 import { claudeInvoke, runCase } from './lib/runner.mjs';
 import { summarise, toMarkdown } from './lib/summary.mjs';
 
@@ -71,12 +72,14 @@ function loadCases(names) {
 async function grade(c, dir, o) {
   const run = loadRun(dir, c);
   const grades = {};
+  const phase3 = c.mode === 'command' || c.mode === 'deep';
   for (const [name, fn] of Object.entries(GRADERS)) {
+    if (phase3 && !PHASE3_GRADERS.has(name)) continue;
     const r = fn(run, c.expect ?? {}, c);
     if (r) grades[name] = r;
   }
   // /adopt records the versions in use, which are old on purpose: `versions-in-use` checks them instead.
-  if (c.mode !== 'adopt') {
+  if (!['adopt', 'command', 'deep'].includes(c.mode)) {
     try {
       grades.versions = await gradeVersions(run, httpFetchJson);
     } catch (err) {
@@ -124,7 +127,11 @@ async function regrade(o) {
 async function main() {
   const o = parseArgs(process.argv.slice(2));
   if (o.regrade) return regrade(o);
-  const cases = loadCases(o.cases).map((c) => (o.stopAt ? { ...c, stopAtGate: o.stopAt } : c));
+  // A smoke run (--stop-at) leaves out deep cases unless they are named: their cost is fixed by
+  // `maxCost`, not by a gate.
+  const cases = loadCases(o.cases)
+    .filter((c) => !(o.stopAt && c.mode === 'deep' && !o.cases.includes(c.name)))
+    .map((c) => (o.stopAt ? { ...c, stopAtGate: o.stopAt } : c));
   const out = o.out ?? join(ROOT, 'evals', 'results', new Date().toISOString().replace(/[:.]/g, '-'));
   mkdirSync(out, { recursive: true });
 

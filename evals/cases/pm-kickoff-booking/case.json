@@ -1,0 +1,15 @@
+{
+  "description": "/kickoff run by a project manager (profile role project-manager): the open questions the input leaves are tagged with the role that can answer them — the launch date (pm), the cancellation rules (ba), the old membership app (dev).",
+  "profile": { "role": "project-manager", "name": "Ana Pop" },
+  "stopAtGate": 1,
+  "answers": ["Members book; staff check people in. Payments stay at the front desk. Decide later for everything else, and keep the open questions open."],
+  "expect": {
+    "projectType": "web",
+    "markerRoles": [
+      { "match": "launch|go-live|release date|budget", "role": "pm" },
+      { "match": "cancel|no-show", "role": "ba" },
+      { "match": "PHP|member(ship)? (list|app|data)|import", "role": "dev" }
+    ]
+  },
+  "judges": []
+}

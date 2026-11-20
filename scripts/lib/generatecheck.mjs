@@ -4,6 +4,7 @@
 // path-scoped rules, every applicable review rule of the stack packs covered, safe settings with
 // existing hook scripts, CONTRIBUTING.md consistent with the hooks.
 
+import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { FRAMEWORK_EDITIONS, placeholders } from './doccheck.mjs';
@@ -245,7 +246,24 @@ export function checkGenerated(root) {
     if (/^---\n/.test(text)) {
       const fm = parseFrontMatter(text);
       if (!fm) add('rules', `${f}: front matter doesn't parse — the rule would load unscoped`);
-      else for (const k of Object.keys(fm)) if (k !== 'paths') add('rules', `${f}: "${k}" in front matter is ignored by Claude Code (only paths is read)`);
+      else {
+        for (const k of Object.keys(fm)) if (k !== 'paths') add('rules', `${f}: "${k}" in front matter is ignored by Claude Code (only paths is read)`);
+        // A rule scoped to folders that no longer exist never loads (found by the doctor-drift
+        // eval: a rule for src/legacy/** after the legacy code was deleted). Only the folder part
+        // before the first wildcard is checked, and only a folder the git history once had counts, so
+        // a rule for a folder the project hasn't created yet is fine.
+        const globs = (Array.isArray(fm.paths) ? fm.paths : fm.paths ? [fm.paths] : []).map(String);
+        const base = (g) => g.split('/').filter((part, i, all) => all.slice(0, i + 1).every((x) => !/[*?{[]/.test(x))).join('/');
+        const existedOnce = (dir) => {
+          try {
+            return execFileSync('git', ['log', '-1', '--format=%h', '--', dir], { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim() !== '';
+          } catch {
+            return false;
+          }
+        };
+        const gone = globs.filter((g) => base(g) && !existsSync(join(root, base(g))) && existedOnce(base(g)));
+        if (globs.length && gone.length === globs.length) add('rules', `${f}: scoped to ${gone.map((g) => `\`${g}\``).join(', ')}, which no longer exist${gone.length > 1 ? '' : 's'} — the rule never loads`);
+      }
     }
   }
   const { all, review } = applicableReviewRules(root);

@@ -25,9 +25,6 @@ const root = resolve(opt('--root') ?? process.cwd());
 const pluginRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
 const maxAreas = opt('--max-areas') ? Number(opt('--max-areas')) : D.MAX_AREAS;
 
-// Read-only: reading and searching the code, and read-only git. No writes, no network.
-const TOOLS = ['Read', 'Grep', 'Glob', 'Bash(git log:*)', 'Bash(git show:*)', 'Bash(ls:*)'];
-const DISALLOWED = ['Write', 'Edit', 'MultiEdit', 'NotebookEdit', 'WebFetch', 'WebSearch'];
 
 try {
   if (argv.includes('--plan')) {
@@ -44,7 +41,7 @@ try {
     }
   } else {
     const maxCost = Number(opt('--max-cost'));
-    const invoke = ({ prompt, system, schema, maxBudgetUsd }) => claudeInvoke({ cwd: root, prompt, system, schema, maxBudgetUsd, model: opt('--model'), tools: TOOLS, disallowedTools: DISALLOWED, maxTurns: 60, timeoutMs: 20 * 60_000 });
+    const invoke = ({ prompt, system, schema, maxBudgetUsd }) => claudeInvoke({ cwd: root, prompt, system, schema, maxBudgetUsd, model: opt('--model'), tools: D.TOOLS, disallowedTools: D.DISALLOWED_TOOLS, maxTurns: 60, timeoutMs: 20 * 60_000 });
     const result = await D.run(root, { pluginRoot, maxCost, invoke, maxAreas, only: opt('--area'), log: (m) => console.error(m) });
     D.save(root, result);
     if (argv.includes('--json')) console.log(JSON.stringify(result, null, 2));

@@ -9,7 +9,7 @@ Each run starts a real headless Claude Code session with this plugin in a tempor
 ```bash
 node evals/run.mjs                                   # every case, 3 runs each
 node evals/run.mjs --case personal-website --runs 1  # one case, one run
-node evals/run.mjs --stop-at 1 --runs 1              # cheap smoke run: every case to gate 1
+node evals/run.mjs --stop-at 1 --runs 1              # cheap smoke run: every case to gate 1 (deep cases left out)
 node evals/run.mjs --help                            # all options
 ```
 
@@ -32,6 +32,21 @@ Exit codes: `0` every grader at or above the threshold (default 67%), `1` below 
 | `adopt-orders-api` | `/adopt`: pnpm Express 4 API with an existing `docs/adr/` folder and AGENTS.md. Planted: one route breaks the `HttpError` convention (mixed), PostgreSQL through `pg` with no ADR, Express a major behind the shipped pack | Gate 2 |
 | `adopt-etl-python` | `/adopt`: Poetry ETL job with a Makefile, Ruff, mypy, pytest, GitLab CI, no ADRs; Pydantic 1 | Gate 1 |
 | `adopt-workspace-app` | `/adopt`: npm workspace repo (`web/` React + Vite, `api/` Express) adopted as one project; the api's test script only echoes | Gate 1 |
+
+Phase 3 cases (spec 9, step 7):
+
+| Case | What it exercises | Runs until |
+|---|---|---|
+| `start-notes` | `/start` in a folder with only notes → `/kickoff`, the notes as its input | The interview's first questions |
+| `start-code` | `/start` in the `adopt-etl-python` repo, with some history → `/adopt` | The adoption is set up |
+| `doctor-drift` | `/start` on a hand-made Claude setup that drifted (a missing script, a deleted folder in CLAUDE.md and the architecture notes, a rule scoped to it) → audit mode: the doctor finds all of it and nothing changes before approval | The first fix question |
+| `pm-kickoff-booking` | `/kickoff` run by a project manager (profile): the open questions are tagged with the role that can answer them — launch date `(pm)`, cancellation rules `(ba)`, the old membership app `(dev)` | Gate 1 |
+| `adopt-security-shop` | `/adopt` on the `security-shop` fixture: the threat model, as built, names the planted surface (the `orders` table, the admin routes, `profiles`) and passes its doccheck | Gate 2 |
+| `security-shop-deep` | The deep security review and the mechanical audit on `security-shop`, with five planted vulnerabilities: an injectable order lookup, a delete-user route without the admin check, `orders` without RLS, lodash 4.17.20, a Stripe key only in the history | The review, under `maxCost` ($3) |
+
+`security-shop` lives in `evals/fixtures/` because two cases share it. A case's `repo` points at it, `history` scripts the commits before the repository's own files, and `secret` holds the planted key in pieces, joined only in the run's temporary repository — so no secret-looking string is committed to KeelWright.
+
+A `"mode": "command"` case runs `command` and then each of `replies` in one session; a `"mode": "deep"` case runs `lib/deep.mjs` under the case's `maxCost` and then the mechanical audit, without a command. A case's `profile` (e.g. `{ "role": "project-manager" }`) is written to the run's own profile folder (`KEELWRIGHT_HOME`); without one, every run has a profile already asked and skipped, so no run stops at the profile question and none reads your `~/.keelwright`.
 
 A `/kickoff` case is a folder in `cases/` with:
 - `input.md` — the project description passed to `/keelwright:kickoff`.
@@ -64,6 +79,14 @@ An `/adopt` case has `"mode": "adopt"` and a `repo/` folder instead of `input.md
 | `adr-folder` | code | New ADRs go in the project's ADR folder, numbered after its highest; no ADR-0001 when ADRs exist |
 | `retro-adrs` | code | Retroactive ADRs pass `doccheck adr-retro`, and list no alternatives the repository never mentions |
 | `pack-majors` | code | Packs are researched or reused at the major the project uses (Express 4, not 5) |
+| `route` | code | `/start` took the expected route: a kickoff or an adoption started, or the doctor ran without starting a pipeline |
+| `doctor-found` | code | `.keelwright/doctor.md` names each planted problem |
+| `only-keelwright` | code | Nothing outside `.keelwright/` changed (audit mode asks before fixing) |
+| `marker-roles` | code | Every role tag on an open question is known (`dev`, `pm`, `ba`, `am`), and the expected questions carry the expected role |
+| `threat-surface` | code | The threat model names the planted tables and routes and passes `doccheck threat-model` |
+| `planted-found` | code | The deep review reported each planted vulnerability, in the right file |
+| `findings-real` | code | No deep finding cites a file the project doesn't have, and the review stayed within `maxCost` |
+| `mechanical-found` | code | The mechanical audit found what it can see (RLS, the advisory, the secret in history); a check that couldn't run here — gitleaks not installed, offline — is reported as skipped |
 | `judge:invented-facts` | model | The PRD states nothing about the product or users that the input and interview don't support |
 | `judge:redundant-questions` | model | The interview didn't ask what the input already answered |
 
@@ -72,6 +95,8 @@ Judges use `--judge-model` (default `sonnet`), answer one pass / fail question e
 ## Cost
 
 `/adopt` cases (estimates until measured): about **$1.50–2.50 per run to gate 1**, and **$5–7** for `adopt-orders-api` to gate 2, which researches one pack (Express 4). One run of the three: about **$10**.
+
+Phase 3 cases (estimates until measured): `start-notes`, `start-code` and `doctor-drift` about **$0.30–0.60** each; `pm-kickoff-booking` about **$1.60** (gate 1); `adopt-security-shop` about **$5** (gate 2); `security-shop-deep` at most **$3** (its `maxCost`). One run of the six: about **$11**.
 
 Measured on the first runs (2026-11-16): about **$1.60 per run to gate 1**, **$4.40–5.10 per run to gate 2** (8–10 minutes), and about **$0.07 per judge vote** (3 votes per judge). A full suite (3 cases × 3 runs, with judges) is about **$36**; a smoke run (`--stop-at 1 --runs 1`) about **$6–8**. Re-grading earlier results with `--regrade` costs only the judges (about $1 for one run of every case). Always pass `--max-cost`.
 

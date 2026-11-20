@@ -248,3 +248,19 @@ describe('generatecheck: a project with a UI', () => {
     assert.ok(!lib.some((i) => /Look at it running/.test(i)));
   });
 });
+
+describe('generatecheck: rules scoped to folders that are gone', () => {
+  test('a rule for a folder the history had and the project dropped never loads; a folder not created yet is fine', async () => {
+    const { execFileSync } = await import('node:child_process');
+    const { rmSync: rm } = await import('node:fs');
+    const root = project({ 'src/legacy/a.js': 'x', '.claude/rules/legacy.md': '---\npaths: ["src/legacy/**"]\n---\n\n- x\n', '.claude/rules/later.md': '---\npaths: ["src/jobs/**"]\n---\n\n- y\n' });
+    const git = (...a) => execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...a], { cwd: root, stdio: 'ignore' });
+    git('init', '-q');
+    git('add', '-A');
+    git('commit', '-qm', 'init');
+    assert.ok(!issues(root).some((i) => /never loads/.test(i)));
+    rm(join(root, 'src/legacy'), { recursive: true });
+    const found = issues(root).filter((i) => /never loads/.test(i));
+    assert.deepEqual(found, ['rules: .claude/rules/legacy.md: scoped to `src/legacy/**`, which no longer exists — the rule never loads']);
+  });
+});

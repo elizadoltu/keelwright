@@ -9,10 +9,10 @@ export const TOOLS = ['Bash(node:*)', 'Bash(git log:*)', 'Bash(git show:*)', 'Ba
 export const MAX_TURNS_PER_CALL = 150;
 
 // Runs `claude -p` and returns its JSON result ({ result, total_cost_usd, session_id, is_error, … }).
-// `schema` asks for structured output (`structured_output` in the result); `maxBudgetUsd` is a hard
+// `env` adds environment variables (the eval runner's KEELWRIGHT_HOME). `schema` asks for structured output (`structured_output` in the result); `maxBudgetUsd` is a hard
 // limit for the call; `disallowedTools` and `system` (appended to the system prompt) shape a
 // read-only reviewer.
-export function claudeInvoke({ cwd, prompt, pluginDir, resume = null, model = null, tools = TOOLS, disallowedTools = [], system = null, schema = null, maxBudgetUsd = null, maxTurns = MAX_TURNS_PER_CALL, timeoutMs = 30 * 60_000 }) {
+export function claudeInvoke({ cwd, prompt, pluginDir, resume = null, model = null, tools = TOOLS, disallowedTools = [], system = null, schema = null, maxBudgetUsd = null, env = null, maxTurns = MAX_TURNS_PER_CALL, timeoutMs = 30 * 60_000 }) {
   const args = ['-p', prompt, '--output-format', 'json', '--max-turns', String(maxTurns)];
   if (schema) args.push('--json-schema', JSON.stringify(schema));
   if (maxBudgetUsd != null) args.push('--max-budget-usd', String(maxBudgetUsd));
@@ -23,7 +23,7 @@ export function claudeInvoke({ cwd, prompt, pluginDir, resume = null, model = nu
   if (model) args.push('--model', model);
   if (tools.length) args.push('--allowedTools', ...tools);
   return new Promise((resolve) => {
-    const child = spawn('claude', args, { cwd, stdio: ['ignore', 'pipe', 'pipe'] });
+    const child = spawn('claude', args, { cwd, stdio: ['ignore', 'pipe', 'pipe'], ...(env ? { env: { ...process.env, ...env } } : {}) });
     let out = '';
     let err = '';
     const timer = setTimeout(() => child.kill('SIGTERM'), timeoutMs);

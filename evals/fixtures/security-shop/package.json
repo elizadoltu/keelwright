@@ -1,0 +1,17 @@
+{
+  "name": "shop-api",
+  "version": "1.4.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node --watch src/server.js",
+    "start": "node src/server.js",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "2.45.4",
+    "express": "4.21.2",
+    "lodash": "4.17.20",
+    "pg": "8.13.1"
+  }
+}
