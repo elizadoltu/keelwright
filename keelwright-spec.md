@@ -27,6 +27,8 @@ One command that takes a project from **idea / specs / existing code** to:
 
 For existing projects: a way to **audit** the Claude setup and keep it up to date.
 
+For every project with something to attack: a **security reviewer** tailored to its risks (5.3), and a **security audit** of its code and dependencies that can be run again and again (7.7).
+
 One entry point works out which of these a folder needs (5.0), and each person sees the work through their role (5.7).
 
 ### Non-goals (for now)
@@ -247,7 +249,7 @@ interview → prd → { architecture, features, design } → research → scaffo
 |---|---|---|
 | `interview` | Project type, interview notes (`.keelwright/interview.md`) | — |
 | `prd` | PRD, document set, stack recommendation, resolved versions, ADR-0001, stack ADR | Gate 1 |
-| `architecture` | Remaining ADRs, architecture overview, C4, ERD + `schema.sql`, AI system design, AI eval plan, public API surface | Gate 2 (shared with `features` and `design`) |
+| `architecture` | Remaining ADRs, architecture overview, C4, ERD + `schema.sql`, threat model, AI system design, AI eval plan, public API surface | Gate 2 (shared with `features` and `design`) |
 | `features` | Feature breakdown, backlog | Gate 2 |
 | `design` | Visual identity + `design/tokens.json`, screen flow, GDD, asset pipeline, store release checklist | Gate 2 |
 | `research` | Stack packs for the chosen stack (5.4) | Gate 3 |
@@ -321,7 +323,7 @@ analyse → { document, research } → gaps → generate → publish
 | Step | Produces | Gate after it |
 |---|---|---|
 | `analyse` | `.keelwright/analysis.md`: project type and toolchain, stack and the versions in use, tasks, structure, conventions, existing docs, what tooling already enforces, gaps | Gate 1 |
-| `document` | Architecture overview (as built), ADR-0001 and ADRs **recorded retroactively** for the main existing decisions | Gate 2 (shared with `research`) |
+| `document` | Architecture overview (as built), threat model (as built), ADR-0001 and ADRs **recorded retroactively** for the main existing decisions | Gate 2 (shared with `research`) |
 | `research` | Stack packs for the stack in use, at the **major versions in use** (5.4) | Gate 2 |
 | `gaps` | Fixes for missing tooling, each shown as a diff and applied only when the user approves it | — |
 | `generate` | CLAUDE.md, rules, skills, subagents, hooks, CONTRIBUTING.md (5.3) | Final summary |
@@ -334,7 +336,7 @@ analyse → { document, research } → gaps → generate → publish
 - *Gaps:* no secret scanning, no git hooks, no CI or CI that doesn't run the checks, no test or lint task, no dependency updates, runtime or major versions past end-of-life (4.6), personal settings committed.
 - At gate 1 the user corrects the analysis. A convention they strike out is never turned into a rule.
 
-**`document`.** The architecture overview follows its template, describing the system as built (with C4 context and container diagrams when there is more than one deployable): locked versions, real routes and folders, flows traced through real files, the departures from the code's own style as debt; no NFR or story IDs, since there is no PRD. Retroactive ADRs (template `adr-retroactive.md`) record decisions already made — framework, database, hosting, auth, anything the code depends on heavily — one per "Decisions in the code" row without an ADR. Each says "Recorded retroactively by KeelWright from the code" with the date it was recorded, cites the files that show the decision, and leaves alternatives and decision-makers as "Not recorded" unless the docs, commit history or the user say otherwise — they are never invented. They are `proposed` until gate 2 and `accepted` after. `doccheck adr-retro` checks the note, the Alternatives section and that every cited file exists. Existing ADRs are kept in their own folder, naming and numbering, and new ones are numbered after them; ADR-0001 is written only when there are none. Existing docs are linked, not rewritten. No PRD.
+**`document`.** The architecture overview follows its template, describing the system as built (with C4 context and container diagrams when there is more than one deployable): locked versions, real routes and folders, flows traced through real files, the departures from the code's own style as debt; no NFR or story IDs, since there is no PRD. Retroactive ADRs (template `adr-retroactive.md`) record decisions already made — framework, database, hosting, auth, anything the code depends on heavily — one per "Decisions in the code" row without an ADR. Each says "Recorded retroactively by KeelWright from the code" with the date it was recorded, cites the files that show the decision, and leaves alternatives and decision-makers as "Not recorded" unless the docs, commit history or the user say otherwise — they are never invented. They are `proposed` until gate 2 and `accepted` after. `doccheck adr-retro` checks the note, the Alternatives section and that every cited file exists. Existing ADRs are kept in their own folder, naming and numbering, and new ones are numbered after them; ADR-0001 is written only when there are none. Existing docs are linked, not rewritten. No PRD. The threat model (6.0) is written as built too: the trust boundaries, entry points and data the code has, each mitigation citing the files that enforce it, and a risk with no mitigation in the code marked `open` — recorded, never fixed by the step. `/adopt` doesn't run the security audit (7.7); its final summary suggests `/keelwright:doctor security` once the setup is in place.
 
 **`research`.** As in 5.4, but for the major versions in use: a project on React 18 gets React 18 conventions, from the documentation for that major. Packs are chosen from the analysis, not from stack rules; the locked version of each pack's primary package is recorded in the state so a cached pack is reused only for the same major. A pack rule that contradicts a convention the analysis recorded is flagged at gate 2, and the project's convention wins unless the user decides otherwise. Newer majors are reported as gaps, never upgraded.
 
@@ -374,7 +376,7 @@ Rules, skills and hooks are built from the stack packs (5.4). The generator neve
 
 **CLAUDE.md** stays under 200 lines (Claude Code's guidance): what the project is, where the documents are, the commands, the stack, the structure, a few concrete working rules, the workflow and the agents — linking instead of repeating.
 
-**Skills:** `implement-story` (acceptance criteria → tests → code → checks → review → docs) and `new-adr` (numbering, superseding) always; `new-component` (Atomic Design level, theme tokens only) when there is a UI; `new-migration` when there is a database; `change-prompt` (prompt or tool by its `P-` / `T-` ID, eval cases, the `EV-` thresholds) for AI projects; `change-public-api` (breaking or not, the API surface, deprecation, the commit type that sets the version bump) for libraries.
+**Skills:** `implement-story` (acceptance criteria → tests → code → checks → review → docs) and `new-adr` (numbering, superseding) always; `security-review` when there is a threat model (below); `new-component` (Atomic Design level, theme tokens only) when there is a UI; `new-migration` when there is a database; `change-prompt` (prompt or tool by its `P-` / `T-` ID, eval cases, the `EV-` thresholds) for AI projects; `change-public-api` (breaking or not, the API surface, deprecation, the commit type that sets the version bump) for libraries.
 
 **Claude Code hooks** (scripts shipped with the plugin, copied unchanged into `.claude/hooks/`):
 - `guard-files` (before Edit / Write): blocks changes to accepted ADRs except superseding their status, edits to generated files (the theme), and new content gitleaks flags as a secret.
@@ -385,7 +387,7 @@ The hooks read which commands to run from `.claude/hooks/config.json`, which the
 
 **Settings:** `.claude/settings.json` allows only the project's own tasks and read-only git commands, denies force-push, `--no-verify` commits and reading `.env` files; `.claude/settings.local.json` is git-ignored.
 
-**Checked:** the step passes the project's own `check` task and `scripts/generatecheck.mjs` — CLAUDE.md size, commands that exist and use the project's task runner, paths that exist, no placeholders, the three agents with explicit tools and a read-only reviewer, skill descriptions, rule front matter, every applicable review rule covered and no unknown rule IDs, safe permissions, hook scripts present, `.gitignore`, the hook configuration for the toolchain, and CONTRIBUTING.md agreeing with the Conventional Commits check (commitlint or the pre-commit commit-msg hook).
+**Checked:** the step passes the project's own `check` task and `scripts/generatecheck.mjs` — CLAUDE.md size, commands that exist and use the project's task runner, paths that exist, no placeholders, the three agents with explicit tools and a read-only reviewer, a read-only `security-reviewer` naming the framework edition and only `SEC-` IDs that exist in the threat model (when there is one), skill descriptions, rule front matter, every applicable review rule covered and no unknown rule IDs, safe permissions, hook scripts present, `.gitignore`, the hook configuration for the toolchain, and CONTRIBUTING.md agreeing with the Conventional Commits check (commitlint or the pre-commit commit-msg hook).
 
 **Generated subagents**
 
@@ -393,9 +395,12 @@ The hooks read which commands to run from `.claude/hooks/config.json`, which the
 |---|---|---|
 | `reviewer` | Read, Grep, Glob, Bash (read-only commands); `disallowedTools: Write, Edit, MultiEdit, NotebookEdit` | Reviews changes against the chosen conventions (Clean Architecture, Atomic Design, Humble Object), the accepted ADRs and the PRD IDs. Never writes. |
 | `tester` | Read, Grep, Glob, Edit, Write, Bash | Turns acceptance criteria (`WHEN … SHALL`, Given / When / Then) and success criteria (`SC-`) into Vitest and Playwright tests named after their IDs. |
-| `docs-keeper` | Read, Grep, Glob, Edit, Write | Keeps the ERD, `schema.sql`, architecture overview, backlog and ADR index in sync with the code. Writes new ADRs; never edits accepted ones. |
+| `docs-keeper` | Read, Grep, Glob, Edit, Write | Keeps the ERD, `schema.sql`, architecture overview, threat model, backlog and ADR index in sync with the code. Writes new ADRs; never edits accepted ones. |
+| `security-reviewer` (when there is a threat model) | Read, Grep, Glob, Bash (read-only commands); `disallowedTools: Write, Edit, MultiEdit, NotebookEdit` | Reviews changes against the threat model's `SEC-` risks, the security framework for the project type at the edition in `reference/security.md` (7.7), and the stack packs' security rules. Approves unless there is a real issue; at most 5 findings, each with `file:line`, the `SEC-` or framework ID, the evidence and a concrete fix. Never writes. |
 
 The subagent definitions are tailored to the project (its conventions, commands and paths), not copied boilerplate. For other project types the `tester` uses the stack's test tools (e.g. the eval runner for AI projects).
+
+**Security reviewer.** Generated when the document set has a threat model (6.0) — that is, when there is something to attack. Its definition names the project's own risks, not a generic checklist: the `SEC-` risks with the paths, routes, tables or tools where each can happen, the roles and what each may do, the data classes marked personal, and the framework edition. The `security-review` skill is its procedure: which paths are security-sensitive (from the threat model), the checks per risk, how findings are reported. `implement-story` (and `implement-change`) runs the `security-reviewer` after the `reviewer` when a change touches a sensitive path, adds or upgrades a dependency, adds a migration, or adds an LLM tool; otherwise the `reviewer` carries a short security section (secrets, input at boundaries, dependencies). The packs' security rules of kind `review` go to `.claude/rules/security.md`, scoped to the sensitive paths, so both agents read the same rules. A project without a threat model (a static site with no forms, an offline game) gets no `security-reviewer`; its `reviewer` keeps the short section, plus headers and third-party scripts for web.
 
 The step ends with a short summary of everything generated, for the user to review.
 
@@ -406,6 +411,7 @@ Rules, skills and commands are based on **researched, current** practices for th
 - **What is researched:** project structure, naming, testing strategy, linting / formatting config, security practices, performance pitfalls, CI/CD and release patterns, and how the chosen conventions (4.2) map onto that stack.
 - **Sources, in priority order:** official documentation and style guides → framework maintainers' recommended setups → well-maintained reference projects → community sources, only to fill gaps.
 - **Output — "stack packs":** one Markdown file **per technology** (e.g. `astro`, `tailwind`, `vitest`), so packs are reusable across stacks; a project's stack is the set of packs it uses. Each pack has front matter (`id`, `packages`, researched `major`, `researchedAt`, `status`), one section per research topic, a **Rules** table — each rule concrete, with how it is enforced (`lint`, `format`, `types`, `hook`, `ci`, `test`, `config` or `review`, naming the exact tool and rule) and the sources it rests on — and a **Sources** table with each source's kind. The generator builds rules, skills, commands and hooks from the Rules tables. Template: `templates/stack-pack.md`; procedure: `steps/research-pack.md`.
+- **Security section:** names the framework item each rule guards against when there is one (e.g. `A01` from the OWASP Top 10, 7.7), so the generator can route the rules to `.claude/rules/security.md` and the `security-reviewer`, and the audit can tie a finding back to a rule.
 - **Checked:** `scripts/packs.mjs validate` enforces the structure: every rule cites a source, no rule rests on community sources alone, at least one official source, rule IDs `<ID>-NN`, known enforcement kinds.
 - **Reuse:** stack packs are cached and reused across projects. This keeps runs fast and results consistent, and makes the reasoning behind each rule traceable.
 - **Storage:** packs shipped with the plugin live in `keelwright/stack-packs/` (listed in `stack-packs/shipped.json`, produced and refreshed by the maintainer script `scripts/research-pack.mjs`). Packs researched during a run are saved to `~/.keelwright/stack-packs/` after gate 3, because the installed plugin folder is replaced on plugin updates. When both exist, the newer pack for the project's major wins; the cache keeps one file per pack and major (`<id>@<major>.md`), so a pack researched for an older major (for `/adopt`) sits next to the current one instead of replacing it. The packs a project uses are copied into `<project>/.keelwright/stack-packs/`, where they are reviewed and edited at gate 3 — edits there apply to that project only. Each project records the pack ids and research dates in `.keelwright/state.json`.
@@ -466,7 +472,7 @@ Different roles work with different documents. A personal profile (`~/.keelwrigh
 
   | Role | Working set |
   |---|---|
-  | Developer | architecture overview, ADRs, C4, ERD, API surface, development workflow, stack packs, the tooling gaps, the Claude setup |
+  | Developer | architecture overview, ADRs, C4, ERD, threat model, API surface, development workflow, stack packs, the tooling gaps, the Claude setup |
   | Project manager | PRD (goals, scope, release plan), feature breakdown and backlog, release checklist, Jira |
   | Business analyst | PRD requirements and acceptance criteria, user stories, ERD (the data, not the SQL), screen flow, test scenarios |
   | Account manager | open — to be defined (10) |
@@ -500,6 +506,7 @@ Each document has a **key** — the name of its template — used in the PRD's `
 | `architecture-overview` | Architecture overview | more than one container or service, or a backend exists — including a managed backend such as Supabase | `docs/architecture/overview.md` | `templates/architecture-overview.md` |
 | `c4` | C4 diagrams | same as architecture overview | `docs/architecture/c4/workspace.dsl` (Structurizr DSL) | `templates/c4-workspace.dsl` |
 | `erd` | ERD + SQL DDL | the project stores data | `docs/architecture/erd.md` (Mermaid `erDiagram`) + `docs/architecture/schema.sql` | `templates/erd.md`, `templates/schema.sql` |
+| `threat-model` | Threat model: assets and data classes (personal data marked), roles and what each may do, trust boundaries and entry points (from the C4 containers), `SEC-` risks — each with where it can happen (paths, routes, tables, tools), its mitigation, how that is enforced (RLS policy, test, lint rule, review) and a status | there is something to attack: a backend (including a managed one), user accounts, stored personal data, an API others call, an LLM with tools or user data, or a package or binary others install | `docs/security/threat-model.md` (1–2 pages) | `templates/threat-model.md` |
 | `feature-breakdown` | Feature breakdown | more than ~5 features, or delivery in several slices | `docs/features.md` | `templates/feature-breakdown.md` |
 | `visual-identity` | Visual identity | the project has a user-facing UI — for a game only when its UI is built with a UI framework | `docs/design/visual-identity.md` + `design/tokens.json` | `templates/visual-identity.md` |
 | `screen-flow` | Mobile screen flow | project type is mobile | `docs/design/screen-flow.md` | `templates/screen-flow.md` |
@@ -531,7 +538,7 @@ Diagrams are kept **as code** in the repository, versioned with the project. All
 All templates follow the same rules, based on research into PRD, ADR, GDD, eval and screen-flow best practice:
 
 - **Short.** PRD 1–3 pages, ADR one page, GDD max 2 pages. Small documents stay current; large ones go stale.
-- **Stable IDs.** `SC-001` (success criteria), `US-1` (user stories), `FR-001` / `NFR-001` (requirements), `ADR-NNNN`, `A-1` / `F-01` (activities / features), `BL-001` / `TD-001` (backlog / tech debt), `EV-001` (eval criteria), `S-01` (screens), `P-01` / `T-01` (prompts / tools in the AI system design), `API-001` (public API items). IDs are never renumbered, so agents and other documents can reference them.
+- **Stable IDs.** `SC-001` (success criteria), `US-1` (user stories), `FR-001` / `NFR-001` (requirements), `ADR-NNNN`, `A-1` / `F-01` (activities / features), `BL-001` / `TD-001` (backlog / tech debt), `EV-001` (eval criteria), `S-01` (screens), `P-01` / `T-01` (prompts / tools in the AI system design), `API-001` (public API items), `SEC-01` (threat model risks). IDs are never renumbered, so agents and other documents can reference them.
 - **Testable.** Acceptance criteria use `WHEN … THE SYSTEM SHALL …` or Given / When / Then, so they convert directly into tests.
 - **What vs how.** The PRD describes what and why; the stack and architecture live in ADRs and CLAUDE.md.
 - **Explicit non-goals and status.** Every document template has non-goals (or a cut list) where they apply and a `status` field in its front matter (`CONTRIBUTING.md` uses a hidden comment instead, see 6.0). Code-format templates (`schema.sql`, `workspace.dsl`) carry their rules in a header comment instead.
@@ -565,6 +572,7 @@ Documents are generated from each other, so they stay consistent:
 | Docs vs code | ADR versions vs the lockfile, the overview's routes and containers vs the code, `schema.sql` vs migrations, broken references, old open questions |
 | Stack | a new major since the packs were researched, end-of-life dates within six months, security advisories |
 | Tooling and security | the open gaps again (`ANALYSE --gaps`), gaps declined earlier worth another look, 7.3 |
+| Application security | the security audit (7.7): known vulnerabilities in the locked dependencies, secrets in the tree and history, data access (RLS), the threat model against the code; judgement review with `--deep` |
 | Delivery | PRD requirements with no story, stories with no test, Jira status vs what the code has (when Jira is linked) |
 | Process | commits follow the project's style, CI pass rate, hooks skipped (`--no-verify` in history) |
 
@@ -594,7 +602,9 @@ Documents are generated from each other, so they stay consistent:
 - Requirements only **requested** in text that should be **enforced** by a hook.
 - Hooks that are risky, slow, or fail silently.
 
-### 7.3 Security & hygiene
+### 7.3 Security & hygiene of the Claude setup
+
+The setup itself; the project's code and dependencies are the security audit (7.7).
 
 - Secrets or internal URLs in CLAUDE.md, rules, skills or settings — scanned with **gitleaks**, across the working tree and git history (a secret removed in a later commit is still leaked).
 - Missing secret scanning: no gitleaks pre-commit hook or CI step in the project.
@@ -616,6 +626,41 @@ Documents are generated from each other, so they stay consistent:
 
 - Run drift checks in **CI** or as a hook after large merges.
 - Audit `/kickoff` output a few weeks into a project; recurring findings feed back into the generator.
+
+### 7.7 Security audit — the project's code and dependencies
+
+`/keelwright:doctor security` runs only this area; every doctor run includes its mechanical checks. Like the rest of the doctor it is read-only, mechanical and free by default, with judgement behind `--deep`.
+
+**Frameworks per project type.** The editions live in `reference/security.md` and are updated in the plugin (like the frontend rules, 4.7), never looked up per run; the generated `security-reviewer` names the same edition.
+
+| Project type | Framework |
+|---|---|
+| Web | OWASP Top 10 (2025), with ASVS 5.0 level 1 as the checklist behind it |
+| Mobile | OWASP MASVS 2 |
+| AI / LLM | OWASP Top 10 for LLM Applications (2025), plus the web or API list for the rest of the system |
+| Library / CLI / API | OWASP API Security Top 10 (2023) for an API; for a library or CLI: input handling, unsafe defaults and supply chain (what the published package contains, install scripts, pinned release workflow) |
+| Game | The API list for an online backend; otherwise the mechanical checks only |
+
+**Mechanical checks (free, default)**
+
+| Check | How |
+|---|---|
+| Known vulnerabilities | Every **locked** dependency version (direct and transitive) queried against OSV.dev — one API for npm, PyPI, crates.io, pub.dev and more, Node.js built-ins only; severity from the advisory, the fixed version named. Offline or rate-limited: "not checked", never a pass. |
+| Secrets | gitleaks over the working tree and the whole git history; a secret found only in history still fails (rotate it — removing the commit isn't enough). |
+| Safety nets | The security gaps from `ANALYSE --gaps`: secret scanning in hooks and CI, dependency updates, CI actions pinned to a SHA, `.env*` git-ignored, lockfile committed. |
+| Data access | When the database is exposed through an API (e.g. Supabase): every table in the migrations has row-level security enabled and at least one policy; tables holding personal data per the threat model are named in the finding. |
+| Threat model vs code | `SEC-` mitigations whose enforcing file, policy or test no longer exists; containers, routes, tables or LLM tools added since the threat model's date that it doesn't mention. |
+| Static analysis (optional) | Semgrep, when installed, with the rulesets for the toolchain; findings limited to the project's own code. Not installed: "not checked", and the report says how to install it. |
+
+**Judgement review (`--deep`, costs money, `--max-cost` required).** The project's `security-reviewer` — or a read-only `security-auditor` shipped with the plugin when the project has none — reviews the whole codebase area by area, in the order of the threat model's trust boundaries, against the framework and the `SEC-` risks: access control on every route and handler, injection, authentication and sessions, input validation at boundaries, secrets and personal data in logs and errors, SSRF, unsafe deserialisation; for AI projects prompt injection reaching tools, unchecked model output and excessive agency. Every finding cites `file:line`, the framework or `SEC-` ID, the evidence and a concrete fix. A second, independent pass tries to disprove each finding before it is reported; findings it disproves or whose cited code doesn't exist are dropped.
+
+**Output**
+
+- **Findings:** severity (critical, high, medium, low), status (`open`, `accepted`, `fixed`), evidence and fix, in `.keelwright/security-audit.md` with a dated history. The file is **git-ignored by default** — open findings in a committed file disclose the vulnerabilities, worst of all in a public repository. `.keelwright/doctor.md` keeps only the counts per severity, so the trend is still committed.
+- **Accepted risks:** `.keelwright/security-accepted.json` (committed) holds each accepted finding's fingerprint, the reason, who accepted it and an expiry of at most 90 days, after which it comes back as `open`.
+- **Area result:** fail on any open critical or high finding or any leaked secret; warn on medium or low findings or a check that couldn't run; pass otherwise.
+- **Fixes** go through audit mode (7.4) as diffs approved one by one; dependency upgrades follow the version policy (4.6, an ADR for a new major). With Jira linked (5.6), critical and high findings become Jira issues when the user asks, labelled `security`; they are never published to Confluence.
+- **Limits:** the report says plainly that it is not a penetration test and doesn't cover the deployed infrastructure.
 
 ## 8. Test projects and evaluation
 
@@ -692,7 +737,7 @@ Examples from building the steps:
 |---|---|
 | **1 — MVP** | The complete `/kickoff` pipeline (5.1): all steps, review gates and the state file (5.1.2); every project type (4.4) with stack recommendation (4.5) and live version resolution (4.6); the full document catalog (6.0); research step with stack packs, shipping the default web stack and Astro first (5.4); scaffold (5.5); generator with CLAUDE.md, rules, skills, hooks, CONTRIBUTING.md and the three subagents (5.3); optional Jira / Confluence output. Run metrics and the evaluation suite (8.2–8.4). Validated by a run on one real project (8.1). |
 | **2** | `/adopt` create mode. |
-| **3** | The doctor (7.0); `/start` (5.0) with audit mode (7.4) as its route for projects with a Claude setup; profiles (5.7). |
+| **3** | The doctor (7.0) with the security audit (7.7); the threat model and the generated `security-reviewer` (5.3); `/start` (5.0) with audit mode (7.4) as its route for projects with a Claude setup; profiles (5.7). |
 | **4** | Visual app on top of the plugin engine (headless Claude Code / Agent SDK); the doctor's history is its first view. |
 
 **Phase 1 build order**
@@ -723,13 +768,18 @@ Examples from building the steps:
 **Phase 3 build order**
 
 1. Doctor, mechanical checks only: `scripts/doctor.mjs` reusing the existing checkers, `.keelwright/doctor.md` with history, `/keelwright:doctor`; tested on the esn-fm adoption and on a project with a hand-made Claude setup.
-2. `/start`: the routing in the preflight, the command, `/kickoff` and `/adopt` kept as overrides.
-3. Audit mode: the doctor's findings as fixes, approved one by one (7.4); `/start`'s route for a project with a Claude setup.
-4. Profiles: `/keelwright:profile`, role-tagged questions, working sets at gates, in the report and in the doctor; pm-skills offered to the PM profile.
-5. Evaluation cases for routing, the doctor (planted drift) and role-tagged questions; a run on a real repository with a Claude setup.
+   - 1.1 The security audit's mechanical checks (7.7): OSV lookup of the locked versions, gitleaks over history, the security gaps, RLS in migrations, the optional Semgrep run; `/keelwright:doctor security`; `.keelwright/security-audit.md` git-ignored and `security-accepted.json` with expiry.
+2. Security reviewer: the `threat-model` catalog key and template, written by `architecture` (`/kickoff`) and `document` (`/adopt`, as built) with a `doccheck threat-model` (length, `SEC-` IDs, every cited file exists); `reference/security.md` with the framework editions; the `security-reviewer` agent, `security-review` skill and `.claude/rules/security.md` in `generate`, the hand-off from `implement-story` / `implement-change`; `generatecheck` checks for them. Changes `scripts/lib/pipeline.mjs`, both commands and 5.1.2 / 5.2.1 / 6.0 together.
+3. `/start`: the routing in the preflight, the command, `/kickoff` and `/adopt` kept as overrides.
+4. Audit mode: the doctor's findings as fixes, approved one by one (7.4); `/start`'s route for a project with a Claude setup.
+5. The security audit's judgement review (`--deep`, 7.7): area-by-area review, the disproving second pass, the plugin's `security-auditor` for projects without a `security-reviewer`, Jira issues for critical and high findings on request.
+6. Profiles: `/keelwright:profile`, role-tagged questions, working sets at gates, in the report and in the doctor; pm-skills offered to the PM profile.
+7. Evaluation cases for routing, the doctor (planted drift), role-tagged questions and security: a fixture repository with planted vulnerabilities (an injectable query, a table without RLS, a hard-coded key in history, a dependency with a known advisory, a route missing its role check), graded on each one found, no finding citing missing code, and the threat model naming the planted surface; a run on a real repository with a Claude setup.
 
 ## 10. Open questions
 
 - **Account manager profile** — what they need from KeelWright (being researched with account managers).
+- **Static analysis** — Semgrep as an optional tool (7.7), or also offered as a gap for projects without one; its community rules' licence allows local use, to be confirmed for anything hosted (Phase 4).
+- **Security findings at gates** — whether an open critical finding should block `/kickoff publish` or only be shown.
 
 Name decided: **KeelWright** — a wright is a builder; a keel is what keeps a vessel stable and on course.
