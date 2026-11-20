@@ -1,0 +1,8 @@
+{
+  "description": "/start in a folder with only notes (a running club's ideas): routes to /kickoff with the notes as its input. One call: the interview's first questions.",
+  "mode": "command",
+  "command": "/keelwright:start",
+  "replies": [],
+  "expect": { "route": "kickoff" },
+  "judges": []
+}

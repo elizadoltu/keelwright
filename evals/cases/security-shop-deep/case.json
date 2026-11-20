@@ -1,0 +1,22 @@
+{
+  "description": "The deep security review (doctor security --deep) and the mechanical audit on the security-shop fixture, with five planted vulnerabilities: an injectable order lookup, a delete-user route without the admin check, the orders table without RLS, lodash 4.17.20 (known advisories), and a Stripe key in the history only. Graded on each one found, no finding citing missing code, and the cost limit.",
+  "mode": "deep",
+  "repo": "../../fixtures/security-shop",
+  "secret": ["sk_", "live_", "51NcQ8x", "Rb2kTq9vLm", "Z4wPfYh7Gd"],
+  "history": [
+    { "message": "feat: card payments", "files": { "src/payments.js": "// Card payments go through Stripe.\nconst STRIPE_KEY = '{{SECRET}}';\nexport const stripeKey = () => STRIPE_KEY;\n" } }
+  ],
+  "maxCost": 3,
+  "expect": {
+    "planted": [
+      { "id": "sql-injection", "file": "src/routes/orders.js", "match": "inject|sql|A05" },
+      { "id": "admin-role-check", "file": "src/routes/admin.js", "match": "admin|role|authori[sz]|access control|A01|API5" }
+    ],
+    "mechanical": [
+      { "check": "rls", "fingerprint": "^rls:orders$" },
+      { "check": "dependencies", "fingerprint": "^osv:.*:npm:lodash$" },
+      { "check": "secrets", "fingerprint": "^secret:.*:src/payments\\.js$" }
+    ]
+  },
+  "judges": []
+}

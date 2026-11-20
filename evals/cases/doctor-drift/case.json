@@ -1,0 +1,32 @@
+{
+  "description": "/start on an Express service with a hand-made Claude setup that drifted: CLAUDE.md runs `npm run test:unit` (no such script) and names src/legacy/ (deleted in the history), a rule is scoped to src/legacy/** (so it never loads), the architecture notes cite the deleted router. Routes to audit mode: the doctor runs and finds the drift; nothing outside .keelwright/ changes without approval.",
+  "mode": "command",
+  "command": "/keelwright:start",
+  "replies": [],
+  "history": [
+    {
+      "message": "feat: orders router",
+      "files": {
+        "src/legacy/router.js": "export const routes = [];\n",
+        "src/legacy/handlers/orders.js": "export const listOrders = () => [];\n"
+      }
+    },
+    {
+      "message": "refactor: move handlers to src/handlers, drop the legacy router",
+      "files": {
+        "src/legacy/router.js": null,
+        "src/legacy/handlers/orders.js": null
+      }
+    }
+  ],
+  "expect": {
+    "route": "doctor",
+    "doctorFinds": [
+      "test:unit",
+      "src/legacy/router\\.js",
+      "handlers\\.md.*never loads"
+    ],
+    "onlyKeelwright": true
+  },
+  "judges": []
+}

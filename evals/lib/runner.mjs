@@ -5,13 +5,26 @@
 // /adopt cases (`"mode": "adopt"`) start from the case's `repo/` folder, committed to a fresh git
 // repository, and record a hash of every file before and after, so graders can check that the
 // run changed nothing it shouldn't and that every file it cites exists.
+//
+// Phase 3 cases (spec 9, step 7) start from a repository the same way:
+//   "mode": "command"  runs one command (`command`) and then each of `replies`, in one session —
+//                      /start's routing, the doctor and audit mode;
+//   "mode": "deep"     runs the security audit's deep review (lib/deep.mjs) under the case's
+//                      `maxCost`, then the mechanical audit — no command, no session.
+// `repo` points at another folder (e.g. a shared fixture in evals/fixtures/); `history` is a list
+// of commits made before the repository's own files ({ message, files: { path: text | null } }),
+// so a secret can live only in the history; `secret` is that secret in pieces, joined at run time
+// into `{{SECRET}}`, so no secret-looking string is committed to KeelWright. Every run gets its own
+// profile folder (KEELWRIGHT_HOME): the case's `profile`, or one already asked and skipped.
 
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { copyFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, relative } from 'node:path';
+import { dirname, join, relative } from 'node:path';
 import { claudeInvoke } from '../../scripts/lib/claude.mjs';
+import * as Deep from '../../scripts/lib/deep.mjs';
+import * as Sec from '../../scripts/lib/security.mjs';
 import { next } from '../../scripts/lib/state.mjs';
 
 export { claudeInvoke };
@@ -59,20 +72,61 @@ export function snapshot(root) {
   return out;
 }
 
-function prepareAdopt(c, work) {
-  cpSync(join(c.dir, 'repo'), work, { recursive: true });
+export const REPO_MODES = new Set(['adopt', 'command', 'deep']);
+
+export function prepareRepo(c, work) {
   const git = (...args) => execFileSync('git', ['-c', 'user.name=KeelWright eval', '-c', 'user.email=eval@keelwright.invalid', ...args], { cwd: work, stdio: 'ignore' });
   git('init', '-q', '-b', 'main');
+  const secret = (c.secret ?? []).join('');
+  for (const commit of c.history ?? []) {
+    for (const [f, text] of Object.entries(commit.files)) {
+      if (text === null) {
+        rmSync(join(work, f), { force: true });
+        // Like a clone: a folder left empty by the deletion is gone too.
+        for (let d = dirname(f); d !== '.' && readdirSync(join(work, d)).length === 0; d = dirname(d)) rmSync(join(work, d), { recursive: true });
+      }
+      else {
+        mkdirSync(join(work, f, '..'), { recursive: true });
+        writeFileSync(join(work, f), text.replaceAll('{{SECRET}}', secret));
+      }
+    }
+    git('add', '-A');
+    git('commit', '-q', '--allow-empty', '-m', commit.message);
+  }
+  cpSync(join(c.dir, c.repo ?? 'repo'), work, { recursive: true });
   git('add', '-A');
-  git('commit', '-qm', 'chore: the project before /adopt');
+  git('commit', '-qm', c.mode === 'adopt' ? 'chore: the project before /adopt' : 'chore: the project as it is');
+}
+
+// The run's own profile folder: never the developer's ~/.keelwright.
+function profileHome(c) {
+  const dir = mkdtempSync(join(tmpdir(), 'keelwright-eval-profile-'));
+  writeFileSync(join(dir, 'profile.json'), `${JSON.stringify({ ...(c.profile ?? {}), asked: true }, null, 2)}\n`);
+  return dir;
+}
+
+// A deep case: the deep review under `maxCost`, then the mechanical audit, both recorded in
+// .keelwright/security/. The review's calls go through `invoke` like every other call.
+async function runDeep(c, work, { pluginDir, invoke, model, log }) {
+  const call = ({ prompt, system, schema, maxBudgetUsd }) => invoke({ cwd: work, prompt, system, schema, maxBudgetUsd, model, tools: Deep.TOOLS, disallowedTools: Deep.DISALLOWED_TOOLS, maxTurns: 60, timeoutMs: 20 * 60_000 });
+  const result = await Deep.run(work, { pluginRoot: pluginDir, maxCost: c.maxCost, invoke: call, log: (m) => log(`  ${m}`) });
+  Deep.save(work, result);
+  const audit = await Sec.audit(work, { offline: Boolean(c.offline) });
+  Sec.record(work, audit);
+  return { calls: result.areas.map((a) => ({ prompt: `deep: ${a.name}`, cost: a.cost ?? 0, error: a.status === 'failed', reply: a.reason ?? a.status })), stop: `deep review: ${result.areas.filter((a) => a.status === 'reviewed').length} areas reviewed`, cost: result.cost };
 }
 
 export async function runCase(c, { pluginDir, outDir, invoke = claudeInvoke, model = null, log = () => {} }) {
   const work = mkdtempSync(join(tmpdir(), `keelwright-eval-${c.name}-`));
   const adopt = c.mode === 'adopt';
-  if (adopt) prepareAdopt(c, work);
+  const fromRepo = REPO_MODES.has(c.mode);
+  if (fromRepo) prepareRepo(c, work);
   else copyFileSync(join(c.dir, 'input.md'), join(work, 'input.md'));
-  const before = adopt ? snapshot(work) : null;
+  const before = fromRepo ? snapshot(work) : null;
+  const home = profileHome(c);
+  const env = { KEELWRIGHT_HOME: home };
+  const userInvoke = invoke;
+  invoke = (args) => userInvoke({ ...args, env });
   const calls = [];
   let session = null;
   let answersUsed = 0;
@@ -80,6 +134,29 @@ export async function runCase(c, { pluginDir, outDir, invoke = claudeInvoke, mod
   let message = adopt ? '/keelwright:adopt' : '/keelwright:kickoff input.md';
   let lastSignature = null;
   let fresh = false;
+  let deepCost = 0;
+
+  if (c.mode === 'deep') {
+    const r = await runDeep(c, work, { pluginDir, invoke, model, log });
+    calls.push(...r.calls);
+    stop = r.stop;
+    deepCost = r.cost;
+    message = null;
+  } else if (c.mode === 'command') {
+    // One session: the command, then each scripted reply.
+    for (const [i, prompt] of [c.command, ...(c.replies ?? [])].entries()) {
+      log(`  call ${i + 1}: ${prompt.slice(0, 70)}`);
+      const r = await invoke({ cwd: work, prompt, pluginDir, resume: session, model });
+      session = r.session_id ?? session;
+      calls.push({ prompt, cost: r.total_cost_usd ?? 0, turns: r.num_turns ?? null, error: Boolean(r.is_error), reply: String(r.result ?? '').slice(-2000) });
+      if (r.is_error && !session) {
+        stop = `claude failed: ${String(r.result).slice(0, 200)}`;
+        break;
+      }
+    }
+    stop ??= 'replies done';
+    message = null;
+  }
 
   for (let i = 0; i < MAX_CALLS && message; i++) {
     if (fresh) {
@@ -114,13 +191,14 @@ export async function runCase(c, { pluginDir, outDir, invoke = claudeInvoke, mod
     stop = step.stop ?? null;
   }
   if (!stop && message) stop = `stopped after ${MAX_CALLS} calls`;
+  rmSync(home, { recursive: true, force: true });
 
   // Keep what the run produced for grading and inspection, then drop the temporary folder.
   mkdirSync(outDir, { recursive: true });
-  for (const p of ['.keelwright', 'docs', 'design', 'evals/data', ...(adopt ? ['CLAUDE.md', '.claude', 'CONTRIBUTING.md'] : [])]) {
+  for (const p of ['.keelwright', 'docs', 'design', 'evals/data', ...(fromRepo ? ['CLAUDE.md', '.claude', 'CONTRIBUTING.md'] : [])]) {
     if (existsSync(join(work, p))) cpSync(join(work, p), join(outDir, p), { recursive: true });
   }
-  if (adopt) {
+  if (fromRepo) {
     // Every file before and after the run; ADR folders outside docs/ are kept too.
     mkdirSync(join(outDir, '.eval'), { recursive: true });
     writeFileSync(join(outDir, '.eval/files.json'), `${JSON.stringify({ before, after: snapshot(work) }, null, 2)}\n`);
@@ -128,5 +206,5 @@ export async function runCase(c, { pluginDir, outDir, invoke = claudeInvoke, mod
     if (adrFolder && !adrFolder.startsWith('docs/') && existsSync(join(work, adrFolder))) cpSync(join(work, adrFolder), join(outDir, adrFolder), { recursive: true });
   }
   rmSync(work, { recursive: true, force: true });
-  return { calls, stop, cost: calls.reduce((s, x) => s + x.cost, 0) };
+  return { calls, stop, cost: c.mode === 'deep' ? deepCost : calls.reduce((s, x) => s + x.cost, 0) };
 }

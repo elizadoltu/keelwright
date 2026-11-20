@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, describe, test } from 'node:test';
-import { GRADERS, loadRun, parseVerdict } from '../evals/lib/graders.mjs';
+import { GRADERS, PHASE3_GRADERS, loadRun, parseVerdict } from '../evals/lib/graders.mjs';
 import { nextMessage, runCase } from '../evals/lib/runner.mjs';
 import { summarise, toMarkdown } from '../evals/lib/summary.mjs';
 import * as S from '../scripts/lib/state.mjs';
@@ -289,3 +290,117 @@ describe('/adopt eval cases', () => {
     }
   });
 });
+
+describe('Phase 3 eval cases', () => {
+  const PLUGIN = join(import.meta.dirname, '..');
+  const CASES = join(PLUGIN, 'evals/cases');
+  const load = (name) => ({ name, dir: join(CASES, name), ...JSON.parse(readFileSync(join(CASES, name, 'case.json'), 'utf8')) });
+  const grade = (c, dir) => {
+    const run = loadRun(dir, c);
+    const phase3 = c.mode === 'command' || c.mode === 'deep';
+    return Object.fromEntries(Object.entries(GRADERS).filter(([k]) => !phase3 || PHASE3_GRADERS.has(k)).map(([k, fn]) => [k, fn(run, c.expect ?? {}, c)]).filter(([, v]) => v));
+  };
+
+  test('a fixture’s history: the secret only in an earlier commit, assembled at run time; emptied folders gone', async () => {
+    const { prepareRepo } = await import('../evals/lib/runner.mjs');
+    const c = load('security-shop-deep');
+    const work = temp();
+    prepareRepo(c, work);
+    const { execFileSync } = await import('node:child_process');
+    const log = execFileSync('git', ['log', '--format=%s'], { cwd: work, encoding: 'utf8' }).trim().split('\n');
+    assert.deepEqual(log, ['chore: the project as it is', 'feat: card payments']);
+    assert.match(execFileSync('git', ['show', 'HEAD~1:src/payments.js'], { cwd: work, encoding: 'utf8' }), new RegExp(c.secret.join('')));
+    assert.doesNotMatch(readFileSync(join(work, 'src/payments.js'), 'utf8'), /sk_live/);
+    // No secret-looking string is committed to KeelWright itself.
+    assert.doesNotMatch(readFileSync(join(c.dir, 'case.json'), 'utf8'), /sk_live_/);
+    const d = load('doctor-drift');
+    const w2 = temp();
+    prepareRepo(d, w2);
+    assert.equal(existsSync(join(w2, 'src/legacy')), false);
+  });
+
+  test('every run gets its own profile folder, never the developer’s', async () => {
+    const seen = [];
+    const invoke = async ({ env }) => {
+      seen.push(env?.KEELWRIGHT_HOME);
+      assert.deepEqual(JSON.parse(readFileSync(join(env.KEELWRIGHT_HOME, 'profile.json'), 'utf8')), { role: 'project-manager', name: 'Ana Pop', asked: true });
+      return { session_id: 's', total_cost_usd: 0.1, result: 'ok' };
+    };
+    await runCase({ ...load('pm-kickoff-booking'), stopAtGate: 1 }, { pluginDir: PLUGIN, outDir: temp(), invoke });
+    assert.ok(seen.length && seen.every((h) => h && h.includes('keelwright-eval-profile-')));
+    assert.equal(existsSync(seen[0]), false, 'removed after the run');
+  });
+
+  test('command cases: the command, then each reply, in one session; graded on the route and on what changed', async () => {
+    const prompts = [];
+    // A well-behaved /start on doctor-drift: audit mode runs the doctor and asks before fixing.
+    const invoke = async ({ cwd, prompt, resume }) => {
+      prompts.push([prompt, resume]);
+      execFileSyncNode(['scripts/doctor.mjs', '--root', cwd, '--offline']);
+      return { session_id: 'sess', total_cost_usd: 0.2, result: 'Go through the fixes?' };
+    };
+    const c = load('doctor-drift');
+    const out = temp();
+    const r = await runCase(c, { pluginDir: PLUGIN, outDir: out, invoke });
+    assert.deepEqual(prompts, [['/keelwright:start', null]]);
+    assert.equal(r.stop, 'replies done');
+    const g = grade(c, out);
+    assert.deepEqual(Object.fromEntries(Object.entries(g).map(([k, v]) => [k, v.pass])), { route: true, 'doctor-found': true, 'only-keelwright': true });
+
+    // One that fixes without asking fails only-keelwright; one that starts a pipeline fails route.
+    const eager = async ({ cwd }) => {
+      execFileSyncNode(['scripts/doctor.mjs', '--root', cwd, '--offline']);
+      write(cwd, 'CLAUDE.md', '# fixed\n');
+      return { session_id: 's', total_cost_usd: 0.2, result: 'done' };
+    };
+    const out2 = temp();
+    await runCase(c, { pluginDir: PLUGIN, outDir: out2, invoke: eager });
+    assert.match(grade(c, out2)['only-keelwright'].detail, /changed: CLAUDE\.md/);
+  });
+
+  test('deep cases: the review under the case’s limit, then the mechanical audit; planted findings graded', async () => {
+    const c = { ...load('security-shop-deep'), offline: true };
+    const invoke = async ({ prompt, schema, maxBudgetUsd }) => {
+      assert.ok(maxBudgetUsd <= c.maxCost);
+      if (schema?.properties?.findings) {
+        const area = /\*\*(.+?)\*\*/.exec(prompt)[1];
+        const findings = area === 'src/routes'
+          ? [
+              { file: 'src/routes/orders.js', line: 15, category: 'A05', severity: 'critical', title: 'SQL injection in the order lookup', evidence: 'req.params.id and status are interpolated', fix: 'parameterise' },
+              { file: 'src/routes/admin.js', line: 17, category: 'A01', severity: 'high', title: 'Any signed-in user can delete users', evidence: 'no requireAdmin on DELETE /admin/users/:id', fix: 'add requireAdmin' },
+            ]
+          : [];
+        return { structured_output: { findings }, total_cost_usd: 0.3 };
+      }
+      return { structured_output: { verdicts: [0, 1].map((index) => ({ index, holds: true, reason: 'traced' })) }, total_cost_usd: 0.2 };
+    };
+    const out = temp();
+    const r = await runCase(c, { pluginDir: PLUGIN, outDir: out, invoke });
+    assert.ok(r.cost > 0 && r.cost <= c.maxCost);
+    const g = grade(c, out);
+    assert.equal(g['planted-found'].pass, true, g['planted-found'].detail);
+    assert.equal(g['findings-real'].pass, true, g['findings-real'].detail);
+    assert.equal(g['mechanical-found'].pass, true, g['mechanical-found'].detail);
+    assert.match(g['mechanical-found'].detail, /skipped: dependencies \(offline/);
+  });
+
+  test('marker-roles: known tags, and the expected questions with the expected role', () => {
+    const c = load('pm-kickoff-booking');
+    const dir = temp();
+    write(dir, 'docs/prd.md', '- [NEEDS CLARIFICATION (pm): launch date, after the budget approval?]\n- [NEEDS CLARIFICATION (ba): cancellation and no-show rules?]\n- [NEEDS CLARIFICATION (dev): can we read the old PHP membership app?]\n');
+    assert.equal(GRADERS['marker-roles'](loadRun(dir, c), c.expect, c).pass, true);
+    write(dir, 'docs/prd.md', '- [NEEDS CLARIFICATION: launch date?]\n- [NEEDS CLARIFICATION (cto): PHP app?]\n');
+    const r = GRADERS['marker-roles'](loadRun(dir, c), c.expect, c);
+    assert.equal(r.pass, false);
+    assert.match(r.detail, /unknown tag/);
+    assert.match(r.detail, /no \(ba\) question/);
+  });
+});
+
+function execFileSyncNode(args) {
+  try {
+    return execFileSync('node', args, { cwd: join(import.meta.dirname, '..'), stdio: 'ignore' });
+  } catch {
+    // the doctor exits 1 when an area fails
+  }
+}

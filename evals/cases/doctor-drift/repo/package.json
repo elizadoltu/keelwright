@@ -1,0 +1,13 @@
+{
+  "name": "orders-service",
+  "version": "2.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node --watch src/index.js",
+    "test": "node --test",
+    "lint": "eslint ."
+  },
+  "dependencies": { "express": "4.21.2" },
+  "devDependencies": { "eslint": "9.17.0" }
+}

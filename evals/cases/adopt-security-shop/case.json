@@ -1,0 +1,17 @@
+{
+  "description": "/adopt on the security-shop fixture (Express + Supabase Postgres through pg): the threat model, written as built, names the planted attack surface — the orders table, the admin routes, the profiles table.",
+  "mode": "adopt",
+  "repo": "../../fixtures/security-shop",
+  "secret": ["sk_", "live_", "51NcQ8x", "Rb2kTq9vLm", "Z4wPfYh7Gd"],
+  "history": [
+    { "message": "feat: card payments", "files": { "src/payments.js": "// Card payments go through Stripe.\nconst STRIPE_KEY = '{{SECRET}}';\nexport const stripeKey = () => STRIPE_KEY;\n" } }
+  ],
+  "stopAtGate": 2,
+  "expect": {
+    "mode": "adopt",
+    "toolchain": "node",
+    "documents": { "include": ["threat-model"] },
+    "threatSurface": ["\\borders\\b", "/admin|admin route|admin/users", "profiles"]
+  },
+  "judges": []
+}

@@ -304,7 +304,96 @@ export const GRADERS = {
     const bare = run.adrs.filter((f) => !f.startsWith('0001-') && !/^\d{4}-hold-/.test(f)).filter((f) => !/\b(?:US-\d+|(?:FR|NFR|SC)-\d{3})\b/.test(read(run.dir, `docs/decisions/${f}`)));
     return result(run.adrs.length > 1 && !bare.length, bare.length ? `no requirement IDs: ${bare.join(', ')}` : `${run.adrs.length} ADRs`);
   },
+
+  // --- Phase 3 (spec 9, step 7) -----------------------------------------------------------------
+
+  // /start took the expected route: a kickoff or adoption started, or the doctor ran (audit mode)
+  // without starting a pipeline.
+  route: (run, expect) => {
+    if (!expect.route) return null;
+    const doctor = existsSync(join(run.dir, '.keelwright/doctor.md'));
+    const got = run.state ? run.state.mode ?? 'kickoff' : doctor ? 'doctor' : 'none';
+    return result(got === expect.route, `got ${got}`);
+  },
+
+  // The doctor's record names each planted problem.
+  'doctor-found': (run, expect) => {
+    if (!expect.doctorFinds) return null;
+    const text = read(run.dir, '.keelwright/doctor.md');
+    if (!text) return result(false, 'no .keelwright/doctor.md');
+    const missing = expect.doctorFinds.filter((re) => !new RegExp(re, 'i').test(text));
+    return result(!missing.length, missing.length ? `not found: ${missing.join(', ')}` : `${expect.doctorFinds.length} planted problems found`);
+  },
+
+  // Read-only commands (the doctor; audit mode before any approval) change nothing but .keelwright/.
+  'only-keelwright': (run, expect) => {
+    if (!expect.onlyKeelwright || !run.files) return null;
+    const { before, after } = run.files;
+    const changed = [...new Set([...Object.keys(before), ...Object.keys(after)])].filter((f) => before[f] !== after[f] && !f.startsWith('.keelwright/'));
+    return result(!changed.length, changed.length ? `changed: ${changed.join(', ')}` : 'only .keelwright/ changed');
+  },
+
+  // Open questions carry a known role tag (spec 5.7), and the expected ones the expected role.
+  'marker-roles': (run, expect, c) => {
+    if (!['kickoff', undefined].includes(c.mode)) return null;
+    const prd = read(run.dir, 'docs/prd.md');
+    if (!prd) return expect.markerRoles ? result(false, 'no docs/prd.md') : null;
+    const markers = prd.split('\n').filter((l) => l.includes('[NEEDS CLARIFICATION'));
+    const bad = markers.filter((l) => /\[NEEDS CLARIFICATION\s*\(/.test(l) && !/\[NEEDS CLARIFICATION\s*\((dev|pm|ba|am)\)/.test(l));
+    const wrong = (expect.markerRoles ?? []).filter(({ match, role }) => !markers.some((l) => new RegExp(match, 'i').test(l) && l.includes(`(${role})`)));
+    const problems = [...bad.map((l) => `unknown tag: ${l.trim().slice(0, 80)}`), ...wrong.map((w) => `no (${w.role}) question about /${w.match}/`)];
+    if (!expect.markerRoles && !markers.length) return null;
+    return result(!problems.length, problems.length ? problems.join('; ') : `${markers.length} markers, ${markers.filter((l) => /\((dev|pm|ba|am)\)/.test(l)).length} tagged`);
+  },
+
+  // The threat model names the planted attack surface (tables, routes).
+  'threat-surface': (run, expect) => {
+    if (!expect.threatSurface) return null;
+    const text = read(run.dir, 'docs/security/threat-model.md');
+    if (!text) return result(false, 'no docs/security/threat-model.md');
+    const missing = expect.threatSurface.filter((re) => !new RegExp(re, 'i').test(text));
+    const problems = [...missing.map((m) => `not named: ${m}`), ...checkDocument(text, { type: 'threat-model', exists: run.files ? (p) => run.files.after[p] !== undefined || Object.keys(run.files.after).some((f) => f.startsWith(p.replace(/\/?$/, '/'))) : null }).issues.map((i) => `doccheck: ${i.issue}`)];
+    return result(!problems.length, problems.length ? problems.join('; ') : `${expect.threatSurface.length} planted surfaces named`);
+  },
+
+  // The deep review found each planted vulnerability: a finding in the right file whose title,
+  // category or evidence matches.
+  'planted-found': (run, expect) => {
+    if (!expect.planted) return null;
+    const deep = JSON.parse(read(run.dir, '.keelwright/security/deep.json') ?? 'null');
+    if (!deep) return result(false, 'no deep review recorded');
+    const missed = expect.planted.filter((p) => !deep.findings.some((f) => f.file === p.file && new RegExp(p.match, 'i').test(`${f.category} ${f.title} ${f.evidence}`)));
+    return result(!missed.length, missed.length ? `missed: ${missed.map((m) => m.id).join(', ')}` : `${expect.planted.length} planted vulnerabilities found (${deep.findings.length} findings, $${deep.cost})`);
+  },
+
+  // No deep finding cites code the project doesn't have, and the review kept to its limit.
+  'findings-real': (run, expect, c) => {
+    if (!expect.planted) return null;
+    const deep = JSON.parse(read(run.dir, '.keelwright/security/deep.json') ?? 'null');
+    if (!deep) return result(false, 'no deep review recorded');
+    const phantom = deep.findings.filter((f) => run.files && run.files.after[f.file] === undefined);
+    const over = c.maxCost != null && deep.cost > c.maxCost;
+    return result(!phantom.length && !over, [phantom.length ? `cite missing files: ${phantom.map((f) => f.file).join(', ')}` : '', over ? `cost $${deep.cost} over the $${c.maxCost} limit` : ''].filter(Boolean).join('; ') || `${deep.findings.length} findings, all real; $${deep.cost} of $${c.maxCost}`);
+  },
+
+  // The mechanical audit found the planted problems it can see (fingerprint patterns). A check
+  // that couldn't run here (gitleaks not installed, offline) is skipped, not failed.
+  'mechanical-found': (run, expect) => {
+    if (!expect.mechanical) return null;
+    const audit = JSON.parse(read(run.dir, '.keelwright/security/audit.json') ?? 'null')?.last;
+    if (!audit) return result(false, 'no security audit recorded');
+    const missed = [];
+    const skipped = [];
+    for (const { check, fingerprint } of expect.mechanical) {
+      if (audit.checks[check]?.status !== 'checked') skipped.push(`${check} (${audit.checks[check]?.reason ?? 'not run'})`);
+      else if (!audit.findings.some((f) => new RegExp(fingerprint).test(f.fingerprint))) missed.push(fingerprint);
+    }
+    return result(!missed.length, [missed.length ? `missed: ${missed.join(', ')}` : `found ${expect.mechanical.length - skipped.length}`, skipped.length ? `skipped: ${skipped.join('; ')}` : ''].filter(Boolean).join('; '));
+  },
 };
+
+// Graders that apply to Phase 3 cases ("command", "deep"); the pipeline graders don't.
+export const PHASE3_GRADERS = new Set(['route', 'doctor-found', 'only-keelwright', 'planted-found', 'findings-real', 'mechanical-found', 'mode']);
 
 // Versions: every package version is a stable published release on the toolchain's registry
 // (npm, PyPI, pub.dev, crates.io) and every runtime is the current one; anything older than the
