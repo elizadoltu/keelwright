@@ -1,3 +1,5 @@
+<p align="center"><img src="assets/logo.svg" alt="KeelWright logo" width="96" height="96"></p>
+
 # KeelWright
 
 A Claude Code plugin that takes a project from **idea or specs** to project documents, a scaffolded repository and a project-specific Claude setup, with review gates where you edit the documents before the pipeline continues.
