@@ -163,8 +163,14 @@ function checkTooling(root, ctx, add) {
 const CONVENTIONAL = /^(\w+)(\([^)]*\))?!?: \S/;
 
 function checkProcess(root, ctx, add) {
-  const subjects = gitLines(root, ['log', `-${COMMITS}`, '--no-merges', '--format=%s']);
-  if (subjects === null) return false;
+  if (gitLines(root, ['rev-parse', '--git-dir']) === null) return false;
+  // A repository with no commits: the hooks, gitleaks and CI have never run on anything (found in
+  // the skier-portfolio run: a whole site built and reviewed, nothing ever committed).
+  if (gitLines(root, ['rev-parse', '--verify', '-q', 'HEAD']) === null) {
+    const pending = gitLines(root, ['status', '--porcelain', '--untracked-files=normal'])?.length ?? 0;
+    add('warn', `no commits yet${pending ? ` — ${pending} files and folders never committed` : ''}: the git hooks, secret scanning and CI have never run`, { fix: 'commit the work in reviewable steps (`chore: scaffold project`, then one commit per story); the hooks check each one' });
+  }
+  const subjects = gitLines(root, ['log', `-${COMMITS}`, '--no-merges', '--format=%s']) ?? [];
   const conventionFiles = ['CONTRIBUTING.md', 'CLAUDE.md', 'commitlint.config.js', 'commitlint.config.mjs', 'commitlint.config.cjs', '.commitlintrc.json'].map((f) => read(root, f) ?? '').join('\n');
   if (subjects.length && /Conventional Commits|config-conventional/i.test(conventionFiles)) {
     const off = subjects.filter((s) => !CONVENTIONAL.test(s));

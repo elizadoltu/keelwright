@@ -220,6 +220,21 @@ export function checkGenerated(root) {
     else if (fm.description.length > 1536) add('skills', `${s}: description is over 1,536 characters and will be cut`);
   }
 
+  // A project with a UI: the implement skill looks at the result running, not only at passing
+  // tests (found in the skier-portfolio run: tests green, a first review listing nine broken
+  // scroll animations).
+  const projectType = (() => {
+    try {
+      return JSON.parse(read(root, '.keelwright/state.json') ?? 'null')?.projectType ?? null;
+    } catch {
+      return null;
+    }
+  })();
+  const implement = ['implement-story', 'implement-change'].find((s) => skills.includes(s));
+  if (implement && ['web', 'mobile', 'game'].includes(projectType) && !/look at it running/i.test(read(root, `.claude/skills/${implement}/SKILL.md`) ?? '')) {
+    add('skills', `${implement}: no "Look at it running" step — a ${projectType} project's changes are checked on screen (and scrolled through, for motion), not only by tests`);
+  }
+
   // --- rules ------------------------------------------------------------------------------
   const ruleFiles = mdFiles(root, '.claude/rules');
   if (!ruleFiles.length) add('rules', 'no rules in .claude/rules/');
