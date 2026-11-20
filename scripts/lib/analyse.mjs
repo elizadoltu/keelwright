@@ -758,7 +758,7 @@ export function preflight(a, { pipeline = null, commits = null } = {}) {
 const NOT_CONTENT = /^(\.keelwright\/|\.vscode\/|\.idea\/|\.git(ignore|attributes|keep)$|\.editorconfig$|LICEN[CS]E(\.\w+)?$|COPYING$)|(^|\/)(\.DS_Store|Thumbs\.db|\.gitkeep)$/i;
 // Notes, specs and PRDs: the input of a kickoff, not a project.
 const NOTE_FILE = /\.(md|mdx|txt|rst|adoc|org|pdf|docx?|odt|rtf|pages|pptx?|key|xlsx?|csv|png|jpe?g|gif|svg|webp|heic)$/i;
-const CODE_FILE = /\.(?:[cm]?[jt]sx?|py|dart|rs|gd|go|java|kt|swift|rb|php|cs|astro|vue|svelte|c|cc|cpp|h|hpp|sql|sh)$/;
+export const CODE_FILE = /\.(?:[cm]?[jt]sx?|py|dart|rs|gd|go|java|kt|swift|rb|php|cs|astro|vue|svelte|c|cc|cpp|h|hpp|sql|sh)$/;
 const SUBFOLDER_MANIFEST = /\/(package\.json|pyproject\.toml|requirements\.txt|Cargo\.toml|pubspec\.yaml|project\.godot|go\.mod)$/;
 // "A fresh scaffold with a few commits" (spec 5.0): too little history and code to describe.
 export const FRESH = { commits: 3, codeFiles: 25 };

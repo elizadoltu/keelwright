@@ -66,6 +66,8 @@ Run in any project with a Claude setup (`/keelwright:doctor`), made by KeelWrigh
 
 `/keelwright:doctor security` runs only the security audit: every locked dependency checked against OSV.dev for known vulnerabilities, gitleaks over the whole git history, row-level security on Supabase tables, `.env` and CI hygiene, and Semgrep when it's installed. Only package names and versions leave your machine (`--offline` skips that). The findings go to `.keelwright/security/audit.md`, which git-ignores itself so open vulnerabilities are never committed; `doctor.md` keeps only the counts. Findings you decide to live with go in `.keelwright/security-accepted.json` with a reason and an end date, at most 90 days away. It is not a penetration test.
 
+`/keelwright:doctor security --deep --max-cost <usd>` adds a review of the code itself by a model — **it costs money**, so the limit is required and hard. The code is reviewed area by area, sensitive areas from the threat model first, by the project's own `security-reviewer` agent (or KeelWright's read-only `security-auditor`), and a second, independent pass tries to disprove every finding before it is reported. `--plan` shows the areas for free; `--area <name>` reviews just one. The findings join the security audit and are fixed in audit mode; with Jira connected, critical and high ones can become issues when you ask.
+
 Pipeline state is kept in `.keelwright/state.json` and run metrics in `.keelwright/metrics.json` in your project — commit both. Metrics never leave your machine.
 
 ## Repository layout
