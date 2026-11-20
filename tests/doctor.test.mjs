@@ -95,6 +95,14 @@ describe('doctor', () => {
     assert.ok(!has(diagnose(root, { now: NOW }), 'process', 'warn', /Husky/));
   });
 
+  test('process: a repository with no commits is a finding, not "not a git repository"', () => {
+    const root = project({ 'src/a.ts': 'x' }, []);
+    const r = diagnose(root, { now: NOW });
+    assert.notEqual(r.areas.process, 'skipped');
+    assert.ok(has(r, 'process', 'warn', /^no commits yet — \d+ files and folders never committed: the git hooks, secret scanning and CI have never run$/), JSON.stringify(by(r, 'process')));
+    assert.ok(!has(diagnose(project()), 'process', 'warn', /no commits yet/));
+  });
+
   test('a KeelWright project: reviewed documents edited since approval are one note', () => {
     const root = project({ 'docs/prd.md': '# PRD\n' });
     const s = S.create({ version: 't', now: NOW });

@@ -524,7 +524,29 @@ export const CHECKS = [
   { id: 'hygiene', title: 'Safety nets' },
   { id: 'threat-model', title: 'Threat model vs code' },
   { id: 'semgrep', title: 'Static analysis (Semgrep, optional)' },
+  { id: 'deep', title: 'Judgement review (--deep, optional)' },
 ];
+
+// The last deep review's findings (scripts/lib/deep.mjs writes them), carried by every later audit
+// until they are fixed or accepted. A finding whose file is gone is dropped: the code it cited
+// changed, and the next --deep run looks again.
+export const DEEP_FILE = `${RECORD_DIR}/deep.json`;
+export function checkDeep(root) {
+  const deep = json(root, DEEP_FILE);
+  if (!deep) return { status: 'skipped', reason: 'no deep review yet (`--deep`, costs money)', findings: [] };
+  const findings = (deep.findings ?? [])
+    .filter((f) => existsSync(join(root, f.file)))
+    .map((f) => ({
+      check: 'deep',
+      fingerprint: f.fingerprint,
+      severity: f.severity,
+      issue: `${f.category}: ${f.title} — ${f.file}:${f.line} (deep review ${String(deep.at).slice(0, 10)})`,
+      evidence: f.file,
+      fix: f.fix,
+    }));
+  const reviewed = (deep.areas ?? []).filter((a) => a.status === 'reviewed').length;
+  return { status: 'checked', reason: `${String(deep.at).slice(0, 10)}: ${reviewed} of ${(deep.areas ?? []).length} areas reviewed, $${deep.cost}`, findings, at: deep.at };
+}
 
 export async function audit(root, { now = new Date().toISOString(), offline = false, fetch = globalThis.fetch, exec = defaultExec, lockfiles } = {}) {
   const pkgs = lockedPackages(root, lockfiles);
@@ -536,6 +558,7 @@ export async function audit(root, { now = new Date().toISOString(), offline = fa
     hygiene: checkHygiene(root, { exec }),
     'threat-model': checkThreatModel(root),
     semgrep: offline ? offlineResult : checkSemgrep(root, { exec }),
+    deep: checkDeep(root),
   };
   const { findings, notes } = applyAccepted(Object.values(checks).flatMap((c) => c.findings), loadAccepted(root), now);
   findings.sort((a, b) => (a.status === 'open' ? 0 : 1) - (b.status === 'open' ? 0 : 1) || SEVERITIES.indexOf(a.severity) - SEVERITIES.indexOf(b.severity));
@@ -552,7 +575,7 @@ export async function audit(root, { now = new Date().toISOString(), offline = fa
 export function areaStatus(result) {
   if (result.counts.critical || result.counts.high) return 'fail';
   if (result.counts.medium || result.counts.low) return 'warn';
-  if (Object.entries(result.checks).some(([id, c]) => c.status === 'not-checked' && id !== 'semgrep')) return 'warn';
+  if (Object.entries(result.checks).some(([id, c]) => c.status === 'not-checked' && !['semgrep', 'deep'].includes(id))) return 'warn';
   return 'pass';
 }
 

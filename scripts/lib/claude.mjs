@@ -9,8 +9,15 @@ export const TOOLS = ['Bash(node:*)', 'Bash(git log:*)', 'Bash(git show:*)', 'Ba
 export const MAX_TURNS_PER_CALL = 150;
 
 // Runs `claude -p` and returns its JSON result ({ result, total_cost_usd, session_id, is_error, … }).
-export function claudeInvoke({ cwd, prompt, pluginDir, resume = null, model = null, tools = TOOLS, maxTurns = MAX_TURNS_PER_CALL, timeoutMs = 30 * 60_000 }) {
+// `schema` asks for structured output (`structured_output` in the result); `maxBudgetUsd` is a hard
+// limit for the call; `disallowedTools` and `system` (appended to the system prompt) shape a
+// read-only reviewer.
+export function claudeInvoke({ cwd, prompt, pluginDir, resume = null, model = null, tools = TOOLS, disallowedTools = [], system = null, schema = null, maxBudgetUsd = null, maxTurns = MAX_TURNS_PER_CALL, timeoutMs = 30 * 60_000 }) {
   const args = ['-p', prompt, '--output-format', 'json', '--max-turns', String(maxTurns)];
+  if (schema) args.push('--json-schema', JSON.stringify(schema));
+  if (maxBudgetUsd != null) args.push('--max-budget-usd', String(maxBudgetUsd));
+  if (system) args.push('--append-system-prompt', system);
+  if (disallowedTools.length) args.push('--disallowedTools', ...disallowedTools);
   if (pluginDir) args.push('--plugin-dir', pluginDir);
   if (resume) args.push('--resume', resume);
   if (model) args.push('--model', model);

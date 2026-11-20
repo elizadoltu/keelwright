@@ -5,6 +5,17 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Fixed — from the skier-portfolio run
+
+- `implement-story` and `implement-change` have a **Look at it running** step for projects with a UI: start the app, look at every changed screen at phone and desktop width, and for animated or scroll-driven work capture screenshots at several scroll positions. The run's tests passed while the first review of the site found nine broken scroll animations. `generatecheck` requires the step for web, mobile and game projects, and audit mode offers to add it.
+- The doctor reported a repository with no commits as "not a git repository". It now says so as a finding: the hooks, gitleaks and CI have never run, and audit mode offers to commit the work in reviewable steps.
+- `deep.mjs --plan` names the right step to write a threat model (`/kickoff architecture` or `/adopt document`).
+
+### Added — the deep security review (Phase 3, build step 5)
+
+- `/doctor security --deep --max-cost <usd>` (`scripts/deep.mjs`, spec 7.7): a model reviews the code area by area — sensitive paths and entry points from the threat model first, at most 15 areas of up to 60 files, tests left out — as the project's `security-reviewer`, or the plugin's new read-only `security-auditor` agent (`agents/security-auditor.md`) when it has none. A second, independent call tries to disprove each finding; disproved ones and ones citing code that doesn't exist are dropped. **Costs money**: `--max-cost` is required and hard (each call's own `--max-budget-usd` is what's left), unverified findings are never reported, and areas it doesn't reach are listed as not reviewed. `--plan` lists the areas for free; `--area` reviews one.
+- The findings go to `.keelwright/security/deep.json` (git-ignored) and every later audit carries them (check `deep`) until fixed, accepted or the cited file is gone; audit mode fixes them. With Jira connected, critical and high findings become `security` issues when the user asks.
+
 ### Added — audit mode (Phase 3, build step 4)
 
 - `/adopt` on a project with a Claude setup (or a complete KeelWright pipeline), and `/adopt audit`, is **audit mode** (spec 7.4): it runs the doctor and offers a fix for each finding — a leaked secret first (rotate, then an environment variable or `.gitleaksignore`; history is never rewritten), then a diff for drift in the setup and documents, the `gaps` fix guide for missing tooling, a dependency upgrade within its major (one per package, to the highest fixed version), the step to re-run, a command, or the open questions to answer. Each is applied only on approval. `/start` routes projects with a Claude setup here.
