@@ -96,7 +96,7 @@ Judges use `--judge-model` (default `sonnet`), answer one pass / fail question e
 
 `/adopt` cases (estimates until measured): about **$1.50–2.50 per run to gate 1**, and **$5–7** for `adopt-orders-api` to gate 2, which researches one pack (Express 4). One run of the three: about **$10**.
 
-Phase 3 cases (estimates until measured): `start-notes`, `start-code` and `doctor-drift` about **$0.30–0.60** each; `pm-kickoff-booking` about **$1.60** (gate 1); `adopt-security-shop` about **$5** (gate 2); `security-shop-deep` at most **$3** (its `maxCost`). One run of the six: about **$11**.
+Phase 3 cases, measured on their first run (2026-11-20): `start-notes` **$0.44**, `start-code` **$0.78**, `doctor-drift` **$0.42** (about a minute each), `pm-kickoff-booking` **$1.71** (gate 1, 4 minutes), `adopt-security-shop` **$5.61** (gate 2, 10 minutes), `security-shop-deep` **$1.82** of its $3 limit (3 areas, 3 minutes). One run of the six: **$10.79**.
 
 Measured on the first runs (2026-11-16): about **$1.60 per run to gate 1**, **$4.40–5.10 per run to gate 2** (8–10 minutes), and about **$0.07 per judge vote** (3 votes per judge). A full suite (3 cases × 3 runs, with judges) is about **$36**; a smoke run (`--stop-at 1 --runs 1`) about **$6–8**. Re-grading earlier results with `--regrade` costs only the judges (about $1 for one run of every case). Always pass `--max-cost`.
 

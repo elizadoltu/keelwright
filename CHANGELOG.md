@@ -5,6 +5,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Fixed — from the first run of the Phase 3 cases
+
+- The deep review merges the same problem reported from two areas (same file, category and nearby line) and asks each area only for fixes in its own files, leaving dependency advisories, secrets in history and missing RLS to the mechanical checks. The first real run reported the injection and the missing admin check twice.
+- Eval graders: `doccheck`, `retro-adrs` and `cited-files` accept a cited folder (`src/routes/`); `cited-files` skips the Gaps section's proposals, "no `.nvmrc`" statements and files `generate` writes later, and resolves a bare file name against the folder in the same row. All six Phase 3 cases pass on re-grading ($10.79 for the run).
+
 ### Added — Phase 3 evaluation cases (build step 7)
 
 - Six eval cases: `/start`'s routing (`start-notes`, `start-code`), the doctor and audit mode on a drifted hand-made setup (`doctor-drift`), role-tagged questions in a kickoff run by a project manager (`pm-kickoff-booking`), the threat model of an adopted project (`adopt-security-shop`), and the deep security review with five planted vulnerabilities (`security-shop-deep`). Graded by eight new code graders: `route`, `doctor-found`, `only-keelwright`, `marker-roles`, `threat-surface`, `planted-found`, `findings-real`, `mechanical-found`.
