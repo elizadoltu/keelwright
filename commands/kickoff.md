@@ -23,7 +23,7 @@ interview → prd → { architecture, features, design } → research → scaffo
 |---|---|---|
 | `interview` | Project type, `.keelwright/interview.md` | — |
 | `prd` | PRD, document set, stack recommendation, resolved versions, ADR-0001, stack ADR | Gate 1 |
-| `architecture` | ADRs, architecture overview, C4, ERD + `schema.sql`, AI system design, AI eval plan, API surface | Gate 2 |
+| `architecture` | ADRs, architecture overview, C4, ERD + `schema.sql`, threat model, AI system design, AI eval plan, API surface | Gate 2 |
 | `features` | Feature breakdown, backlog | Gate 2 |
 | `design` | Visual identity + tokens, screen flow, GDD, asset pipeline, store release checklist | Gate 2 |
 | `research` | Stack packs | Gate 3 |

@@ -78,6 +78,7 @@ export const CONDITIONAL_DOCUMENTS = [
   'ai-system-design',
   'ai-eval-plan',
   'api-surface',
+  'threat-model',
 ];
 
 export const OPTIONAL_DOCUMENTS = ['jira', 'confluence', 'architecture-requirements'];

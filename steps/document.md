@@ -1,9 +1,9 @@
 # Step: `document`
 
-`/adopt` create mode (spec 5.2.1): record the project **as built** — an architecture overview, ADR-0001 when the project has no decision record yet, and an ADR recorded retroactively for each main decision already in the code — so people and agents can find why the project is the way it is.
+`/adopt` create mode (spec 5.2.1): record the project **as built** — an architecture overview, a threat model when there is something to attack, ADR-0001 when the project has no decision record yet, and an ADR recorded retroactively for each main decision already in the code — so people and agents can find why the project is the way it is.
 
-**Reads:** `.keelwright/analysis.md` (approved at gate 1: the user's corrections are the truth), the state (`STATE status --json`: `stack`, `projectType`, `documents`), the existing ADRs, `docs/`, the README, and the files the analysis cites; `<plugin root>/reference/catalog.md`; the templates `architecture-overview.md`, `c4-workspace.dsl`, `adr-0001-record-architecture-decisions.md` and `adr-retroactive.md`. On a re-run: the existing outputs.
-**Produces:** `docs/architecture/overview.md`; `docs/architecture/c4/workspace.dsl` when there is more than one deployable; ADR-0001 when there are no ADRs yet; one retroactive ADR per decision without one.
+**Reads:** `.keelwright/analysis.md` (approved at gate 1: the user's corrections are the truth), the state (`STATE status --json`: `stack`, `projectType`, `documents`), the existing ADRs, `docs/`, the README, and the files the analysis cites; `<plugin root>/reference/catalog.md`; `<plugin root>/reference/security.md`; the templates `architecture-overview.md`, `c4-workspace.dsl`, `threat-model.md`, `adr-0001-record-architecture-decisions.md` and `adr-retroactive.md`. On a re-run: the existing outputs.
+**Produces:** `docs/architecture/overview.md`; `docs/architecture/c4/workspace.dsl` when there is more than one deployable; `docs/security/threat-model.md` when there is something to attack; ADR-0001 when there are no ADRs yet; one retroactive ADR per decision without one.
 **Gate:** 2 — shared with `research`.
 
 **Describe, don't decide.** Everything here is already true of the code. No new decisions, no recommendations, no PRD. Where the analysis marked something **mixed** and the user said which way is the standard at gate 1, describe that standard and name the departures as debt.
@@ -17,7 +17,8 @@
 ## 2. The document set
 
 - More than one deployable (e.g. a web app and an API, a worker, a separately deployed database migration job) → add `c4`. A workspace repo usually has one container per deployable workspace (shared packages are not containers; they appear in the code structure).
-- Then `STATE set documents adr,architecture-overview,development-workflow[,c4]`.
+- Something to attack (`reference/security.md`: a backend, logins, stored personal data, an API others call, an LLM with tools or user data, a published package) → add `threat-model`. Almost every adopted service has one; a static site or a local script doesn't.
+- Then `STATE set documents adr,architecture-overview,development-workflow[,c4][,threat-model]`.
 
 ERD, API surface and the AI documents aren't written by `/adopt` yet; mention one at the gate when the project clearly has what it would describe (a schema, a public API, model calls).
 
@@ -56,13 +57,23 @@ Decisions too small for an ADR (a formatter, a utility library) stay in the over
 - **Risks and technical debt:** EOL versions and other gaps from the analysis, the mixed conventions, departures from the code's own style. No backlog IDs (`/adopt` writes no backlog).
 - At most 2 pages.
 
+## 4a. The threat model (as built)
+
+`docs/security/threat-model.md` (if `threat-model` is in the set) from `templates/threat-model.md`, following `reference/security.md`, describing the system **as it is**:
+
+- `framework:` the edition for the project type, exactly as named in `reference/security.md`.
+- Assets, roles, entry points: from the code — the tables in the migrations or schema, the auth middleware and its roles, the router. Cite the files.
+- Risks: for each table with personal data, each entry point and each external integration, what can go wrong and **what the code does about it today**, citing the file that enforces it (the RLS policy, the middleware, the validation schema, the test). Status `mitigated` when the code enforces it — open each file you cite; `open` when nothing does. Never write a mitigation the code doesn't have, and never fix one: an `open` risk is recorded, not repaired.
+- Sensitive paths: globs over the real folders.
+- `doccheck threat-model` checks that every file a `mitigated` or `open` risk cites exists.
+
 **C4 workspace** (if `c4` is in the set) from `templates/c4-workspace.dsl`: context and container views, the same containers and external systems as the overview, every relationship labelled; technology names without versions.
 
 ## 5. Check
 
 Run from the project root, fix every issue and run again until it passes (count each failed run with `STATE metric document doccheck-failures +1`):
 
-`node "<plugin root>/scripts/doccheck.mjs" overview:docs/architecture/overview.md adr:<ADR-0001, if written> adr-retro:<each retroactive ADR> c4:docs/architecture/c4/workspace.dsl refs:docs`
+`node "<plugin root>/scripts/doccheck.mjs" overview:docs/architecture/overview.md threat-model:docs/security/threat-model.md adr:<ADR-0001, if written> adr-retro:<each retroactive ADR> c4:docs/architecture/c4/workspace.dsl refs:docs`
 
 (Leave out targets that don't apply.) `refs:docs` also reads the project's own documents: an issue in a file this step didn't write (a broken link in an old doc) is **not** fixed — list it at the gate and don't count it as a failure. `adr-retro` checks that each retroactive ADR says so, has an Alternatives section, and cites files that exist.
 
@@ -76,8 +87,9 @@ Gate 2 is shared with `research`. Show, besides the gate's standard content:
 - the containers in one line each, and the ADR folder used;
 - the ADRs written — number, title, and its evidence in a few words — and the existing ADRs kept;
 - what the ADRs leave as "Not recorded" (alternatives, decision-makers): the user can fill these in now — they know the history;
+- the threat model's risks in one line each, the `open` ones first — they're what the code doesn't protect yet (`/keelwright:doctor security` checks the dependencies and secrets once the setup is in place);
 - documents not written that the project might want (ERD, API surface).
 
 ## On approval
 
-Set `status: approved` in the overview. Set every ADR this step wrote that is still `proposed` to `accepted` (or `rejected` if the user rejected it — then remove it from the overview's index). Existing ADRs are not touched.
+Set `status: approved` in the overview and the threat model. Set every ADR this step wrote that is still `proposed` to `accepted` (or `rejected` if the user rejected it — then remove it from the overview's index). Existing ADRs are not touched.

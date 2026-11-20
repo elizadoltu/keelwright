@@ -32,7 +32,7 @@ analyse → { document, research } → gaps → generate → publish
 | Step | Produces | Gate after it |
 |---|---|---|
 | `analyse` | `.keelwright/analysis.md`: type, toolchain, stack and versions in use, tasks, structure, architecture, conventions, decisions, gaps | Gate 1 |
-| `document` | Architecture overview (as built), ADR-0001, ADRs recorded retroactively | Gate 2 |
+| `document` | Architecture overview (as built), threat model (as built), ADR-0001, ADRs recorded retroactively | Gate 2 |
 | `research` | Stack packs for the versions in use | Gate 2 |
 | `gaps` | Tooling fixes, each shown as a diff and applied only on approval; `.keelwright/gaps.md` | — |
 | `generate` | CLAUDE.md, rules, skills, subagents, hooks, CONTRIBUTING.md | — |

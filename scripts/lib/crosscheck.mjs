@@ -118,7 +118,7 @@ export function checkTokens(json) {
 // Cross-document IDs and links
 // ---------------------------------------------------------------------------
 
-const ID = /\b(?:(?:SC|FR|NFR|BL|TD|EV|API)-\d{3}|US-\d+|A-\d+|F-\d{2}|S-\d{2}|P-\d{2}|T-\d{2}|ADR-\d{4})\b/g;
+const ID = /\b(?:(?:SC|FR|NFR|BL|TD|EV|API)-\d{3}|US-\d+|A-\d+|F-\d{2}|S-\d{2}|P-\d{2}|T-\d{2}|SEC-\d{2}|ADR-\d{4})\b/g;
 
 function markdownFiles(dir) {
   if (!existsSync(dir)) return [];

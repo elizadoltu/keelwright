@@ -8,7 +8,7 @@ Claude Code plugin that bootstraps new projects (`/kickoff`) and brings existing
 - `steps/<step>.md` — one instruction file per pipeline step; a step not yet built says "Not implemented yet"
 - `scripts/state.mjs` + `scripts/lib/` — state CLI; `scripts/lib/pipeline.mjs` is the single definition of both pipelines (steps, order, gates — `/kickoff` and `/adopt`), project types, toolchains and document keys
 - `templates/` — document templates; generated documents keep their structure and IDs
-- `reference/` — runtime copies of spec rules the steps need (`<type>-stack.md` per project type, `toolchains.md`, `web-scaffold.md`, catalog); **keep them in sync with the spec**
+- `reference/` — runtime copies of spec rules the steps need (`<type>-stack.md` per project type, `toolchains.md`, `web-scaffold.md`, catalog, `security.md` with the framework editions — `FRAMEWORK_EDITIONS` in `scripts/lib/doccheck.mjs` is its code twin); **keep them in sync with the spec**
 - `scripts/versions.mjs` (live version resolution), `scripts/doccheck.mjs` (mechanical document checks) and `scripts/packs.mjs` (stack packs: plan, install, validate, save) — used by steps
 - `scripts/lib/toolchains.mjs` — what each toolchain uses (task runner, lockfiles, hooks, ignores, hook commands); preflight, scaffoldcheck and generatecheck read it, and `reference/toolchains.md` is its prose twin — change both together
 - `scripts/preflight.mjs`, `scripts/scaffoldcheck.mjs`, `scripts/tokens-to-css.mjs` (+ `scripts/lib/tokens.mjs`, which must stay import-free because the scaffold copies it into projects) — used by the scaffold step
