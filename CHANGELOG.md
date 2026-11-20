@@ -5,6 +5,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Added — security audit, mechanical checks (Phase 3, build step 1.1)
+
+- `/doctor` has an **Application security** area, and `/doctor security` runs only it (spec 7.7): every locked dependency, direct and transitive, from npm, pnpm, yarn, bun, uv, Poetry, PDM, Pipenv, Cargo and pub lockfiles, checked against OSV.dev — severity from the advisory or its CVSS score, aliases merged, the lowest fixed version named; gitleaks over the whole git history, redacted, one finding per secret; Supabase / PostgREST tables without row-level security (high) or without a policy (low), following the migrations in order; `.env` not git-ignored and CI actions not pinned to a SHA; Semgrep when it's installed. Fails on an open critical or high finding.
+- The findings go to `.keelwright/security/audit.md` and `audit.json`, a folder that git-ignores itself, so open vulnerabilities are never committed; `doctor.md` keeps only the counts per severity. Accepted risks go in `.keelwright/security-accepted.json` with a reason and an end date at most 90 days away, after which they're open again.
+- Only package names and versions leave the machine (to OSV.dev); `--offline` skips the network and marks the dependencies "not checked", never a pass.
+
 ### Added — the doctor (Phase 3, build step 1)
 
 - `/doctor` (`commands/doctor.md`, `scripts/doctor.mjs`): the project's health as it is today, per area — Claude setup (commands, paths and settings that no longer match; KeelWright's own conventions only for KeelWright projects), docs vs code (cited files since deleted, broken references, open questions, reviewed documents edited since approval), stack (packs researched for another major, old packs, recorded end-of-life gaps), tooling and security (the open gaps, declined ones), process (commits off the documented style, hooks not installed in the clone). Each finding names its fix. Mechanical and read-only: no model calls, no network; the record and its history go to `.keelwright/doctor.md` and `.keelwright/doctor.json`. Delivery checks come next.
