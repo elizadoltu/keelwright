@@ -283,9 +283,10 @@ describe('markers and setters', () => {
     const root = project();
     const state = S.create({ version: '0.1.0', now: NOW });
     runStep(state, root, 'interview');
-    runStep(state, root, 'prd', 'docs/prd.md', '# PRD\n\n- [NEEDS CLARIFICATION: languages?]\n');
+    runStep(state, root, 'prd', 'docs/prd.md', '# PRD\n\n- [NEEDS CLARIFICATION: languages?]\n- [NEEDS CLARIFICATION (pm): launch date?]\n');
     assert.deepEqual(S.markers(state, root), [
-      { step: 'prd', file: 'docs/prd.md', line: 3, text: '- [NEEDS CLARIFICATION: languages?]' },
+      { step: 'prd', file: 'docs/prd.md', line: 3, text: '- [NEEDS CLARIFICATION: languages?]', role: null },
+      { step: 'prd', file: 'docs/prd.md', line: 4, text: '- [NEEDS CLARIFICATION (pm): launch date?]', role: 'pm' },
     ]);
   });
 

@@ -8,6 +8,7 @@ argument-hint: "[security [--deep --max-cost <usd> [--area <name>]]] [--offline]
 You are running the KeelWright doctor (spec 7.0) in the current directory (the project root). It checks the project **as it is today**, on any project with a Claude setup — made by KeelWright or by hand. It is different from `/kickoff report` and `/adopt report`, which look back at one KeelWright run.
 
 - Doctor script (call it `DOCTOR` below): `node "${CLAUDE_PLUGIN_ROOT}/scripts/doctor.mjs"`
+- Profile script (call it `PROFILE` below): `node "${CLAUDE_PLUGIN_ROOT}/scripts/profile.mjs"`
 - Deep review script (call it `DEEP` below): `node "${CLAUDE_PLUGIN_ROOT}/scripts/deep.mjs"`
 - Arguments: `$ARGUMENTS` — `security` runs only the application-security area (spec 7.7); `--offline` skips the network; `--deep` adds the judgement review (section 3)
 
@@ -17,6 +18,14 @@ You are running the KeelWright doctor (spec 7.0) in the current directory (the p
 - **Report what the script found.** Don't add findings of your own from reading the code; that is `--deep`, whose findings are checked by a second pass. Don't soften a `fail`.
 - **Security findings stay out of git.** Their details are in `.keelwright/security/audit.md`, a folder that git-ignores itself; never copy them into a committed file, a commit message, a PR or a public issue (Jira issues are created only when the user asks — section 3). A leaked secret is fixed by rotating it first — say so before anything else.
 - **The network.** The only data sent anywhere is the locked packages' names and versions, to OSV.dev (and Semgrep's rules download, when it is installed). If the user doesn't want that, pass `--offline`; dependencies are then "not checked".
+
+## 0. Who is asking
+
+Run `PROFILE show --json`. On a first run (`asked: false`) ask once for the role, as `/keelwright:profile` does, or let the user skip. The profile changes only how the result is **shown**, never what is checked or recorded: `.keelwright/doctor.md` is the team's record and stays the same whoever runs it.
+
+- Show the areas in `doctorOrder` — the person's areas first.
+- Show them the way their role reads them (`shows`): a developer the files, commands and versions; a project manager what is at risk, what is blocked and what to ask a developer for; a business analyst the documents and requirements that drifted; an account manager one short status per area and the one thing to raise with the team.
+- `language` is the language you write in.
 
 ## 1. Run it
 

@@ -11,6 +11,7 @@ You are running the KeelWright `/kickoff` pipeline in the current directory (the
 - Step instructions: `${CLAUDE_PLUGIN_ROOT}/steps/<step>.md`
 - Document templates: `${CLAUDE_PLUGIN_ROOT}/templates/`
 - State CLI (call it `STATE` below): `node "${CLAUDE_PLUGIN_ROOT}/scripts/state.mjs"`
+- Profile script (call it `PROFILE` below): `node "${CLAUDE_PLUGIN_ROOT}/scripts/profile.mjs"`
 - Arguments: `$ARGUMENTS`
 
 ## The pipeline
@@ -37,6 +38,16 @@ interview → prd → { architecture, features, design } → research → scaffo
 - If a `STATE` command prints `error: …`, stop and tell the user what failed. Don't work around it.
 - Steps record their outputs with `STATE complete <step> <files…>`; this is how edits are detected later. Record a folder only when the step owns everything in it; otherwise list the files.
 - A step never edits a file an earlier, finished step produced — that counts as a user edit and triggers the edit question. If a step needs such a change, it tells the user which step to re-run.
+
+## Who is running it (profile)
+
+Before section 1, run `PROFILE show --json` once. The profile is personal (`~/.keelwright/profile.json`, spec 5.7) — never in the repository — and it **never changes the document set**: the next person needs every document whoever ran the kickoff.
+
+- **First run** (`asked: false`): ask once (AskUserQuestion) for the role — **Developer** · **Project manager** · **Business analyst** · **Account manager** · **Skip** — with the name through "Other". Save it with `PROFILE set --role <developer|project-manager|business-analyst|account-manager> [--name "…"]`, or `PROFILE skip`. Say `/keelwright:profile` changes it any time. Never ask for or store an email address.
+- **`name`** is the `owner` of the documents this run writes and the decision-makers of its ADRs, instead of a marker — pass it to the steps.
+- **`defaults`**: `jiraProject` and `confluenceSpace` prefill `publish`'s questions (still confirmed); `language` is the language you talk to the user in — documents stay in the language of the project's input.
+- **`role`** decides the working set at gates (section 7) and in the report (section 8), which open questions the user is asked, and how results are shown (`shows`: a developer sees diffs, versions and files; a PM scope, risks and what is blocked; a BA requirements, criteria and data gaps). No role: everything is shown as before.
+- **A project manager** with `pmSkills: true` is offered pm-skills' workflows on the project's documents (OKRs, outcome roadmap, pre-mortem, PRD red-team, stakeholder map, release notes) after gate 1 and at the end — one line each time, never part of the document set. With `pmSkills: false`, say once that it can be installed (`/plugin marketplace add phuryn/pm-skills`).
 
 ## 1. Read the arguments
 
@@ -114,17 +125,17 @@ If the step can't be finished in this run (for example, it is waiting for interv
 
 When `STATE next` returns a review:
 
-1. Run `STATE markers` to find open `[NEEDS CLARIFICATION: …]` markers.
+1. Run `STATE markers --role <the profile's tag> --json` (without `--role` when there is no role) to find the open `[NEEDS CLARIFICATION …]` markers: `mine` are the user's (their role's and untagged ones), `waiting` belong to another role. Run `PROFILE split <every file under review> --json`: `mine` is the user's working set.
 2. Show the user:
-   - the gate number and the files to review (one line each: path and what it contains),
-   - the open markers (file and line), and
+   - the gate number and the files to review: the working set (`mine`) first, each with its path and what it contains, then the others in one line each — still open to the user,
+   - the user's open markers (file and line), and how many wait on other roles ("2 waiting on a developer") — those stay open for the right person, and
    - that they can edit any of these files directly — when they continue, their edited files are the source of truth.
 3. Ask (AskUserQuestion):
    - **Approve gate N** — the documents are ready.
-   - **Resolve the open questions with me** — only offer when there are markers; go through each marker, update the file with the answer, then ask again.
+   - **Resolve the open questions with me** — only offer when the user has markers; go through each of theirs, update the file with the answer, then ask again. Never answer another role's question for them.
    - **I'll edit the files first** — stop; the user runs `/kickoff` again when ready.
 4. Before approving, **re-read every file under review from disk** — the user may have edited them. If the edits change a decision that other documents in the same gate depend on (e.g. the stack in the PRD), update those documents to match first.
-5. If markers are still open, say so and ask for explicit confirmation; approved markers stay as open questions in their documents.
+5. If the user's markers are still open, say so and ask for explicit confirmation (markers waiting on another role don't block the user's approval — list them); approved markers stay as open questions in their documents.
 6. For each step in the gate, if its step file has an **"On approval"** section, do what it says (e.g. set document statuses to approved / accepted).
 7. Run `STATE approve <N>`, then continue the loop (section 5).
 
@@ -135,14 +146,14 @@ The step files can add gate-specific content to show in step 2 (e.g. the `prd` s
 Run metrics are recorded automatically by `STATE` (`.keelwright/metrics.json`); steps add their own counters with `STATE metric <step> <name> <n|+n>`.
 
 1. Run `STATE report` and show the scorecard: steps, runs, time, open questions, and how much of each document the user changed at review.
-2. Ask the user to rate each generated document they reviewed (AskUserQuestion, up to 4 documents per question round), with the options **Used as-is**, **Small edits**, **Rewritten**, **Deleted**. Skip documents already rated unless the user wants to change a rating.
+2. Ask the user to rate each generated document in their working set (`PROFILE split <the reviewed documents>`; everything without a role) (AskUserQuestion, up to 4 documents per question round), then offer once to rate the others too, with the options **Used as-is**, **Small edits**, **Rewritten**, **Deleted**. Skip documents already rated unless the user wants to change a rating.
 3. Record each answer: `STATE rate <file> <as-is|small-edits|rewritten|deleted>`.
 4. Run `STATE report --write` and tell the user the report is in `.keelwright/report.md`. Suggest running `/kickoff report` again a few weeks into the project, to re-rate the documents once they've been used.
 
 ## Rules for every step
 
 - **Templates.** Every document is written from its template in `${CLAUDE_PLUGIN_ROOT}/templates/`. Keep the template's structure, front matter and stable IDs; remove the template's instruction comments and example rows from the final document.
-- **Unknowns are marked, not guessed.** Anything the input and the interview don't settle is written as `[NEEDS CLARIFICATION: …]` and resolved at a review gate.
+- **Unknowns are marked, not guessed.** Anything the input and the interview don't settle is written as `[NEEDS CLARIFICATION: …]` and resolved at a review gate. Tag it with the role that can answer it — `[NEEDS CLARIFICATION (pm): launch date?]`: `dev` (technical), `pm` (scope, priorities, dates, budget), `ba` (requirements, rules, data), `am` (the client relationship); untagged when anyone can.
 - **The user's files win.** Before writing a file that already exists, read it; keep the user's edits and change only what the step needs to change.
 - **Accepted ADRs are never edited.** A changed decision gets a new ADR that supersedes the old one.
 - **Versions come from the registries, never from memory** (spec 4.6).

@@ -53,6 +53,6 @@ Include a document only when its condition holds; give the reason either way whe
 - **Testable.** Acceptance criteria use `WHEN … THE SYSTEM SHALL …` or Given / When / Then.
 - **What vs how.** The PRD says what and why; stack and architecture live in ADRs.
 - **Explicit non-goals and a `status`** in every document.
-- **Unknowns are marked, not guessed:** `[NEEDS CLARIFICATION: …]`, resolved at review gates.
+- **Unknowns are marked, not guessed:** `[NEEDS CLARIFICATION: …]`, resolved at review gates, tagged with the role that can answer them — `(dev)`, `(pm)`, `(ba)`, `(am)` — e.g. `[NEEDS CLARIFICATION (pm): launch date?]`; untagged when anyone can (spec 5.7).
 - **ADRs are immutable once accepted**; a new ADR supersedes the old one.
 - **Writing a document from its template:** keep the structure, front matter and IDs; fill every section; delete the template's instruction comments, placeholder rows and sections marked "delete if not applicable" that don't apply.

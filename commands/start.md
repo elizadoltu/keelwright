@@ -14,6 +14,9 @@ You are running KeelWright's entry point (spec 5.0) in the current directory (th
 
 ## 1. Find the route
 
+The route's command asks once who the user is (their profile, `/keelwright:profile`) — don't ask it here too.
+
+
 Run `ANALYSE --preflight` and read `route`:
 
 | `route.to` | The folder has | Route |

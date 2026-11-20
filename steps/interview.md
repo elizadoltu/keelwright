@@ -76,7 +76,7 @@ Add the topics for the project type (skip any the input answers):
 - When the input lists something as undecided, ask about it — those are the user's open decisions.
 - Use earlier answers: don't ask what an answer already settled, and follow up only when an answer opened a real new question.
 - If the user doesn't know or wants to decide later, accept that — it becomes an open question, not a guess.
-- Stop asking when the remaining unknowns wouldn't change the PRD's scope, the stack or the document set; those go to the PRD as `[NEEDS CLARIFICATION: …]`.
+- Stop asking when the remaining unknowns wouldn't change the PRD's scope, the stack or the document set; those go to the PRD as `[NEEDS CLARIFICATION (<role>): …]`, tagged with the role that can answer them (`dev`, `pm`, `ba`, `am`). Questions the person running the interview can't answer for their role — a PM asked about hosting, a developer about the launch date — are tagged for the right role rather than guessed.
 
 ## 5. Write `.keelwright/interview.md`
 
