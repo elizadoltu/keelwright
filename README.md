@@ -4,7 +4,7 @@
 
 A Claude Code plugin that takes a project from **idea or specs** to project documents, a scaffolded repository and a project-specific Claude setup, with review gates where you edit the documents before the pipeline continues.
 
-> Status: Phases 1–3 complete (version 0.3.0). `/kickoff` takes web, mobile, game, AI / LLM and library / CLI / API projects from an idea to documents, a scaffold and a Claude setup; `/adopt` brings existing repositories in and, in audit mode, fixes what the doctor finds; `/doctor` checks a project's health and security; `/start` picks the right one; `/profile` tailors it to your role. Each was validated on real projects (`evals/runs/`). Next: a visual app for people who don't use a terminal (spec section 9, Phase 4).
+> Status: Phases 1–3 complete (version 0.4.0). `/kickoff` takes web, mobile, game, AI / LLM and library / CLI / API projects from an idea to documents, a scaffold and a Claude setup; `/adopt` brings existing repositories in and, in audit mode, fixes what the doctor finds; `/doctor` checks a project's health and security; `/start` picks the right one; `/profile` tailors it to your role. Each was validated on real projects (`evals/runs/`). Next: a visual app for people who don't use a terminal (spec section 9, Phase 4).
 
 ## Requirements
 

@@ -5,6 +5,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.4.0] — 2026-11-23
+
 ### Changed — each role produces its own part (spec 5.7)
 
 From the first kickoff run by a project manager in Claude Desktop: the PM was asked technical questions and shown the stack, the diagrams and the scaffold.
