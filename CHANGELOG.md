@@ -5,6 +5,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Changed
+
+- The plugin and marketplace descriptions, the README status and the spec header describe what is built: `/start`, `/kickoff`, `/adopt` with audit mode, `/doctor` with the security audit, and `/profile`.
+
+## [0.3.0] — 2026-11-23
+
+Phases 1–3 of the roadmap (spec 9): `/kickoff`, `/adopt` (create and audit mode), `/start`, the doctor with the security audit and the deep review, and profiles. Earlier work was never released under its own version; installs of `0.1.0` get all of it with this version.
+
 ### Fixed — from the first run of the Phase 3 cases
 
 - The deep review merges the same problem reported from two areas (same file, category and nearby line) and asks each area only for fixes in its own files, leaving dependency advisories, secrets in history and missing RLS to the mechanical checks. The first real run reported the injection and the missing admin check twice.

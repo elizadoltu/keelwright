@@ -1,11 +1,22 @@
 {
   "name": "keelwright",
-  "version": "0.1.0",
-  "description": "Bootstraps projects from an idea or specs: interview, PRD and architecture documents, stack research, scaffold, and a project-specific Claude setup, with review gates.",
+  "version": "0.3.0",
+  "description": "Bootstraps projects from an idea or specs, adopts existing codebases, and keeps them healthy: interview, PRD and architecture documents, stack research, scaffold, a project-specific Claude setup, a doctor with a security audit, and role-based profiles, with review gates.",
   "author": {
     "name": "Eliza Doltu"
   },
   "license": "MIT",
   "repository": "https://github.com/elizadoltu/keelwright",
-  "keywords": ["kickoff", "scaffold", "prd", "adr", "claude-md", "project-setup"]
+  "keywords": [
+    "kickoff",
+    "scaffold",
+    "prd",
+    "adr",
+    "claude-md",
+    "project-setup",
+    "adopt",
+    "doctor",
+    "security-audit",
+    "threat-model"
+  ]
 }

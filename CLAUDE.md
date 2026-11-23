@@ -1,6 +1,6 @@
 # KeelWright
 
-Claude Code plugin that bootstraps new projects (`/kickoff`) and brings existing ones in (`/adopt`, in progress). The specification is `keelwright-spec.md` — read the relevant sections before changing behaviour, and update the spec in the same change when a decision changes.
+Claude Code plugin that bootstraps new projects (`/kickoff`) and brings existing ones in (`/adopt`), routes a folder to the right one (`/start`), and checks a project's health and security (`/doctor`, with audit mode in `/adopt` to fix what it finds). The specification is `keelwright-spec.md` — read the relevant sections before changing behaviour, and update the spec in the same change when a decision changes.
 
 ## Layout
 
