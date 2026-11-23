@@ -5,6 +5,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.5.0] — 2026-11-23
+
 ### Added — the account manager (spec 5.7)
 
 From research on what account managers do in software agencies: they own the client relationship and the commercial side — what was agreed, change requests, what the client is told — while the project manager owns delivery.
