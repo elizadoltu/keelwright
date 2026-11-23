@@ -4,13 +4,13 @@
     "name": "Eliza Doltu"
   },
   "metadata": {
-    "description": "KeelWright: a Claude Code plugin that bootstraps projects from an idea or specs."
+    "description": "KeelWright: a Claude Code plugin that bootstraps new projects, adopts existing ones and keeps them healthy."
   },
   "plugins": [
     {
       "name": "keelwright",
       "source": "./",
-      "description": "Bootstraps projects from an idea or specs: documents, stack research, scaffold and a project-specific Claude setup."
+      "description": "Bootstraps projects from an idea or specs, adopts existing codebases, and checks them with a doctor and security audit: documents, stack research, scaffold and a project-specific Claude setup."
     }
   ]
 }

@@ -4,9 +4,9 @@
 |---|---|
 | **Name** | KeelWright (package / plugin id: `keelwright`) |
 | **Type** | Claude Code plugin (later: visual app) |
-| **Status** | Spec agreed / Phase 1 not started |
-| **Commands** | `/kickoff` (greenfield), `/adopt` (brownfield) — invoked as `/keelwright:kickoff` and `/keelwright:adopt`, since plugin commands are namespaced |
-| **Last updated** | 2026-11-16 |
+| **Status** | Phases 1–3 built (version 0.3.0) / Phase 4 (visual app) not started |
+| **Commands** | `/start` (routing), `/kickoff` (greenfield), `/adopt` (brownfield, with audit mode), `/doctor` (health and security), `/profile` — invoked as `/keelwright:<command>`, since plugin commands are namespaced |
+| **Last updated** | 2026-11-23 |
 
 > **Context for a new session:** this document is the full specification for a Claude Code plugin that bootstraps projects. The document templates it references live in `templates/` next to this file. Start from section 9 (Roadmap) to begin implementation; sections 5.1.2 (steps and state), 5.3 (generator) and 5.5 (scaffold) define how the pipeline runs.
 
@@ -33,7 +33,7 @@ One entry point works out which of these a folder needs (5.0), and each person s
 
 ### Non-goals (for now)
 
-- A visual / web interface (planned for a later phase).
+- A visual / web interface (Phase 4, section 9).
 
 ## 3. Strategy: plugin first, app later
 

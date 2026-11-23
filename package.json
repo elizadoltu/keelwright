@@ -1,9 +1,9 @@
 {
   "name": "keelwright",
-  "version": "0.1.0",
+  "version": "0.3.0",
   "private": true,
   "license": "MIT",
-  "description": "Claude Code plugin that bootstraps projects: documents, stack research, scaffold and Claude setup.",
+  "description": "Claude Code plugin that bootstraps, adopts and checks projects: documents, stack research, scaffold, Claude setup, doctor and security audit.",
   "type": "module",
   "engines": {
     "node": ">=22"

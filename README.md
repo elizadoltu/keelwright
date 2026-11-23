@@ -4,7 +4,7 @@
 
 A Claude Code plugin that takes a project from **idea or specs** to project documents, a scaffolded repository and a project-specific Claude setup, with review gates where you edit the documents before the pipeline continues.
 
-> Status: Phase 1 complete. The whole `/kickoff` pipeline is built — from the interview to an optional publish to Jira and Confluence — for web, mobile, game, AI / LLM and library / CLI / API projects, and was validated on a real web project (`evals/runs/`). In progress: `/adopt` for existing projects — the whole create-mode pipeline is built and being validated (see `keelwright-spec.md`, 5.2.1 and section 9).
+> Status: Phases 1–3 complete (version 0.3.0). `/kickoff` takes web, mobile, game, AI / LLM and library / CLI / API projects from an idea to documents, a scaffold and a Claude setup; `/adopt` brings existing repositories in and, in audit mode, fixes what the doctor finds; `/doctor` checks a project's health and security; `/start` picks the right one; `/profile` tailors it to your role. Each was validated on real projects (`evals/runs/`). Next: a visual app for people who don't use a terminal (spec section 9, Phase 4).
 
 ## Requirements
 
@@ -47,7 +47,7 @@ Plugin commands are namespaced, so the command is `/keelwright:kickoff` (shown a
 | `/kickoff research --refresh` | Re-researches the stack packs |
 | `/kickoff report` | Shows how the run went (time, re-runs, how much you edited each document) and asks you to rate each document |
 
-### Existing projects: `/adopt` (in progress)
+### Existing projects: `/adopt`
 
 Run in the root of an existing repository that has no Claude setup yet (`/keelwright:adopt`). It describes the project as it is — stack and versions in use, tasks, architecture, conventions with the files that show them, gaps — and stops for your corrections at gate 1; then it records the architecture as built and ADRs for the decisions already in the code, researches conventions for the versions you use, and stops at gate 2. Then it offers each missing safety net (secret scanning, hooks, CI, dependency updates) as a diff you approve or decline, and generates the Claude setup from the project's own commands and conventions. It never changes application code or dependency versions.
 
