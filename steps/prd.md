@@ -2,11 +2,11 @@
 
 Write the PRD — what the product does and why — and propose the document set. **No technical choices**: the stack is the tech lead's decision, made in the `architecture` step (spec 5.7), so a project manager or business analyst running this step never sees a stack, a framework or a version.
 
-**Reads:** the project input, `.keelwright/interview.md`, `<plugin root>/reference/catalog.md`, and the templates `prd.md` and `adr-0001-record-architecture-decisions.md`. On a re-run: the existing `docs/prd.md`.
+**Reads:** the project input, `.keelwright/interview.md`, `docs/client/brief.md` if it exists (the client brief), `<plugin root>/reference/catalog.md`, and the templates `prd.md` and `adr-0001-record-architecture-decisions.md`. On a re-run: the existing `docs/prd.md`.
 **Produces:** `docs/prd.md`, `docs/decisions/0001-record-architecture-decisions.md`; the document set in the state.
 **Gate:** Gate 1 — the user confirms the PRD and the document set.
 
-The input and the interview are the source of truth. If the user edited `.keelwright/interview.md`, their version wins.
+The input and the interview are the source of truth. If the user edited `.keelwright/interview.md`, their version wins. **For a client project, the client brief is the agreement**: its exclusions are non-goals, its deadline shapes the release plan, its sign-off people are stakeholders. The PRD doesn't repeat the commercial frame, and never contradicts the brief — a requirement that goes beyond the agreed scope is an open question for the client, `[NEEDS CLARIFICATION (am): …]`.
 
 ## 1. Requirements first
 
@@ -35,7 +35,7 @@ The PRD says **what and why**. It names no framework, service or version — onl
 
 Apply the conditions in `reference/catalog.md` to this project. For **each** catalog document, decide included or not, with a one-line reason tied to the requirements (e.g. "`erd` — not included: nothing is stored; the contact form sends email (FR-007)"). Optional documents (`jira`, `confluence`, `architecture-requirements`) only if the user asked.
 
-Record it: `STATE set documents <comma-separated keys>`. The same keys go into the PRD's `documents:` front matter.
+Record it: `STATE set documents <comma-separated keys>` — keep `client-brief` when the `brief` step added it. The same keys go into the PRD's `documents:` front matter.
 
 ## 3. Write the documents
 

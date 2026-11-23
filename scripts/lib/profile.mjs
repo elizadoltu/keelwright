@@ -15,9 +15,9 @@ export const ROLES = [
   { id: 'designer', tag: 'design', title: 'Designer', shows: 'the look, the screens and the tokens' },
   { id: 'project-manager', tag: 'pm', title: 'Project manager', shows: 'scope, risks and what is blocked' },
   { id: 'business-analyst', tag: 'ba', title: 'Business analyst', shows: 'requirements, acceptance criteria and data gaps' },
-  // Open (spec 10): what account managers need is still being researched. Until then they get
-  // every document summarised and a short status per doctor area.
-  { id: 'account-manager', tag: 'am', title: 'Account manager', shows: 'a short status per area' },
+  // The client relationship (spec 5.7, from research on agency account managers): what was agreed
+  // with the client, what only the client can answer (`am` questions), and what changed in scope.
+  { id: 'account-manager', tag: 'am', title: 'Account manager', shows: 'what the client agreed, what the client still has to answer, and what changed in scope' },
 ];
 export const TAGS = ROLES.map((r) => r.tag);
 export const roleById = (id) => ROLES.find((r) => r.id === id) ?? null;
@@ -33,7 +33,7 @@ export const WORKING_SETS = {
   designer: [/^docs\/design\//, /^design\//],
   'project-manager': [/^docs\/prd\.md$/, /^docs\/features\.md$/, /^docs\/backlog\.md$/, /^docs\/release-checklist\.md$/, /^\.keelwright\/publish/],
   'business-analyst': [/^docs\/prd\.md$/, /^docs\/features\.md$/, /^docs\/backlog\.md$/, /^docs\/evals\/plan\.md$/],
-  'account-manager': [],
+  'account-manager': [/^docs\/client\//],
 };
 
 // The doctor's areas, most relevant first (spec 7.0: "the profile orders the areas").

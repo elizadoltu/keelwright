@@ -24,6 +24,7 @@ Include a document only when its condition holds; give the reason either way whe
 
 | Key | Included when… | Path | Step |
 |---|---|---|---|
+| `client-brief` | the project is delivered for a client (an agency or a supplier building it for another organisation) | `docs/client/brief.md` (+ `docs/client/changes.md`, the scope change log, once the scope changes) | `brief` |
 | `architecture-overview` | more than one container or service, or a backend exists — including a managed backend (e.g. Supabase) or serverless functions | `docs/architecture/overview.md` | `architecture` |
 | `c4` | same as `architecture-overview` | `docs/architecture/c4/workspace.dsl` | `architecture` |
 | `erd` | the project stores data (in a database it owns or a managed one) | `docs/architecture/erd.md` + `docs/architecture/schema.sql` | `architecture` |

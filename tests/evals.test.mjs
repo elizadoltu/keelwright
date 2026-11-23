@@ -45,6 +45,7 @@ function fakeClaude() {
       write(cwd, 'docs/decisions/0002-use-astro.md', 'Drivers: FR-001');
       const s = st();
       S.complete(s, 'interview', ['.keelwright/interview.md'], { root: cwd, now: NOW });
+      S.skip(s, 'brief', 'not a client project', { now: NOW });
       S.setProjectType(s, 'web');
       S.mergeStack(s, { primary: { choice: 'Astro', rule: 1 } });
       S.start(s, 'prd', { now: NOW });

@@ -46,6 +46,7 @@ const DOC_PATHS = /^(\.keelwright\/|docs\/|CLAUDE\.md$|\.claude\/|CONTRIBUTING\.
 // Where each document lives, which doccheck type checks it, and which step writes it.
 const DOCUMENTS = {
   prd: { path: 'docs/prd.md', check: 'prd', step: 'prd' },
+  'client-brief': { path: 'docs/client/brief.md', check: 'client-brief', step: 'brief' },
   'architecture-overview': { path: 'docs/architecture/overview.md', check: 'overview', step: 'architecture' },
   c4: { path: 'docs/architecture/c4/workspace.dsl', check: null, step: 'architecture' }, // checked by checkWorkspace
   erd: { path: 'docs/architecture/erd.md', check: 'erd', step: 'architecture' },

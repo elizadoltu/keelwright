@@ -17,12 +17,13 @@ You are running the KeelWright `/kickoff` pipeline in the current directory (the
 ## The pipeline
 
 ```
-interview → prd → { architecture, features, design } → research → scaffold → generate → publish
+interview → { brief, prd } → { architecture, features, design } → research → scaffold → generate → publish
 ```
 
 | Step | Produces | Gate after it |
 |---|---|---|
 | `interview` | Project type, `.keelwright/interview.md` | — |
+| `brief` | Client brief (`docs/client/brief.md`) — only for a project delivered for a client | Gate 1 |
 | `prd` | PRD, document set, ADR-0001 — no technical choices | Gate 1 |
 | `architecture` | Stack with resolved versions, stack ADR and other ADRs, architecture overview, C4, ERD + `schema.sql`, threat model, AI system design, AI eval plan, API surface | Gate 2 |
 | `features` | Feature breakdown, backlog | Gate 2 |
@@ -38,7 +39,8 @@ Every step has owners. **A developer, a tech lead, or someone without a role run
 
 | Role | Runs |
 |---|---|
-| Project manager, business analyst, account manager | `interview` (product questions only), `prd` (no stack), `features`; `publish` (PM, BA) |
+| Account manager | `interview` (the client's context), `brief` — the client relationship: what was agreed, what the client still has to answer, what changed in scope |
+| Project manager, business analyst | `interview` (product questions only), `prd` (no stack), `features`, `publish`; the PM also `brief` when there is no account manager |
 | Designer | `design` |
 | Tech lead, developer | everything — the stack, architecture, C4, ERD, threat model, `research`, `scaffold`, `generate`; `design` when the team has no designer |
 
@@ -58,7 +60,7 @@ Before section 1, run `PROFILE show --json` once. The profile is personal (`~/.k
 - **First run** (`asked: false`): ask once for the role — **Developer** · **Tech lead** · **Designer** · **Project manager** · **Business analyst** · **Account manager** · **Skip** (AskUserQuestion takes 4 options per question: ask technical (Developer, Tech lead, Designer) or product (Project manager, Business analyst, Account manager) first, then the role) — with the name through "Other". Save it with `PROFILE set --role <developer|tech-lead|designer|project-manager|business-analyst|account-manager> [--name "…"]`, or `PROFILE skip`. Say `/keelwright:profile` changes it any time. Never ask for or store an email address.
 - **`name`** is the `owner` of the documents this run writes and the decision-makers of its ADRs, instead of a marker — pass it to the steps.
 - **`defaults`**: `jiraProject` and `confluenceSpace` prefill `publish`'s questions (still confirmed); `language` is the language you talk to the user in — documents stay in the language of the project's input.
-- **`role`** decides the working set at gates (section 7) and in the report (section 8), which open questions the user is asked, and how results are shown (`shows`: a developer or tech lead sees diffs, versions and files; a designer the look, screens and tokens; a PM scope, risks and what is blocked; a BA requirements, criteria and data gaps), and **which steps they run** ("Who runs which step"). No role: everything is shown and run as before. **Never show a project manager, business analyst or account manager a stack, a framework, a version or a scaffold**: those are the tech lead's.
+- **`role`** decides the working set at gates (section 7) and in the report (section 8), which open questions the user is asked, and how results are shown (`shows`: a developer or tech lead sees diffs, versions and files; a designer the look, screens and tokens; a PM scope, risks and what is blocked; a BA requirements, criteria and data gaps; an account manager what the client agreed, what the client still has to answer and what changed in scope), and **which steps they run** ("Who runs which step"). No role: everything is shown and run as before. **Never show a project manager, business analyst or account manager a stack, a framework, a version or a scaffold**: those are the tech lead's.
 - **A project manager** with `pmSkills: true` is offered pm-skills' workflows on the project's documents (OKRs, outcome roadmap, pre-mortem, PRD red-team, stakeholder map, release notes) after gate 1 and at the end — one line each time, never part of the document set. With `pmSkills: false`, say once that it can be installed (`/plugin marketplace add phuryn/pm-skills`).
 
 ## 1. Read the arguments
@@ -68,8 +70,10 @@ Decide what was asked from `$ARGUMENTS`:
 | Arguments | Meaning | Go to |
 |---|---|---|
 | `status` | Show progress | Run `STATE status` and show the result in a short, readable form. Stop. |
+| `questions` | Questions for the client | Section 9 |
+| `scope` | Scope changes since approval | Section 3, then stop |
 | `report` | Run report and document ratings | Section 8 |
-| a step name (`interview`, `prd`, `architecture`, `features`, `design`, `research`, `scaffold`, `generate`, `publish`) | Re-run that step — only one the user's role runs (`STATE start --role` refuses another's) | Section 4 |
+| a step name (`interview`, `brief`, `prd`, `architecture`, `features`, `design`, `research`, `scaffold`, `generate`, `publish`) | Re-run that step — only one the user's role runs (`STATE start --role` refuses another's) | Section 4 |
 | `research --refresh` | Re-run research and force new stack packs | Section 4, passing the refresh flag to the step |
 | anything else, or nothing | Start a new kickoff, or continue the current one | Section 2 |
 
@@ -90,6 +94,8 @@ If the state exists and `$ARGUMENTS` contains a new project description, don't s
 ## 3. Edits since approval
 
 Run `STATE changes --json`. If nothing changed, continue.
+
+**Scope changes first** (a client project: `client-brief` in the document set). Run `STATE scope --json` **before** accepting anything — accepting moves the agreed scope to the edited files. For each change it lists (a story or feature added, dropped, moved to another priority or slice), add a row to `docs/client/changes.md` (create it from `templates/client-changes.md` the first time): the next `CH-` ID, today's date, the change in plain words (its `text`), why (the answer or edit that led to it, if known), decision `pending`. Tell the user the account manager decides each one — a **change request** to raise with the client (cost and timeline), or **in scope**; an account manager decides them now (AskUserQuestion, up to 4 per round) and the decision is written in the row. Renamed items are listed but aren't changes in scope.
 
 If files changed, the user's edited files are now the **source of truth** — never overwrite them with an earlier version. Show:
 - which files changed (and whether modified or deleted), and
@@ -117,7 +123,7 @@ Repeat:
 2. On `{"action": "run", "step": …}` → run the step (section 6), then repeat.
    - If the step is `publish` (`"optional": true`), first ask whether the user wants Jira or Confluence output. If not, run `STATE start publish` and `STATE skip publish --reason "not requested"`, then repeat.
 3. On `{"action": "review", "gate": N}` → hold the review gate (section 7) and stop.
-4. On `{"action": "handoff", "waiting": […]}` → the user's part is done for now. Tell them, in plain words, who is next and what they will do — one line per waiting step, naming the role ("A tech lead chooses the stack and writes the architecture: they run `/keelwright:start` in this folder"; "The designer writes the visual identity — or the tech lead, if there's no designer") — that the state is in `.keelwright/state.json`, so the folder (or the repository, once it's committed) is all they need, and that `/keelwright:kickoff status` shows progress. Don't run another role's step, even if asked to "just continue": say that the profile can be changed with `/keelwright:profile` if they really hold that role. Stop.
+4. On `{"action": "handoff", "waiting": […]}` → the user's part is done for now. An account manager is also shown the questions for the client (section 9) — they can send them while the others work. Tell them, in plain words, who is next and what they will do — one line per waiting step, naming the role ("A tech lead chooses the stack and writes the architecture: they run `/keelwright:start` in this folder"; "The designer writes the visual identity — or the tech lead, if there's no designer") — that the state is in `.keelwright/state.json`, so the folder (or the repository, once it's committed) is all they need, and that `/keelwright:kickoff status` shows progress. Don't run another role's step, even if asked to "just continue": say that the profile can be changed with `/keelwright:profile` if they really hold that role. Stop.
 5. On `{"action": "complete"}` → tell the user the kickoff is finished, with a short summary of what exists now. Stop.
 
 Run as many steps as you can in one go; the pipeline only pauses at review gates, when a step needs answers from the user, or when a step is not implemented yet.
@@ -163,10 +169,18 @@ Run metrics are recorded automatically by `STATE` (`.keelwright/metrics.json`); 
 3. Record each answer: `STATE rate <file> <as-is|small-edits|rewritten|deleted>`.
 4. Run `STATE report --write` and tell the user the report is in `.keelwright/report.md`. Suggest running `/kickoff report` again a few weeks into the project, to re-rate the documents once they've been used.
 
+## 9. Questions for the client
+
+`(am)` questions are the ones **only the client can answer**; the account manager asks them (spec 5.7).
+
+1. Run `STATE markers --all --role am --json`: `mine` holds the `(am)` questions in every document (and untagged ones — leave those out of the message unless the user says they're for the client).
+2. Show them as **one message the account manager can send to the client**: grouped by topic, plain words, numbered, each answerable on its own, with the options where there are some — no IDs, file names or technical terms. Under it, for the account manager only, the file and line of each.
+3. When the user pastes the client's answers (now or later with `/kickoff questions`), put each answer into its document in place of the marker — a short statement, with "(client, <date>)" — and say which documents changed. An answer in an approved document is an edit: section 3 runs next (and logs a scope change if the answer adds or drops a story).
+
 ## Rules for every step
 
 - **Templates.** Every document is written from its template in `${CLAUDE_PLUGIN_ROOT}/templates/`. Keep the template's structure, front matter and stable IDs; remove the template's instruction comments and example rows from the final document.
-- **Unknowns are marked, not guessed.** Anything the input and the interview don't settle is written as `[NEEDS CLARIFICATION: …]` and resolved at a review gate. Tag it with the role that can answer it — `[NEEDS CLARIFICATION (pm): launch date?]`: `lead` (technical decisions: stack, architecture, data model, hosting), `dev` (how something is built in the code), `design` (look, brand, screens), `pm` (scope, priorities, dates, budget), `ba` (requirements, rules, data), `am` (the client relationship); untagged when anyone can.
+- **Unknowns are marked, not guessed.** Anything the input and the interview don't settle is written as `[NEEDS CLARIFICATION: …]` and resolved at a review gate. Tag it with the role that can answer it — `[NEEDS CLARIFICATION (pm): launch date?]`: `lead` (technical decisions: stack, architecture, data model, hosting), `dev` (how something is built in the code), `design` (look, brand, screens), `pm` (scope, priorities, dates, budget), `ba` (requirements, rules, data), `am` (only the client can answer: the account manager asks them); untagged when anyone can.
 - **The user's files win.** Before writing a file that already exists, read it; keep the user's edits and change only what the step needs to change.
 - **Accepted ADRs are never edited.** A changed decision gets a new ADR that supersedes the old one.
 - **Versions come from the registries, never from memory** (spec 4.6).

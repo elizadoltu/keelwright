@@ -5,6 +5,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Added — the account manager (spec 5.7)
+
+From research on what account managers do in software agencies: they own the client relationship and the commercial side — what was agreed, change requests, what the client is told — while the project manager owns delivery.
+
+- **Client brief** — a new `brief` step and `client-brief` document (`docs/client/brief.md`), only for a project delivered for a client: stakeholders and who signs off, contract type, deadline and change-request process, agreed scope, exclusions and assumptions, how the client wants updates. It shares gate 1 with the PRD; the PRD builds on it. The account manager runs it (the PM when there is none); internal projects skip it.
+- **Questions for the client** — `(am)` now means *only the client can answer*. `/kickoff questions` gathers them from every document (`STATE markers --all`) into one plain-language message, and writes the client's answers back.
+- **Scope change log** — approving the PRD or the feature breakdown records the agreed scope in the state; `STATE scope` lists stories and features added, dropped or moved since. On a client project each becomes a `CH-` row in `docs/client/changes.md` before the edit is accepted, and the account manager decides: change request or in scope. `/kickoff scope` shows them.
+- The account manager now runs the interview (the client's context) and the brief; the PRD and features are the PM's and BA's.
+- States from earlier versions get the new step: skipped when the pipeline is already past it.
+
 ## [0.4.0] — 2026-11-23
 
 ### Changed — each role produces its own part (spec 5.7)
