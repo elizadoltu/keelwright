@@ -117,7 +117,7 @@ describe('graders', () => {
     const g = Object.fromEntries(Object.entries(GRADERS).map(([k, fn]) => [k, fn(run, CASE.expect, CASE)]));
     assert.equal(g['reached-gate'].pass, true);
     assert.equal(g['project-type'].pass, true);
-    assert.equal(g.primary.pass, true, g.primary.detail);
+    assert.equal(g.primary, null, 'at gate 1 the stack is not chosen yet: it is the tech lead\'s, in architecture');
     assert.equal(g['documents-include'].pass, true);
     assert.equal(g['documents-exclude'].pass, true);
     assert.equal(g['interview-asked'].pass, true);
@@ -127,9 +127,19 @@ describe('graders', () => {
   });
 
   test('a wrong frontend rule fails', () => {
-    const run = { state: { stack: { primary: { choice: 'Astro', rule: 'rule 4' } } } };
+    const steps = { architecture: { status: 'awaiting_review' } };
+    const run = { state: { steps, stack: { primary: { choice: 'Astro', rule: 'rule 4' } } } };
     assert.equal(GRADERS.primary(run, CASE.expect).pass, false);
-    assert.equal(GRADERS.primary({ state: { stack: { frontend: { choice: 'Astro', rule: 1 } } } }, CASE.expect).pass, true, 'older runs recorded it as frontend');
+    assert.equal(GRADERS.primary({ state: { steps, stack: { frontend: { choice: 'Astro', rule: 1 } } } }, CASE.expect).pass, true, 'older runs recorded it as frontend');
+  });
+
+  test('a kickoff run by a PM leaves the stack to the tech lead', () => {
+    const dir = temp();
+    write(dir, 'docs/prd.md', '# PRD\n\n## Technical constraints\n\n- Platforms: web\n- Stack: chosen by the tech lead\n\n## Assumptions\n');
+    assert.equal(GRADERS['no-stack']({ dir, state: { stack: {} }, adrs: ['0001-record.md'] }, { noStack: true }).pass, true);
+    const bad = GRADERS['no-stack']({ dir, state: { stack: { toolchain: 'node' } }, adrs: ['0001-record.md', '0002-use-astro.md'] }, { noStack: true });
+    assert.equal(bad.pass, false);
+    assert.match(bad.detail, /stack recorded.*ADRs beyond 0001: 0002-use-astro.md/);
   });
 
   test('judge replies are parsed strictly', () => {

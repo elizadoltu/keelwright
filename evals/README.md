@@ -23,7 +23,7 @@ Exit codes: `0` every grader at or above the threshold (default 67%), `1` below 
 |---|---|---|
 | `personal-website` | Content-first site with two audiences, a blog and one form → Astro (rule 1), no backend server or database, i18n, stack packs chosen to match | Gate 3 |
 | `freelancer-invoicing` | Public marketing pages + logged-in app with stored data → TanStack Start (rule 3), database, ERD | Gate 2 |
-| `support-dashboard` | Entirely behind a login, reads an existing API → TanStack Start SPA mode (rule 5), nothing stored | Gate 1 |
+| `support-dashboard` | Entirely behind a login, reads an existing API → TanStack Start SPA mode (rule 5), nothing stored | Gate 2 (the stack is chosen in `architecture`) |
 | `habit-tracker-mobile` | iOS + Android, offline with sync, TypeScript team → Expo (mobile rule 3), `node`, offline / sync ADR, screen flow, store checklist | Gate 2 |
 | `roguelite-game` | Solo 2D PC game, local saves, no royalties → Godot (game rule 4), `godot`, GDD and asset pipeline, no ERD | Gate 2 |
 | `support-assistant-ai` | Retrieval + tools with a human-approved refund, EU personal data, Python team → Python (AI rule 2), `python`, provider ADR, AI system design, eval plan with cost and latency budgets | Gate 2 |
@@ -40,7 +40,7 @@ Phase 3 cases (spec 9, step 7):
 | `start-notes` | `/start` in a folder with only notes → `/kickoff`, the notes as its input | The interview's first questions |
 | `start-code` | `/start` in the `adopt-etl-python` repo, with some history → `/adopt` | The adoption is set up |
 | `doctor-drift` | `/start` on a hand-made Claude setup that drifted (a missing script, a deleted folder in CLAUDE.md and the architecture notes, a rule scoped to it) → audit mode: the doctor finds all of it and nothing changes before approval | The first fix question |
-| `pm-kickoff-booking` | `/kickoff` run by a project manager (profile): the open questions are tagged with the role that can answer them — launch date `(pm)`, cancellation rules `(ba)`, the old membership app `(dev)` | Gate 1 |
+| `pm-kickoff-booking` | `/kickoff` run by a project manager (profile): the open questions are tagged with the role that can answer them — launch date `(pm)`, cancellation rules `(ba)`, the old membership app `(lead)` — and no stack, no ADR beyond 0001: those are the tech lead's | Gate 1 |
 | `adopt-security-shop` | `/adopt` on the `security-shop` fixture: the threat model, as built, names the planted surface (the `orders` table, the admin routes, `profiles`) and passes its doccheck | Gate 2 |
 | `security-shop-deep` | The deep security review and the mechanical audit on `security-shop`, with five planted vulnerabilities: an injectable order lookup, a delete-user route without the admin check, `orders` without RLS, lodash 4.17.20, a Stripe key only in the history | The review, under `maxCost` ($3) |
 
@@ -59,7 +59,7 @@ An `/adopt` case has `"mode": "adopt"` and a `repo/` folder instead of `input.md
 | Grader | Type | Passes when |
 |---|---|---|
 | `reached-gate` | code | The run is waiting at the case's stop gate |
-| `project-type`, `primary`, `toolchain` | code | The state records the expected type, main decision (framework, engine, language) with its rule, and toolchain |
+| `project-type`, `primary`, `toolchain` | code | The state records the expected type, main decision (framework, engine, language) with its rule, and toolchain. `primary`, `toolchain`, `adrs` and `versions` apply once `architecture` has run — the tech lead's step, where the stack is chosen; a kickoff stopped at gate 1 has no stack yet |
 | `adrs` | code | An ADR matches each expected pattern (e.g. the offline / sync decision of a mobile app) |
 | `documents-include`, `documents-exclude` | code | The document set contains / leaves out the expected keys |
 | `documents-written` | code | Every listed document whose step ran exists |
@@ -82,7 +82,8 @@ An `/adopt` case has `"mode": "adopt"` and a `repo/` folder instead of `input.md
 | `route` | code | `/start` took the expected route: a kickoff or an adoption started, or the doctor ran without starting a pipeline |
 | `doctor-found` | code | `.keelwright/doctor.md` names each planted problem |
 | `only-keelwright` | code | Nothing outside `.keelwright/` changed (audit mode asks before fixing) |
-| `marker-roles` | code | Every role tag on an open question is known (`dev`, `pm`, `ba`, `am`), and the expected questions carry the expected role |
+| `marker-roles` | code | Every role tag on an open question is known (`dev`, `lead`, `design`, `pm`, `ba`, `am`), and the expected questions carry the expected role (one of several, when listed) |
+| `no-stack` | code | A kickoff run by a non-technical role leaves the stack to the tech lead: nothing in `state.stack`, no ADR beyond 0001, no versions in the PRD's technical constraints |
 | `threat-surface` | code | The threat model names the planted tables and routes and passes `doccheck threat-model` |
 | `planted-found` | code | The deep review reported each planted vulnerability, in the right file |
 | `findings-real` | code | No deep finding cites a file the project doesn't have, and the review stayed within `maxCost` |

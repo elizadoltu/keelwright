@@ -9,7 +9,7 @@ Facts about tools were checked against official sources on 2026-11-17; flags cha
 read the generator's `--help` before running it.
 -->
 
-The **toolchain** is how a project is built and checked, independent of its type: an Expo app and a TypeScript library are both `node`. The `prd` step records it with `STATE set stack '{"toolchain": "<t>"}'`.
+The **toolchain** is how a project is built and checked, independent of its type: an Expo app and a TypeScript library are both `node`. The `architecture` step records it with `STATE set stack '{"toolchain": "<t>"}'`.
 
 | Toolchain | Used for | Task runner | Manifest + lockfile | Runtime pin |
 |---|---|---|---|---|

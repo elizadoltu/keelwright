@@ -1,6 +1,6 @@
 # Step: `interview`
 
-Understand the project well enough to write the PRD and choose the stack: identify the project type, find what the input leaves open, and ask the user — briefly and only about what matters.
+Understand the project well enough to write the PRD (and for the tech lead to choose the stack later): identify the project type, find what the input leaves open, and ask the user — briefly and only about what matters.
 
 **Reads:** the project input (`state.input`: a file path, or `.keelwright/input.md`), any other files the user pointed to, and `.keelwright/interview.md` if it exists (a resumed or re-run interview).
 **Produces:** `.keelwright/interview.md`; the project type via `STATE set project-type`.
@@ -67,16 +67,18 @@ Add the topics for the project type (skip any the input answers):
 | library | Runtime versions to support; stability promises | Versioning policy, CI matrix |
 | library | The main operations of its public API or CLI | API surface |
 
-**Don't ask about technology** (frameworks, databases, hosting products) unless the user raised it or a hard constraint depends on it — KeelWright recommends the stack in the `prd` step. Ask about needs; the stack follows from them.
+**Don't ask about technology** (frameworks, databases, hosting products) unless the user raised it or a hard constraint depends on it — the tech lead chooses the stack in the `architecture` step. Ask about needs; the stack follows from them.
+
+**Technical questions only to technical roles** (spec 5.7). The command passes the person's role. A project manager, business analyst or account manager is **never** asked a technical question — hosting, an existing system's API, the team's languages, data volumes in technical terms, how something is built. Ask them the product side in their words ("Does the order have to reach the caterer automatically, or is copying a total fine?"), and record the technical side as an open question tagged `(lead)` for the `architecture` step. A developer, a tech lead or someone without a role can be asked both.
 
 ## 4. Ask
 
-- Use **AskUserQuestion**, at most **4 questions per round** and normally **no more than 3 rounds**. Ask the questions that change the stack, the document set or the MVP scope first.
+- Use **AskUserQuestion**, at most **4 questions per round** and normally **no more than 3 rounds**. Ask the questions that change the MVP scope, the document set or the requirements the stack will follow from first.
 - Make each question stand on its own: say briefly why you're asking, and offer 2–4 concrete options. Put the option you'd recommend first and mark it "(Recommended)" when there is a sensible default; the user can always answer in their own words.
 - When the input lists something as undecided, ask about it — those are the user's open decisions.
 - Use earlier answers: don't ask what an answer already settled, and follow up only when an answer opened a real new question.
 - If the user doesn't know or wants to decide later, accept that — it becomes an open question, not a guess.
-- Stop asking when the remaining unknowns wouldn't change the PRD's scope, the stack or the document set; those go to the PRD as `[NEEDS CLARIFICATION (<role>): …]`, tagged with the role that can answer them (`dev`, `pm`, `ba`, `am`). Questions the person running the interview can't answer for their role — a PM asked about hosting, a developer about the launch date — are tagged for the right role rather than guessed.
+- Stop asking when the remaining unknowns wouldn't change the PRD's scope, the stack or the document set; those go to the PRD as `[NEEDS CLARIFICATION (<role>): …]`, tagged with the role that can answer them (`pm`, `ba`, `am`, `lead`, `design`, `dev`). Questions the person running the interview can't answer for their role — hosting for a PM, the launch date for a developer, the brand colours for a tech lead — are tagged for the right role rather than asked or guessed.
 
 ## 5. Write `.keelwright/interview.md`
 

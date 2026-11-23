@@ -73,11 +73,10 @@ As a <user>, I want <capability> so that <benefit>.
 
 ## Technical constraints
 
-<!-- Constraints only, not design. The recommended stack and its versions go here as a summary, with links to the ADRs that justify them. -->
+<!-- Constraints only, from the requirements or the user — no framework, service or version. The tech lead chooses the stack in the architecture step. -->
 
 - Platforms: <web / iOS / Android / desktop>
-- Stack: <summary> — see ADR-0002
-- Versions resolved on: YYYY-MM-DD
+- Stack: chosen by the tech lead — see ADR-0002 and the architecture overview
 
 ## Assumptions and risks
 
@@ -88,7 +87,7 @@ As a <user>, I want <capability> so that <benefit>.
 
 ## Open questions
 
-- [NEEDS CLARIFICATION (<dev|pm|ba|am — the role that can answer>): <question>]
+- [NEEDS CLARIFICATION (<pm|ba|am|lead|design|dev — the role that can answer>): <question>]
 
 ## Release plan
 

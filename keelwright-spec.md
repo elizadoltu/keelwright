@@ -217,9 +217,9 @@ These rules are themselves researched content: they are re-checked when the web 
 Each stage has a step name (in backticks), used to re-run it on its own (5.1.2).
 
 1. `interview` — take the project description and specs as input, identify the **project type** (4.4), and **interview** to close gaps: users, platforms, scale, constraints, non-goals, integrations, content sources, dynamic features, languages, SEO / performance priorities.
-2. `prd` — propose the **document set** from the catalog (6.0) and write the **PRD**, including the **stack recommendation** (4.5) with versions resolved live (4.6); write ADR-0001 and the stack ADR. → **Gate 1** (the user confirms the PRD, the document set and the stack)
-3. Produce the remaining documents selected from the catalog (6.0), in three steps that share one gate:
-   - `architecture` — ADRs, architecture overview, C4, ERD + `schema.sql`, AI system design, AI eval plan, public API surface
+2. `prd` — propose the **document set** from the catalog (6.0) and write the **PRD** and ADR-0001. No technical choices: the PRD states requirements and constraints, never a framework or a version. → **Gate 1** (the user confirms the PRD and the document set)
+3. Produce the remaining documents selected from the catalog (6.0), in three steps that share one gate, each with its own owner (5.7):
+   - `architecture` — the **stack recommendation** (4.5) with versions resolved live (4.6) and the stack ADR, the other ADRs, architecture overview, C4, ERD + `schema.sql`, threat model, AI system design, AI eval plan, public API surface
    - `features` — feature breakdown, backlog
    - `design` — visual identity + tokens, screen flow, GDD, asset pipeline, store release checklist
 
@@ -235,7 +235,7 @@ All documents are plain Markdown / DSL files in the repository, so the user can 
 
 - At each **review gate**, the pipeline pauses; the user reviews and edits the documents, then continues.
 - On continue, the pipeline **re-reads the edited files** and treats them as the source of truth — it never overwrites user edits with its own earlier version.
-- If an edit changes an upstream decision (e.g. the stack in the PRD), the downstream steps are regenerated and any affected ADRs are updated.
+- If an edit changes an upstream decision (e.g. a requirement in the PRD, or the stack ADR), the downstream steps are regenerated and any affected ADRs are updated.
 - Each step can also be re-run on its own (e.g. `/kickoff architecture`) after later edits.
 - Accepted ADRs are never edited, even when an upstream change affects them: a new ADR supersedes them.
 - Approving a gate finalises its documents: the PRD becomes `approved` and the ADRs written for it become `accepted` (each step defines what its gate approval changes).
@@ -251,8 +251,8 @@ interview → prd → { architecture, features, design } → research → scaffo
 | Step | Produces | Gate after it |
 |---|---|---|
 | `interview` | Project type, interview notes (`.keelwright/interview.md`) | — |
-| `prd` | PRD, document set, stack recommendation, resolved versions, ADR-0001, stack ADR | Gate 1 |
-| `architecture` | Remaining ADRs, architecture overview, C4, ERD + `schema.sql`, threat model, AI system design, AI eval plan, public API surface | Gate 2 (shared with `features` and `design`) |
+| `prd` | PRD, document set, ADR-0001 — no technical choices | Gate 1 |
+| `architecture` | Stack recommendation, resolved versions, stack ADR, other ADRs, architecture overview, C4, ERD + `schema.sql`, threat model, AI system design, AI eval plan, public API surface | Gate 2 (shared with `features` and `design`; each owner approves their own step) |
 | `features` | Feature breakdown, backlog | Gate 2 |
 | `design` | Visual identity + `design/tokens.json`, screen flow, GDD, asset pipeline, store release checklist | Gate 2 |
 | `research` | Stack packs for the chosen stack (5.4) | Gate 3 |
@@ -260,7 +260,7 @@ interview → prd → { architecture, features, design } → research → scaffo
 | `generate` | CLAUDE.md, rules, skills, subagents, hooks, CONTRIBUTING.md (5.3) | Final summary for the user (not blocking) |
 | `publish` | Jira epics and stories, Confluence pages | Optional, only when asked for |
 
-Each step only produces the documents in the chosen document set; a step with nothing to produce is skipped.
+Each step only produces the documents in the chosen document set; a step with nothing to produce is skipped (`architecture` never is: the stack is always chosen there). Each step has owners — the roles that run it (5.7).
 
 **Commands**
 
@@ -467,26 +467,42 @@ Optional, and only when the user asks for it (the `jira` and `confluence` catalo
 
 ### 5.7 Profiles — who is running it
 
-Different roles work with different documents. A personal profile (`~/.keelwright/profile.json`, set with `/keelwright:profile` and asked once on the first run) holds the person's **name**, **role** (developer, project manager, business analyst, account manager) and defaults (Jira project, Confluence space, language). It never holds an email address, and it is not in the repository: several people with different roles work on one project.
+Different roles work with different documents. A personal profile (`~/.keelwright/profile.json`, set with `/keelwright:profile` and asked once on the first run) holds the person's **name**, **role** (developer, tech lead, designer, project manager, business analyst, account manager) and defaults (Jira project, Confluence space, language). It never holds an email address, and it is not in the repository: several people with different roles work on one project.
 
-**The project's document set doesn't depend on who runs it** — a project kicked off by a PM still gets its architecture and Claude setup, because the next person needs them. The role decides:
+**The project's document set doesn't depend on who runs it** — a project kicked off by a PM still gets its architecture and Claude setup, because the next person needs them. But **each part is produced by the role that owns it**: a PM never chooses a stack, writes a C4 model or scaffolds the project (found in the first run by a PM, 2026-11-23: the PM was asked technical questions and shown the stack, the diagrams and the scaffold). The role decides:
+
+- **The steps they run.** Every step has owners (`owners` in `scripts/lib/pipeline.mjs`). When the pipeline reaches a step the person doesn't own, it stops and **hands off**: it says who is next and what they will do. The state is committed, so the next person continues with `/keelwright:start` in the same folder or repository.
+
+  | Role | Runs |
+  |---|---|
+  | Developer | every step (a solo developer runs the whole kickoff) |
+  | Tech lead | every step; owns the technical decisions: the stack (in `architecture`), architecture, C4, ERD, threat model, `research`, `scaffold`, `generate` |
+  | Designer | `design`: visual identity + tokens, screen flow, GDD, asset pipeline. On a team without a designer, the tech lead or a developer runs it |
+  | Project manager | `interview` (product questions only), `prd` (no stack), `features`, `publish` |
+  | Business analyst | as the project manager |
+  | Account manager | `interview`, `prd`, `features` (to be refined, 10) |
+  | no role | every step, as before profiles |
+
+  `/adopt`'s create-mode steps are technical: a developer or tech lead runs them (a PM or BA only `publish`). A gate shared by several owners (gate 2: the tech lead's `architecture`, the PM's `features`, the designer's `design`) is approved part by part, each owner approving their own step.
 
 - **The working set** — the documents the person owns: shown in full at gates, rated in the report, listed first by the doctor. The rest are summarised in a line each and stay open to them.
 
   | Role | Working set |
   |---|---|
-  | Developer | architecture overview, ADRs, C4, ERD, threat model, API surface, development workflow, stack packs, the tooling gaps, the Claude setup |
+  | Developer, tech lead | architecture overview, ADRs, C4, ERD, threat model, API surface, development workflow, stack packs, the tooling gaps, the Claude setup |
+  | Designer | visual identity and tokens, screen flow |
   | Project manager | PRD (goals, scope, release plan), feature breakdown and backlog, release checklist, Jira |
-  | Business analyst | PRD requirements and acceptance criteria, user stories, ERD (the data, not the SQL), screen flow, test scenarios |
+  | Business analyst | PRD requirements and acceptance criteria, user stories, feature breakdown and backlog, test scenarios |
   | Account manager | open — to be defined (10) |
 
-- **The questions they're asked.** Every open question carries the role that can answer it: `[NEEDS CLARIFICATION (dev): …]`. A gate asks the person only the questions for their role; the others stay open for the right person and are listed as waiting on them.
-- **How results are shown** — a developer sees diffs, versions and files; a PM sees scope, risks and what is blocked; a BA sees requirements, criteria and data gaps.
+- **The questions they're asked.** Every open question carries the role that can answer it: `[NEEDS CLARIFICATION (lead): …]`. **A project manager, business analyst or account manager is never asked a technical question**: the interview asks them the product side and records the technical side as a `(lead)` question, which the tech lead answers at the start of `architecture`. A gate asks the person only the questions for their role; the others stay open for the right person and are listed as waiting on them.
+- **How results are shown** — a developer or tech lead sees diffs, versions and files; a designer the look, the screens and the tokens; a PM sees scope, risks and what is blocked; a BA sees requirements, criteria and data gaps.
 - **Defaults** — the name fills `owner` and `decision-makers` instead of a marker; the Jira project and Confluence space prefill `publish`.
 - **Extras on request** — documents only one role needs are offered, never part of the default set. For product work KeelWright **uses [pm-skills](https://github.com/phuryn/pm-skills)** (MIT) rather than copying it: when it is installed, the PM profile is offered its workflows on the project's documents (OKRs, outcome roadmap, pre-mortem, PRD red-team, stakeholder map, release notes); when it isn't, KeelWright says how to install it. KeelWright's own PRD stays the engineering-facing one that the architecture is built from.
 
-**How it is built** (`scripts/profile.mjs`, `commands/profile.md`):
-- The tags are `dev`, `pm`, `ba` and `am`; an untagged question is anyone's, and an unknown tag counts as untagged. `STATE markers --role <tag>` lists the person's questions and counts the ones waiting on each other role. A gate's approval is never blocked by another role's questions — they stay open in the document for the right person.
+**How it is built** (`scripts/profile.mjs`, `commands/profile.md`, the `owners` of each step in `scripts/lib/pipeline.mjs`):
+- `STATE next --role <role>` returns the person's next step, the gate steps waiting for their review, or a `handoff` listing what waits on whom; `STATE start --role` refuses another role's step; `STATE approve <gate> --role` approves only their steps in the gate.
+- The tags are `dev`, `lead`, `design`, `pm`, `ba` and `am`; an untagged question is anyone's, and an unknown tag counts as untagged. `STATE markers --role <tag>` lists the person's questions and counts the ones waiting on each other role. A gate's approval is never blocked by another role's questions — they stay open in the document for the right person.
 - The working sets are file patterns per role (`WORKING_SETS` in `scripts/lib/profile.mjs`); no role means everything is in the working set, as before profiles. Until the account manager's set is defined, everything is summarised for them.
 - The doctor's committed record (`.keelwright/doctor.md`) is the team's and doesn't change with the profile; only what the command shows does — the areas in the role's order (`DOCTOR_ORDER`) and in the role's terms.
 - pm-skills counts as installed when a plugin from its marketplace is in Claude Code's installed plugins.

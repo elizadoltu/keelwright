@@ -2,27 +2,46 @@
 // source of truth for step names, order, dependencies and gates; the state CLI and its tests
 // read it from here. A state without a `mode` is a kickoff (states written before /adopt).
 
+// Who runs each step (spec 5.7). `owners` are profile role ids; a developer or tech lead can run
+// every step, and so can someone without a role (as before profiles). The others run only their
+// own steps: when the next step belongs to another role, the pipeline hands off to them.
+const PRODUCT = ['project-manager', 'business-analyst', 'account-manager'];
+const TECHNICAL = [];
+const DESIGN = ['designer'];
+
 export const STEPS = [
-  { name: 'interview', deps: [], gate: null, optional: false },
-  { name: 'prd', deps: ['interview'], gate: 1, optional: false },
-  { name: 'architecture', deps: ['prd'], gate: 2, optional: false },
-  { name: 'features', deps: ['prd'], gate: 2, optional: false },
-  { name: 'design', deps: ['prd'], gate: 2, optional: false },
-  { name: 'research', deps: ['architecture', 'features', 'design'], gate: 3, optional: false },
-  { name: 'scaffold', deps: ['research'], gate: null, optional: false },
-  { name: 'generate', deps: ['scaffold'], gate: null, optional: false },
-  { name: 'publish', deps: ['generate'], gate: null, optional: true },
+  { name: 'interview', deps: [], gate: null, optional: false, owners: PRODUCT },
+  { name: 'prd', deps: ['interview'], gate: 1, optional: false, owners: PRODUCT },
+  // The stack is chosen here, not in `prd`: it is the tech lead's decision.
+  { name: 'architecture', deps: ['prd'], gate: 2, optional: false, owners: TECHNICAL },
+  { name: 'features', deps: ['prd'], gate: 2, optional: false, owners: PRODUCT },
+  // No designer on the team: the tech lead or a developer runs it.
+  { name: 'design', deps: ['prd'], gate: 2, optional: false, owners: DESIGN },
+  { name: 'research', deps: ['architecture', 'features', 'design'], gate: 3, optional: false, owners: TECHNICAL },
+  { name: 'scaffold', deps: ['research'], gate: null, optional: false, owners: TECHNICAL },
+  { name: 'generate', deps: ['scaffold'], gate: null, optional: false, owners: TECHNICAL },
+  { name: 'publish', deps: ['generate'], gate: null, optional: true, owners: ['project-manager', 'business-analyst'] },
 ];
 
 // /adopt create mode: the code is the source of truth, so there is no interview, PRD or scaffold.
+// Reading the code and deciding its tooling is technical work throughout.
 export const ADOPT_STEPS = [
-  { name: 'analyse', deps: [], gate: 1, optional: false },
-  { name: 'document', deps: ['analyse'], gate: 2, optional: false },
-  { name: 'research', deps: ['analyse'], gate: 2, optional: false },
-  { name: 'gaps', deps: ['document', 'research'], gate: null, optional: false },
-  { name: 'generate', deps: ['gaps'], gate: null, optional: false },
-  { name: 'publish', deps: ['generate'], gate: null, optional: true },
+  { name: 'analyse', deps: [], gate: 1, optional: false, owners: TECHNICAL },
+  { name: 'document', deps: ['analyse'], gate: 2, optional: false, owners: TECHNICAL },
+  { name: 'research', deps: ['analyse'], gate: 2, optional: false, owners: TECHNICAL },
+  { name: 'gaps', deps: ['document', 'research'], gate: null, optional: false, owners: TECHNICAL },
+  { name: 'generate', deps: ['gaps'], gate: null, optional: false, owners: TECHNICAL },
+  { name: 'publish', deps: ['generate'], gate: null, optional: true, owners: ['project-manager', 'business-analyst'] },
 ];
+
+// Roles that run every step.
+export const ALL_STEPS_ROLES = ['developer', 'tech-lead'];
+
+// Whether someone with `role` runs `step` (a step object). No role: every step.
+export const runsStep = (role, step) => !role || ALL_STEPS_ROLES.includes(role) || step.owners.includes(role);
+
+// The roles that run a step, for a hand-off message: its own owners, then the technical roles.
+export const ownersOf = (step) => [...step.owners, ...ALL_STEPS_ROLES];
 
 export const PIPELINES = { kickoff: STEPS, adopt: ADOPT_STEPS };
 export const MODES = Object.keys(PIPELINES);

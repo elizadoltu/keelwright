@@ -8,8 +8,9 @@
     "markerRoles": [
       { "match": "launch|go-live|release date|budget", "role": "pm" },
       { "match": "cancel|no-show", "role": "ba" },
-      { "match": "PHP|member(ship)? (list|app|data)|import", "role": "dev" }
-    ]
+      { "match": "PHP|member(ship)? (list|app|data)|import", "role": ["lead", "dev"] }
+    ],
+    "noStack": true
   },
   "judges": []
 }

@@ -16,7 +16,7 @@ enforces the mechanical parts; keep the two in sync.
 
 ## Versions
 
-- Every dependency is an **exact** version. Versions resolved in the `prd` step (`stack.versions`) are used as they are.
+- Every dependency is an **exact** version. Versions resolved in the `architecture` step (`stack.versions`) are used as they are.
 - Packages the stack packs require that weren't resolved yet (lint plugins, configs, generators) are resolved now with `scripts/versions.mjs`, checked for peer conflicts, and added with `STATE set stack '{"versions": {…}}'` (nested objects merge, so only the new ones are needed).
 - GitHub Actions are pinned to a commit SHA: `scripts/versions.mjs github:<owner>/<repo>` prints the tag and its SHA. Write `uses: <owner>/<repo>@<sha> # <tag>`.
 

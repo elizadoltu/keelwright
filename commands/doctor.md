@@ -24,7 +24,7 @@ You are running the KeelWright doctor (spec 7.0) in the current directory (the p
 Run `PROFILE show --json`. On a first run (`asked: false`) ask once for the role, as `/keelwright:profile` does, or let the user skip. The profile changes only how the result is **shown**, never what is checked or recorded: `.keelwright/doctor.md` is the team's record and stays the same whoever runs it.
 
 - Show the areas in `doctorOrder` — the person's areas first.
-- Show them the way their role reads them (`shows`): a developer the files, commands and versions; a project manager what is at risk, what is blocked and what to ask a developer for; a business analyst the documents and requirements that drifted; an account manager one short status per area and the one thing to raise with the team.
+- Show them the way their role reads them (`shows`): a developer or tech lead the files, commands and versions; a designer the design documents and tokens that drifted; a project manager what is at risk, what is blocked and what to ask a developer for; a business analyst the documents and requirements that drifted; an account manager one short status per area and the one thing to raise with the team.
 - `language` is the language you write in.
 
 ## 1. Run it

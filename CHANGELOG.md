@@ -5,6 +5,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Changed — each role produces its own part (spec 5.7)
+
+From the first kickoff run by a project manager in Claude Desktop: the PM was asked technical questions and shown the stack, the diagrams and the scaffold.
+
+- **Two new roles:** tech lead (`lead`) and designer (`design`), with their working sets, doctor order and question tags.
+- **Every step has owners** (`owners` in `scripts/lib/pipeline.mjs`). A project manager, business analyst or account manager runs the interview, the PRD and the feature breakdown (and the PM and BA `publish`); the designer runs `design`; the tech lead or a developer runs everything else — and every step, so a solo developer still gets the whole kickoff. No role: every step, as before. `/adopt`'s create-mode steps are technical.
+- **Hand-offs:** `STATE next --role` returns the person's next step, or a hand-off naming who is next; `/kickoff` and `/adopt` stop there and say so. `STATE start --role` refuses another role's step, and `STATE approve <gate> --role` approves only the person's part of a shared gate (gate 2 is the tech lead's, the PM's and the designer's).
+- **The stack moved from `prd` to `architecture`:** the PRD states requirements and constraints, never a framework or a version; the tech lead chooses the stack, resolves versions and writes ADR-0002 at the start of `architecture`, after asking the technical questions the interview left as `(lead)`. The interview never asks a non-technical role a technical question.
+- Evals: `primary`, `toolchain`, `adrs` and `versions` apply once `architecture` has run; `support-dashboard` now stops at gate 2; `pm-kickoff-booking` expects no stack (new `no-stack` grader) and the membership-app question tagged `(lead)`.
+
 ### Changed
 
 - The plugin and marketplace descriptions, the README status and the spec header describe what is built: `/start`, `/kickoff`, `/adopt` with audit mode, `/doctor` with the security audit, and `/profile`.

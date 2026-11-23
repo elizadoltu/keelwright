@@ -11,6 +11,8 @@ import { join } from 'node:path';
 
 export const ROLES = [
   { id: 'developer', tag: 'dev', title: 'Developer', shows: 'diffs, versions and files' },
+  { id: 'tech-lead', tag: 'lead', title: 'Tech lead', shows: 'decisions, diffs, versions and files' },
+  { id: 'designer', tag: 'design', title: 'Designer', shows: 'the look, the screens and the tokens' },
   { id: 'project-manager', tag: 'pm', title: 'Project manager', shows: 'scope, risks and what is blocked' },
   { id: 'business-analyst', tag: 'ba', title: 'Business analyst', shows: 'requirements, acceptance criteria and data gaps' },
   // Open (spec 10): what account managers need is still being researched. Until then they get
@@ -21,18 +23,24 @@ export const TAGS = ROLES.map((r) => r.tag);
 export const roleById = (id) => ROLES.find((r) => r.id === id) ?? null;
 export const roleByTag = (tag) => ROLES.find((r) => r.tag === tag) ?? null;
 
-// The working set per role (spec 5.7): the documents the person owns.
+// The working set per role (spec 5.7): the documents the person owns. The tech lead owns the
+// technical decisions (stack, architecture, diagrams, ERD); a developer works from them.
 const ADR = /(^|\/)(adrs?|decisions|decision-records)\//i;
+const TECHNICAL_SET = [/^docs\/architecture\//, ADR, /^docs\/security\/threat-model\.md$/, /^docs\/api-surface\.md$/, /^docs\/ai\//, /^CONTRIBUTING\.md$/, /^\.keelwright\/(stack-packs\/|gaps\.md$|analysis\.md$|scaffold\.md$|generate\.md$)/, /^CLAUDE\.md$/, /^\.claude\//];
 export const WORKING_SETS = {
-  developer: [/^docs\/architecture\//, ADR, /^docs\/security\/threat-model\.md$/, /^docs\/api-surface\.md$/, /^docs\/ai\//, /^CONTRIBUTING\.md$/, /^\.keelwright\/(stack-packs\/|gaps\.md$|analysis\.md$|scaffold\.md$|generate\.md$)/, /^CLAUDE\.md$/, /^\.claude\//],
+  developer: TECHNICAL_SET,
+  'tech-lead': TECHNICAL_SET,
+  designer: [/^docs\/design\//, /^design\//],
   'project-manager': [/^docs\/prd\.md$/, /^docs\/features\.md$/, /^docs\/backlog\.md$/, /^docs\/release-checklist\.md$/, /^\.keelwright\/publish/],
-  'business-analyst': [/^docs\/prd\.md$/, /^docs\/architecture\/erd\.md$/, /^docs\/design\/screen-flow\.md$/, /^docs\/evals\/plan\.md$/],
+  'business-analyst': [/^docs\/prd\.md$/, /^docs\/features\.md$/, /^docs\/backlog\.md$/, /^docs\/evals\/plan\.md$/],
   'account-manager': [],
 };
 
 // The doctor's areas, most relevant first (spec 7.0: "the profile orders the areas").
 export const DOCTOR_ORDER = {
   developer: ['setup', 'security', 'tooling', 'stack', 'docs', 'process', 'delivery'],
+  'tech-lead': ['security', 'stack', 'setup', 'tooling', 'docs', 'process', 'delivery'],
+  designer: ['docs', 'delivery', 'process', 'setup', 'stack', 'tooling', 'security'],
   'project-manager': ['delivery', 'security', 'docs', 'process', 'stack', 'tooling', 'setup'],
   'business-analyst': ['delivery', 'docs', 'security', 'process', 'setup', 'stack', 'tooling'],
   'account-manager': ['delivery', 'security', 'process', 'docs', 'stack', 'tooling', 'setup'],

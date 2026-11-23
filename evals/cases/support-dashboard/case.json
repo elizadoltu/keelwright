@@ -1,6 +1,6 @@
 {
   "description": "Entirely behind a login, reads an existing API, stores nothing. Exercises frontend rule 5 (TanStack Start in SPA mode), removing backend and database, no ERD.",
-  "stopAtGate": 1,
+  "stopAtGate": 2,
   "answers": [
     "The single sign-on is OpenID Connect. Times are shown in the team's timezone, Europe/Bucharest. English only. Anything else: decide later."
   ],

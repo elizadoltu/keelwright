@@ -7,7 +7,7 @@
 //   node profile.mjs skip                               asked once and declined: not asked again
 //   node profile.mjs split <file>… [--role <role>] [--json]   the working set among these files
 //
-// Roles: developer, project-manager, business-analyst, account-manager.
+// Roles: developer, tech-lead, designer, project-manager, business-analyst, account-manager.
 
 import * as P from './lib/profile.mjs';
 

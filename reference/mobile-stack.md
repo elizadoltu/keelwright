@@ -1,7 +1,7 @@
 # Mobile stack rules
 
 <!--
-Runtime copy of spec 4.4–4.6 for mobile apps, read by the `prd` step. Keep it in sync with
+Runtime copy of spec 4.4–4.6 for mobile apps, read by the `architecture` step (the stack is the tech lead's choice). Keep it in sync with
 keelwright-spec.md. Researched content: re-checked when the framework's stack pack is refreshed.
 -->
 
