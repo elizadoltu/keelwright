@@ -35,7 +35,7 @@ describe('profile: the file', () => {
   test('never an email address; only known roles', () => {
     const dir = tmp();
     assert.match(cli(dir, 'set', '--name', 'ana@example.com').stderr, /never holds an email address/);
-    assert.match(cli(dir, 'set', '--role', 'designer').stderr, /unknown role "designer"/);
+    assert.match(cli(dir, 'set', '--role', 'cto').stderr, /unknown role "cto"/);
     assert.throws(() => P.save({ defaults: { team: 'x' } }, { dir }), /unknown default "team"/);
   });
 
@@ -54,8 +54,11 @@ describe('profile: working sets and questions', () => {
 
   test('each role owns its documents; no role owns everything', () => {
     assert.deepEqual(P.workingSet('project-manager', FILES).mine, ['docs/prd.md', 'docs/features.md', 'docs/backlog.md']);
-    assert.deepEqual(P.workingSet('business-analyst', FILES).mine, ['docs/prd.md', 'docs/architecture/erd.md', 'docs/design/screen-flow.md']);
-    assert.deepEqual(P.workingSet('developer', FILES).mine, ['docs/architecture/overview.md', 'docs/architecture/erd.md', 'docs/decisions/0001-record.md', '.keelwright/stack-packs/astro.md', 'CLAUDE.md']);
+    assert.deepEqual(P.workingSet('business-analyst', FILES).mine, ['docs/prd.md', 'docs/features.md', 'docs/backlog.md']);
+    const technical = ['docs/architecture/overview.md', 'docs/architecture/erd.md', 'docs/decisions/0001-record.md', '.keelwright/stack-packs/astro.md', 'CLAUDE.md'];
+    assert.deepEqual(P.workingSet('developer', FILES).mine, technical);
+    assert.deepEqual(P.workingSet('tech-lead', FILES).mine, technical, 'the tech lead owns the diagrams and the ERD');
+    assert.deepEqual(P.workingSet('designer', FILES).mine, ['docs/design/screen-flow.md', 'docs/design/visual-identity.md']);
     assert.deepEqual(P.workingSet(null, FILES).others, []);
     assert.deepEqual(P.workingSet('account-manager', FILES).mine, []);
   });

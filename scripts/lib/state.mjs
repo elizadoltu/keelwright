@@ -14,6 +14,8 @@ import {
   alwaysDocuments,
   downstreamOf as downstreamIn,
   getStep as getStepIn,
+  ownersOf,
+  runsStep,
   stepsInGate as stepsInGateOf,
   stepsOf,
 } from './pipeline.mjs';
@@ -100,6 +102,40 @@ export function next(state) {
   return { action: 'complete' };
 }
 
+// What this person should do next (spec 5.7): like `next`, but only their own steps. When nothing
+// is theirs, a hand-off lists what is waiting and on whom:
+//   { action: 'handoff', waiting: [{ step, action: 'run' | 'review', gate, roles }] }
+// Without a role, or for a role that runs every step, it is `next`.
+export function nextFor(state, role) {
+  const all = next(state);
+  if (all.action === 'complete' || stepsFor(state).every((s) => runsStep(role, s))) return all;
+  let review = null;
+  for (const step of stepsFor(state)) {
+    const status = statusOf(state, step.name);
+    if (SATISFIED.has(status) || !runsStep(role, step)) continue;
+    if (status === 'awaiting_review') {
+      review ??= step.gate;
+      continue;
+    }
+    if (depsSatisfied(state, step.name)) return { action: 'run', step: step.name, optional: step.optional };
+  }
+  if (review !== null) return { action: 'review', gate: review, steps: stepsInGate(state, review).filter((n) => runsStep(role, getStep(state, n)) && statusOf(state, n) === 'awaiting_review') };
+  const waiting = [];
+  for (const step of stepsFor(state)) {
+    const status = statusOf(state, step.name);
+    if (SATISFIED.has(status)) continue;
+    if (status === 'awaiting_review') waiting.push({ step: step.name, action: 'review', gate: step.gate, roles: ownersOf(step) });
+    else if (depsSatisfied(state, step.name)) waiting.push({ step: step.name, action: 'run', gate: step.gate, roles: ownersOf(step), optional: step.optional });
+  }
+  return { action: 'handoff', waiting };
+}
+
+// Fails when `role` doesn't run `name` (a step another role owns).
+export function checkOwner(state, name, role) {
+  const step = getStep(state, name);
+  if (!runsStep(role, step)) fail(`"${name}" is not run by a ${role}: it belongs to ${ownersOf(step).join(', ')}`);
+}
+
 // Steps downstream of `name` that already ran (or were skipped) and would have to be regenerated.
 export function affectedDownstream(state, name) {
   return downstreamOf(state, name).filter((n) => statusOf(state, n) !== 'pending');
@@ -116,8 +152,8 @@ function markStale(state, names) {
 }
 
 // Start a step, or re-run one that already ran. A re-run marks every step after it as stale.
-export function start(state, name, { now }) {
-  getStep(state, name);
+export function start(state, name, { now, role = null }) {
+  checkOwner(state, name, role);
   if (!depsSatisfied(state, name)) {
     const missing = getStep(state, name).deps.filter((d) => !SATISFIED.has(statusOf(state, d)));
     fail(`cannot start "${name}": waiting for ${missing.join(', ')}`);
@@ -157,11 +193,14 @@ export function skip(state, name, reason, { now }) {
 }
 
 // Approve a review gate. Outputs are hashed now, so edits made during the review are the baseline.
-export function approve(state, gate, { root, now }) {
-  const names = stepsInGate(state, gate);
-  if (!names.length) fail(`unknown gate "${gate}"`);
-  const pending = next(state);
-  if (pending.action !== 'review' || pending.gate !== gate) fail(`gate ${gate} is not waiting for review`);
+// With a role, only that person's steps in the gate are approved (spec 5.7): the others in the
+// same gate wait for their own owners.
+export function approve(state, gate, { root, now, role = null }) {
+  const all = stepsInGate(state, gate);
+  if (!all.length) fail(`unknown gate "${gate}"`);
+  const pending = nextFor(state, role);
+  if (pending.action !== 'review' || pending.gate !== gate) fail(`gate ${gate} is not waiting for ${role ? `a ${role}'s` : 'your'} review`);
+  const names = role ? pending.steps : all;
   const approved = [];
   for (const n of names) {
     if (statusOf(state, n) !== 'awaiting_review') continue;

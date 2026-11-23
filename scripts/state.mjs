@@ -8,6 +8,16 @@ import { fileURLToPath } from 'node:url';
 import { MODES, downstreamOf, stepsOf } from './lib/pipeline.mjs';
 import * as M from './lib/metrics.mjs';
 import * as S from './lib/state.mjs';
+import { roleById, roleByTag } from './lib/profile.mjs';
+
+// --role takes a role id (`project-manager`) or its tag (`pm`); absent means no role.
+function roleOf(value) {
+  if (typeof value !== 'string' || !value) return null;
+  const role = roleById(value) ?? roleByTag(value);
+  if (!role) throw new S.StateError(`unknown role "${value}"`);
+  return role;
+}
+const roleId = (value) => roleOf(value)?.id ?? null;
 
 const HELP = `Usage: node state.mjs <command> [args] [--root <dir>] [--json]
 
@@ -15,13 +25,13 @@ const HELP = `Usage: node state.mjs <command> [args] [--root <dir>] [--json]
                                        Create .keelwright/state.json (fails if it exists)
   mode                                 The pipeline this project follows (kickoff | adopt; "none" without state)
   status                               Steps, next action, edited files and open markers
-  next                                 What /kickoff or /adopt should do next
+  next [--role <role>]                 What /kickoff or /adopt should do next; --role: this person's next step, or a hand-off
   steps [--mode <m>]                   The pipeline definition (this project's, or --mode's)
   downstream <step>                    Steps that a re-run of <step> would mark stale
-  start <step>                         Start (or re-run) a step
+  start <step> [--role <role>]         Start (or re-run) a step; --role: refuse another role's step
   complete <step> <file|dir>...        Finish a step and record its outputs
   skip <step> --reason <text>          Skip a step with nothing to produce
-  approve <gate>                       Approve a review gate (kickoff: 1–3, adopt: 1–2)
+  approve <gate> [--role <role>]       Approve a review gate (kickoff: 1–3, adopt: 1–2); --role: only this person's steps in it
   changes                              Approved files edited since approval
   accept-changes [--keep-downstream]   Take the edits as the new baseline
   markers [--role <tag>]               Open [NEEDS CLARIFICATION] markers in files under review; --role: yours first
@@ -87,6 +97,7 @@ function formatStatus(state, root) {
 }
 
 function describeNext(n) {
+  if (n.action === 'handoff') return `hand off: ${n.waiting.map((w) => `${w.action === 'review' ? `review of ${w.step}` : w.step}${w.optional ? ' (optional)' : ''} → ${w.roles.join(' / ')}`).join('; ')}`;
   if (n.action === 'run') return `run step "${n.step}"${n.optional ? ' (optional)' : ''}`;
   if (n.action === 'review') return `review gate ${n.gate} (${n.steps.join(', ')})`;
   return 'all steps finished';
@@ -149,7 +160,7 @@ function run(argv) {
     }
 
     case 'next': {
-      const n = S.next(S.load(root));
+      const n = S.nextFor(S.load(root), roleId(flags.role));
       return out(describeNext(n), n);
     }
 
@@ -178,7 +189,7 @@ function run(argv) {
 
     case 'start': {
       need(1, 'start <step>');
-      const r = mutate((state) => S.start(state, args[0], { now }));
+      const r = mutate((state) => S.start(state, args[0], { now, role: roleId(flags.role) }));
       measure((m) => M.recordStart(m, args[0], { now, ...r }));
       return out(`Started ${args[0]}${r.stale.length ? `; marked stale: ${r.stale.join(', ')}` : ''}`, r);
     }
@@ -221,7 +232,7 @@ function run(argv) {
           markersByStep[step] = markerCount(state, step);
           outputsByStep[step] = Object.keys(state.steps[step].outputs ?? {});
         }
-        return S.approve(state, gate, { root, now });
+        return S.approve(state, gate, { root, now, role: roleId(flags.role) });
       });
       measure((m) => M.recordApprove(m, root, gate, approved, { now, markersByStep, outputsByStep }));
       return out(`Gate ${gate} approved: ${approved.join(', ')}`, { gate, approved });
@@ -246,7 +257,7 @@ function run(argv) {
       // --role <tag>: this person's questions (their role's and untagged ones) first, then the
       // ones waiting on another role (spec 5.7).
       const m = S.markers(S.load(root), root);
-      const tag = typeof flags.role === 'string' ? flags.role : null;
+      const tag = roleOf(flags.role)?.tag ?? null;
       if (!tag) return out(m.length ? m.map((x) => `${x.file}:${x.line}  ${x.text}`).join('\n') : 'No open markers.', m);
       const mine = m.filter((x) => !x.role || x.role === tag);
       const waiting = m.filter((x) => x.role && x.role !== tag);

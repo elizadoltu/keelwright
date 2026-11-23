@@ -221,6 +221,69 @@ describe('state transitions', () => {
   });
 });
 
+describe('step owners and hand-offs (spec 5.7)', () => {
+  let root;
+  let state;
+  const PM = 'project-manager';
+  beforeEach(() => {
+    root = project();
+    state = S.create({ version: '0.3.0', now: NOW });
+  });
+
+  test('every step has owners; a developer, a tech lead and no role run them all', () => {
+    for (const mode of MODES) for (const step of stepsOf(mode)) assert.ok(Array.isArray(step.owners), `${mode} ${step.name}`);
+    for (const role of [null, 'developer', 'tech-lead']) assert.deepEqual(S.nextFor(state, role), S.next(state));
+  });
+
+  test('a PM runs the product steps, then hands the technical ones off', () => {
+    runStep(state, root, 'interview');
+    runStep(state, root, 'prd');
+    assert.deepEqual(S.nextFor(state, PM), { action: 'review', gate: 1, steps: ['prd'] });
+    S.approve(state, 1, { root, now: NOW, role: PM });
+    // Architecture comes first in the pipeline, but it isn't the PM's: features is.
+    assert.equal(S.next(state).step, 'architecture');
+    assert.deepEqual(S.nextFor(state, PM), { action: 'run', step: 'features', optional: false });
+    assert.throws(() => S.start(state, 'architecture', { now: NOW, role: PM }), /belongs to developer, tech-lead/);
+    S.start(state, 'features', { now: NOW, role: PM });
+    write(root, 'docs/features.md');
+    S.complete(state, 'features', ['docs/features.md'], { root, now: NOW });
+    assert.deepEqual(S.nextFor(state, PM), { action: 'review', gate: 2, steps: ['features'] });
+    assert.deepEqual(S.approve(state, 2, { root, now: NOW, role: PM }), ['features']);
+    const h = S.nextFor(state, PM);
+    assert.equal(h.action, 'handoff');
+    assert.deepEqual(h.waiting.map((w) => [w.step, w.action, w.roles]), [
+      ['architecture', 'run', ['developer', 'tech-lead']],
+      ['design', 'run', ['designer', 'developer', 'tech-lead']],
+    ]);
+  });
+
+  test('a gate shared by several owners is approved part by part', () => {
+    runStep(state, root, 'interview');
+    runStep(state, root, 'prd');
+    S.approve(state, 1, { root, now: NOW });
+    for (const step of ['architecture', 'features', 'design']) runStep(state, root, step);
+    assert.deepEqual(S.approve(state, 2, { root, now: NOW, role: 'designer' }), ['design']);
+    assert.equal(state.steps.architecture.status, 'awaiting_review', 'the tech lead’s part still waits for them');
+    assert.throws(() => S.approve(state, 2, { root, now: NOW, role: 'designer' }), /not waiting for a designer/);
+    assert.deepEqual(S.approve(state, 2, { root, now: NOW, role: 'tech-lead' }), ['architecture', 'features']);
+    assert.equal(S.next(state).step, 'research');
+  });
+
+  test('/adopt is technical: a PM is handed off from the start', () => {
+    const adopt = S.create({ version: '0.3.0', now: NOW, mode: 'adopt' });
+    const h = S.nextFor(adopt, PM);
+    assert.equal(h.action, 'handoff');
+    assert.deepEqual(h.waiting, [{ step: 'analyse', action: 'run', gate: 1, roles: ['developer', 'tech-lead'], optional: false }]);
+  });
+
+  test('the CLI takes a role id or its tag', () => {
+    const cli = (...args) => execFileSync('node', [CLI, ...args, '--root', root], { encoding: 'utf8' });
+    cli('init', '--input', 'x');
+    assert.match(cli('next', '--role', 'designer'), /hand off: interview → project-manager \/ business-analyst \/ account-manager \/ developer \/ tech-lead/);
+    assert.match(cli('next', '--role', 'pm'), /run step "interview"/);
+  });
+});
+
 describe('edit detection', () => {
   let root;
   let state;

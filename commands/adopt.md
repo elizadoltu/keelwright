@@ -40,6 +40,10 @@ analyse → { document, research } → gaps → generate → publish
 | `generate` | CLAUDE.md, rules, skills, subagents, hooks, CONTRIBUTING.md | — |
 | `publish` | Confluence (only when the user asks for it) | — |
 
+## Who runs it (spec 5.7)
+
+Every create-mode step is technical: reading the code, recording its decisions, choosing tooling fixes. **A developer, a tech lead, or someone without a role runs them**; a project manager or business analyst runs only `publish`. Pass the role to `STATE next`, `STATE start` and `STATE approve` (`--role <role id>`). For anyone else, `STATE next` returns a **hand-off** from the start (section 5). Audit mode's fixes are technical too: for a non-technical role, show the doctor's findings in their terms and say a developer or tech lead applies the fixes.
+
 ## State rules
 
 - `.keelwright/state.json` holds the pipeline state, with `"mode": "adopt"`. **Only change it through `STATE`** — never edit the JSON yourself. Run `STATE help` for the full command list.
@@ -51,10 +55,10 @@ analyse → { document, research } → gaps → generate → publish
 
 Before section 1, run `PROFILE show --json` once. The profile is personal (`~/.keelwright/profile.json`, spec 5.7) — never in the repository — and it **never changes the document set**: the next person needs every document whoever ran the adoption.
 
-- **First run** (`asked: false`): ask once (AskUserQuestion) for the role — **Developer** · **Project manager** · **Business analyst** · **Account manager** · **Skip** — with the name through "Other". Save it with `PROFILE set --role <developer|project-manager|business-analyst|account-manager> [--name "…"]`, or `PROFILE skip`. Say `/keelwright:profile` changes it any time. Never ask for or store an email address.
+- **First run** (`asked: false`): ask once for the role — **Developer** · **Tech lead** · **Designer** · **Project manager** · **Business analyst** · **Account manager** · **Skip** (AskUserQuestion takes 4 options per question: ask technical (Developer, Tech lead, Designer) or product (Project manager, Business analyst, Account manager) first, then the role) — with the name through "Other". Save it with `PROFILE set --role <developer|tech-lead|designer|project-manager|business-analyst|account-manager> [--name "…"]`, or `PROFILE skip`. Say `/keelwright:profile` changes it any time. Never ask for or store an email address.
 - **`name`** is the `owner` of the documents this run writes and the decision-makers of its ADRs, instead of a marker — pass it to the steps.
 - **`defaults`**: `jiraProject` and `confluenceSpace` prefill `publish`'s questions (still confirmed); `language` is the language you talk to the user in — documents stay in the language of the project's input.
-- **`role`** decides the working set at gates (section 7) and in the report (section 8), which open questions the user is asked, and how results are shown (`shows`: a developer sees diffs, versions and files; a PM scope, risks and what is blocked; a BA requirements, criteria and data gaps). No role: everything is shown as before.
+- **`role`** decides the working set at gates (section 7) and in the report (section 8), which open questions the user is asked, and how results are shown (`shows`: a developer or tech lead sees diffs, versions and files; a designer the look, screens and tokens; a PM scope, risks and what is blocked; a BA requirements, criteria and data gaps), and **which steps they run** ("Who runs it"). No role: everything is shown and run as before.
 - **A project manager** with `pmSkills: true` is offered pm-skills' workflows on the project's documents (OKRs, outcome roadmap, pre-mortem, PRD red-team, stakeholder map, release notes) after gate 1 and at the end — one line each time, never part of the document set. With `pmSkills: false`, say once that it can be installed (`/plugin marketplace add phuryn/pm-skills`).
 
 ## 1. Read the arguments
@@ -118,11 +122,12 @@ An accepted ADR's decision is never edited. If one was, tell the user and offer 
 
 Repeat:
 
-1. Run `STATE next --json`.
+1. Run `STATE next --role <the profile's role> --json` (without `--role` when there is no role).
 2. On `{"action": "run", "step": …}` → run the step (section 6), then repeat.
    - If the step is `publish` (`"optional": true`), first ask whether the user wants the documents in Confluence (Jira isn't offered: it needs a PRD). If not, run `STATE start publish` and `STATE skip publish --reason "not requested"`, then repeat.
 3. On `{"action": "review", "gate": N}` → hold the review gate (section 7) and stop.
-4. On `{"action": "complete"}` → tell the user the adoption is finished, with a short summary of what exists now and what was declined in `gaps`, and suggest `/adopt report` to rate the documents, and `/adopt` again later for audit mode. Stop. (When `/adopt` starts on an adoption that is **already** complete, section 2 sends it to audit mode instead.)
+4. On `{"action": "handoff", "waiting": […]}` → the next steps belong to another role. Tell the user, in plain words, who is next and what they'll do ("A developer or tech lead analyses the code: they run `/keelwright:start` in this repository"), and that `/keelwright:doctor` gives them a health summary they can read themselves. Don't run another role's step. Stop.
+5. On `{"action": "complete"}` → tell the user the adoption is finished, with a short summary of what exists now and what was declined in `gaps`, and suggest `/adopt report` to rate the documents, and `/adopt` again later for audit mode. Stop. (When `/adopt` starts on an adoption that is **already** complete, section 2 sends it to audit mode instead.)
 
 Run as many steps as you can in one go; the pipeline only pauses at review gates, when a step needs answers from the user, or when a step is not implemented yet.
 
@@ -130,7 +135,7 @@ Run as many steps as you can in one go; the pipeline only pauses at review gates
 
 1. Read `${CLAUDE_PLUGIN_ROOT}/steps/<step>.md`. The `research`, `generate` and `publish` step files serve both `/kickoff` and `/adopt`: follow their **In /adopt** section where it differs.
 2. **If the step file says it is not implemented yet** — for the whole step, or for `/adopt` — tell the user: the step name, what it will produce, and that this version of KeelWright stops here. Don't change the state. Stop.
-3. Run `STATE start <step>` **on its own** — one command, not chained with `&&` or `;` to anything else, so a refused combined command can't drop it — and **before any of the step's work** — before writing or editing any file — so the step's time is measured.
+3. Run `STATE start <step> --role <role>` (without `--role` when there is no role) **on its own** — one command, not chained with `&&` or `;` to anything else, so a refused combined command can't drop it — and **before any of the step's work** — before writing or editing any file — so the step's time is measured.
 4. Follow the step's instructions. They say what to read, what to produce, and when to ask the user.
 5. Finish with exactly one of:
    - `STATE complete <step> <every file or folder the step produced or updated>`, or
@@ -155,7 +160,7 @@ When `STATE next` returns a review:
 4. Before approving, **re-read every file under review from disk** — the user may have edited them. If an edit changes something another document in the same gate depends on, update that document first.
 5. If the user's markers are still open, say so and ask for explicit confirmation (markers waiting on another role don't block the user's approval — list them); approved markers stay as open questions in their documents.
 6. For each step in the gate, if its step file has an **"On approval"** section, do what it says.
-7. Run `STATE approve <N>`, then continue the loop (section 5).
+7. Run `STATE approve <N> --role <role>` (without `--role` when there is no role), then continue the loop (section 5).
 
 ## 8. Report
 
@@ -214,7 +219,7 @@ For each fix, in order:
 - **Describe, don't redesign.** Write what the code does, citing files. A pattern you'd do differently is not a gap; a missing safety net (secret scanning, CI, tests) is.
 - **Never change application code, structure or dependency versions.** Tooling fixes happen only in `gaps`, one by one, with approval.
 - **Templates.** Every document is written from its template in `${CLAUDE_PLUGIN_ROOT}/templates/`. Keep the template's structure, front matter and stable IDs; remove the template's instruction comments and example rows.
-- **Unknowns are marked, not guessed.** What the code and docs don't settle is a `[NEEDS CLARIFICATION: …]` marker, resolved at a gate. Tag it with the role that can answer it — `[NEEDS CLARIFICATION (pm): launch date?]`: `dev` (technical), `pm` (scope, priorities, dates, budget), `ba` (requirements, rules, data), `am` (the client relationship); untagged when anyone can.
+- **Unknowns are marked, not guessed.** What the code and docs don't settle is a `[NEEDS CLARIFICATION: …]` marker, resolved at a gate. Tag it with the role that can answer it — `[NEEDS CLARIFICATION (pm): launch date?]`: `lead` (technical decisions: stack, architecture, data model, hosting), `dev` (how something is built in the code), `design` (look, brand, screens), `pm` (scope, priorities, dates, budget), `ba` (requirements, rules, data), `am` (the client relationship); untagged when anyone can.
 - **Existing documents are linked, not rewritten.** Existing ADRs keep their numbers; new ones are numbered after them.
 - **The user's files win.** Before writing a file that already exists, read it; keep the user's edits and change only what the step needs to change.
 - **Keep the user informed** with one short line per step started and finished; put detail in the documents, not the chat.

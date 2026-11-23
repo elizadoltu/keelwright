@@ -4,7 +4,9 @@ Define how the product looks, feels and is played: the visual identity and the d
 
 **Reads:** `docs/prd.md`, `.keelwright/interview.md`, the project input, `docs/architecture/overview.md` if it exists (routes), the state's document set, `<plugin root>/reference/catalog.md`, the templates `visual-identity.md`, `screen-flow.md`, `release-checklist.md`, `game-design-document.md`, `asset-pipeline.md`, and the stack rules for the project type (`<plugin root>/reference/<type>-stack.md`). On a re-run: the existing outputs. Any brand material the user pointed to (logo, existing site, colours).
 **Produces** (only those in the document set): `docs/design/visual-identity.md` + `design/tokens.json`, `docs/design/screen-flow.md`, `docs/release-checklist.md`, `docs/gdd.md`, `design/asset-pipeline.md`.
-**Gate:** Gate 2, shared with `architecture` and `features`.
+**Gate:** Gate 2, shared with `architecture` and `features` — each approved by its own owner.
+
+**Who runs it:** the designer; on a team without one, the tech lead or a developer. The step may run before or after `architecture`: the design doesn't depend on the stack. When the stack isn't chosen yet (`stack.primary` empty in the state), keep the tokens and documents framework-neutral, and for a game write the engine-specific parts (the GDD's tech line, the asset pipeline's import settings) as `[NEEDS CLARIFICATION (lead): …]`.
 
 If none of `visual-identity`, `screen-flow`, `release-checklist`, `game-design-document` and `asset-pipeline` is in the document set, run `STATE skip design --reason "<why>"` and stop.
 

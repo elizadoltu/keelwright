@@ -26,7 +26,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { httpFetchJson } from '../scripts/lib/versions.mjs';
-import { GRADERS, JUDGES, PHASE3_GRADERS, gradeVersions, judgePrompt, loadRun, majority, parseVerdict } from './lib/graders.mjs';
+import { GRADERS, JUDGES, PHASE3_GRADERS, gradeVersions, judgePrompt, loadRun, majority, parseVerdict, stackChosen } from './lib/graders.mjs';
 import { claudeInvoke, runCase } from './lib/runner.mjs';
 import { summarise, toMarkdown } from './lib/summary.mjs';
 
@@ -79,7 +79,8 @@ async function grade(c, dir, o) {
     if (r) grades[name] = r;
   }
   // /adopt records the versions in use, which are old on purpose: `versions-in-use` checks them instead.
-  if (!['adopt', 'command', 'deep'].includes(c.mode)) {
+  // A kickoff stopped before `architecture` has no stack yet (spec 5.7).
+  if (!['adopt', 'command', 'deep'].includes(c.mode) && stackChosen(run)) {
     try {
       grades.versions = await gradeVersions(run, httpFetchJson);
     } catch (err) {

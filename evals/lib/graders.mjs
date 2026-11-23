@@ -60,6 +60,10 @@ const DOCUMENTS = {
   'asset-pipeline': { path: 'design/asset-pipeline.md', check: 'asset-pipeline', step: 'design' },
 };
 
+// The stack is chosen in `architecture` (the tech lead's step, spec 5.7), so a kickoff stopped at
+// gate 1 has none yet: the stack graders don't apply to it. /adopt records the stack in `analyse`.
+export const stackChosen = (run) => run.state?.mode === 'adopt' || ['awaiting_review', 'approved', 'done'].includes(run.state?.steps?.architecture?.status);
+
 export const GRADERS = {
   'reached-gate': (run, expect, c) => {
     if (!run.state) return result(false, 'no state file');
@@ -76,7 +80,7 @@ export const GRADERS = {
 
   // The main stack decision (the frontend for web; app framework, engine, provider or language otherwise).
   primary: (run, expect) => {
-    if (!expect.primary) return null;
+    if (!expect.primary || !stackChosen(run)) return null;
     const f = run.state?.stack?.primary ?? run.state?.stack?.frontend ?? {};
     const choice = JSON.stringify(f.choice ?? '').toLowerCase();
     const wanted = [expect.primary.choice].flat().map((c) => c.toLowerCase());
@@ -87,7 +91,7 @@ export const GRADERS = {
   },
 
   toolchain: (run, expect) => {
-    if (!expect.toolchain) return null;
+    if (!expect.toolchain || !stackChosen(run)) return null;
     const got = run.state?.stack?.toolchain;
     return result([expect.toolchain].flat().includes(got), `got ${got ?? '—'}`);
   },
@@ -95,7 +99,7 @@ export const GRADERS = {
   // ADRs the case expects, as patterns matched against each ADR's file name and title
   // (e.g. a mobile app always gets an offline / sync decision).
   adrs: (run, expect) => {
-    if (!expect.adrs) return null;
+    if (!expect.adrs || !stackChosen(run)) return null;
     const titles = run.adrs.map((f) => `${f} ${/^#\s+(.+)$/m.exec(read(run.dir, `docs/decisions/${f}`) ?? '')?.[1] ?? ''}`);
     const missing = expect.adrs.filter((p) => !titles.some((t) => new RegExp(p, 'i').test(t)));
     return result(!missing.length, missing.length ? `no ADR matching ${missing.map((m) => `/${m}/`).join(', ')} (ADRs: ${run.adrs.join(', ')})` : '');
@@ -352,17 +356,31 @@ export const GRADERS = {
     return result(!changed.length, changed.length ? `changed: ${changed.join(', ')}` : 'only .keelwright/ changed');
   },
 
+  // A kickoff run by a non-technical role leaves every technical choice to the tech lead (spec
+  // 5.7): no stack in the state, no ADR beyond ADR-0001, no framework in the PRD's constraints.
+  'no-stack': (run, expect) => {
+    if (!expect.noStack) return null;
+    const problems = [];
+    if (Object.keys(run.state?.stack ?? {}).length) problems.push(`stack recorded: ${Object.keys(run.state.stack).join(', ')}`);
+    const extra = run.adrs.filter((f) => !/^0001-/.test(f));
+    if (extra.length) problems.push(`ADRs beyond 0001: ${extra.join(', ')}`);
+    const constraints = /## Technical constraints([\s\S]*?)(\n## |$)/.exec(read(run.dir, 'docs/prd.md') ?? '')?.[1] ?? '';
+    const versions = constraints.match(/\b\d+\.\d+\.\d+\b/g);
+    if (versions) problems.push(`versions in the PRD: ${versions.join(', ')}`);
+    return result(!problems.length, problems.join('; ') || 'left to the tech lead');
+  },
+
   // Open questions carry a known role tag (spec 5.7), and the expected ones the expected role.
   'marker-roles': (run, expect, c) => {
     if (!['kickoff', undefined].includes(c.mode)) return null;
     const prd = read(run.dir, 'docs/prd.md');
     if (!prd) return expect.markerRoles ? result(false, 'no docs/prd.md') : null;
     const markers = prd.split('\n').filter((l) => l.includes('[NEEDS CLARIFICATION'));
-    const bad = markers.filter((l) => /\[NEEDS CLARIFICATION\s*\(/.test(l) && !/\[NEEDS CLARIFICATION\s*\((dev|pm|ba|am)\)/.test(l));
-    const wrong = (expect.markerRoles ?? []).filter(({ match, role }) => !markers.some((l) => new RegExp(match, 'i').test(l) && l.includes(`(${role})`)));
-    const problems = [...bad.map((l) => `unknown tag: ${l.trim().slice(0, 80)}`), ...wrong.map((w) => `no (${w.role}) question about /${w.match}/`)];
+    const bad = markers.filter((l) => /\[NEEDS CLARIFICATION\s*\(/.test(l) && !/\[NEEDS CLARIFICATION\s*\((dev|lead|design|pm|ba|am)\)/.test(l));
+    const wrong = (expect.markerRoles ?? []).filter(({ match, role }) => !markers.some((l) => new RegExp(match, 'i').test(l) && [role].flat().some((r) => l.includes(`(${r})`))));
+    const problems = [...bad.map((l) => `unknown tag: ${l.trim().slice(0, 80)}`), ...wrong.map((w) => `no (${[w.role].flat().join('|')}) question about /${w.match}/`)];
     if (!expect.markerRoles && !markers.length) return null;
-    return result(!problems.length, problems.length ? problems.join('; ') : `${markers.length} markers, ${markers.filter((l) => /\((dev|pm|ba|am)\)/.test(l)).length} tagged`);
+    return result(!problems.length, problems.length ? problems.join('; ') : `${markers.length} markers, ${markers.filter((l) => /\((dev|lead|design|pm|ba|am)\)/.test(l)).length} tagged`);
   },
 
   // The threat model names the planted attack surface (tables, routes).

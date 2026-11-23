@@ -1,7 +1,7 @@
 # AI / LLM stack rules
 
 <!--
-Runtime copy of spec 4.4–4.6 for AI / LLM projects, read by the `prd` step. Keep it in sync with
+Runtime copy of spec 4.4–4.6 for AI / LLM projects, read by the `architecture` step (the stack is the tech lead's choice). Keep it in sync with
 keelwright-spec.md. Researched content: re-checked when the packs are refreshed. Model names and
 prices change often: look them up live in the provider's documentation, never from this file.
 -->

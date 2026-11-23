@@ -23,14 +23,26 @@ interview → prd → { architecture, features, design } → research → scaffo
 | Step | Produces | Gate after it |
 |---|---|---|
 | `interview` | Project type, `.keelwright/interview.md` | — |
-| `prd` | PRD, document set, stack recommendation, resolved versions, ADR-0001, stack ADR | Gate 1 |
-| `architecture` | ADRs, architecture overview, C4, ERD + `schema.sql`, threat model, AI system design, AI eval plan, API surface | Gate 2 |
+| `prd` | PRD, document set, ADR-0001 — no technical choices | Gate 1 |
+| `architecture` | Stack with resolved versions, stack ADR and other ADRs, architecture overview, C4, ERD + `schema.sql`, threat model, AI system design, AI eval plan, API surface | Gate 2 |
 | `features` | Feature breakdown, backlog | Gate 2 |
 | `design` | Visual identity + tokens, screen flow, GDD, asset pipeline, store release checklist | Gate 2 |
 | `research` | Stack packs | Gate 3 |
 | `scaffold` | Repository, manifests, lockfile, git hooks, CI, smoke tests | — |
 | `generate` | CLAUDE.md, rules, skills, subagents, hooks, CONTRIBUTING.md | — |
 | `publish` | Jira / Confluence (only when the user asks for it) | — |
+
+## Who runs which step (spec 5.7)
+
+Every step has owners. **A developer, a tech lead, or someone without a role runs every step** (a solo developer still gets the whole kickoff in one go). The others run only their own:
+
+| Role | Runs |
+|---|---|
+| Project manager, business analyst, account manager | `interview` (product questions only), `prd` (no stack), `features`; `publish` (PM, BA) |
+| Designer | `design` |
+| Tech lead, developer | everything — the stack, architecture, C4, ERD, threat model, `research`, `scaffold`, `generate`; `design` when the team has no designer |
+
+Pass the role to `STATE next`, `STATE start` and `STATE approve` (`--role <role id>`), so the state only offers the user their own steps. When `STATE next` returns a **hand-off**, the user's part is done for now (section 5).
 
 ## State rules
 
@@ -43,10 +55,10 @@ interview → prd → { architecture, features, design } → research → scaffo
 
 Before section 1, run `PROFILE show --json` once. The profile is personal (`~/.keelwright/profile.json`, spec 5.7) — never in the repository — and it **never changes the document set**: the next person needs every document whoever ran the kickoff.
 
-- **First run** (`asked: false`): ask once (AskUserQuestion) for the role — **Developer** · **Project manager** · **Business analyst** · **Account manager** · **Skip** — with the name through "Other". Save it with `PROFILE set --role <developer|project-manager|business-analyst|account-manager> [--name "…"]`, or `PROFILE skip`. Say `/keelwright:profile` changes it any time. Never ask for or store an email address.
+- **First run** (`asked: false`): ask once for the role — **Developer** · **Tech lead** · **Designer** · **Project manager** · **Business analyst** · **Account manager** · **Skip** (AskUserQuestion takes 4 options per question: ask technical (Developer, Tech lead, Designer) or product (Project manager, Business analyst, Account manager) first, then the role) — with the name through "Other". Save it with `PROFILE set --role <developer|tech-lead|designer|project-manager|business-analyst|account-manager> [--name "…"]`, or `PROFILE skip`. Say `/keelwright:profile` changes it any time. Never ask for or store an email address.
 - **`name`** is the `owner` of the documents this run writes and the decision-makers of its ADRs, instead of a marker — pass it to the steps.
 - **`defaults`**: `jiraProject` and `confluenceSpace` prefill `publish`'s questions (still confirmed); `language` is the language you talk to the user in — documents stay in the language of the project's input.
-- **`role`** decides the working set at gates (section 7) and in the report (section 8), which open questions the user is asked, and how results are shown (`shows`: a developer sees diffs, versions and files; a PM scope, risks and what is blocked; a BA requirements, criteria and data gaps). No role: everything is shown as before.
+- **`role`** decides the working set at gates (section 7) and in the report (section 8), which open questions the user is asked, and how results are shown (`shows`: a developer or tech lead sees diffs, versions and files; a designer the look, screens and tokens; a PM scope, risks and what is blocked; a BA requirements, criteria and data gaps), and **which steps they run** ("Who runs which step"). No role: everything is shown and run as before. **Never show a project manager, business analyst or account manager a stack, a framework, a version or a scaffold**: those are the tech lead's.
 - **A project manager** with `pmSkills: true` is offered pm-skills' workflows on the project's documents (OKRs, outcome roadmap, pre-mortem, PRD red-team, stakeholder map, release notes) after gate 1 and at the end — one line each time, never part of the document set. With `pmSkills: false`, say once that it can be installed (`/plugin marketplace add phuryn/pm-skills`).
 
 ## 1. Read the arguments
@@ -57,7 +69,7 @@ Decide what was asked from `$ARGUMENTS`:
 |---|---|---|
 | `status` | Show progress | Run `STATE status` and show the result in a short, readable form. Stop. |
 | `report` | Run report and document ratings | Section 8 |
-| a step name (`interview`, `prd`, `architecture`, `features`, `design`, `research`, `scaffold`, `generate`, `publish`) | Re-run that step | Section 4 |
+| a step name (`interview`, `prd`, `architecture`, `features`, `design`, `research`, `scaffold`, `generate`, `publish`) | Re-run that step — only one the user's role runs (`STATE start --role` refuses another's) | Section 4 |
 | `research --refresh` | Re-run research and force new stack packs | Section 4, passing the refresh flag to the step |
 | anything else, or nothing | Start a new kickoff, or continue the current one | Section 2 |
 
@@ -101,11 +113,12 @@ An edit that changes an accepted ADR's decision is not allowed: accepted ADRs ar
 
 Repeat:
 
-1. Run `STATE next --json`.
+1. Run `STATE next --role <the profile's role> --json` (without `--role` when there is no role).
 2. On `{"action": "run", "step": …}` → run the step (section 6), then repeat.
    - If the step is `publish` (`"optional": true`), first ask whether the user wants Jira or Confluence output. If not, run `STATE start publish` and `STATE skip publish --reason "not requested"`, then repeat.
 3. On `{"action": "review", "gate": N}` → hold the review gate (section 7) and stop.
-4. On `{"action": "complete"}` → tell the user the kickoff is finished, with a short summary of what exists now. Stop.
+4. On `{"action": "handoff", "waiting": […]}` → the user's part is done for now. Tell them, in plain words, who is next and what they will do — one line per waiting step, naming the role ("A tech lead chooses the stack and writes the architecture: they run `/keelwright:start` in this folder"; "The designer writes the visual identity — or the tech lead, if there's no designer") — that the state is in `.keelwright/state.json`, so the folder (or the repository, once it's committed) is all they need, and that `/keelwright:kickoff status` shows progress. Don't run another role's step, even if asked to "just continue": say that the profile can be changed with `/keelwright:profile` if they really hold that role. Stop.
+5. On `{"action": "complete"}` → tell the user the kickoff is finished, with a short summary of what exists now. Stop.
 
 Run as many steps as you can in one go; the pipeline only pauses at review gates, when a step needs answers from the user, or when a step is not implemented yet.
 
@@ -113,7 +126,7 @@ Run as many steps as you can in one go; the pipeline only pauses at review gates
 
 1. Read `${CLAUDE_PLUGIN_ROOT}/steps/<step>.md`.
 2. **If it says the step is not implemented yet** (the whole step — an **In /adopt** note is about `/adopt` and doesn't apply here), tell the user: the step name, what it will produce, and that this version of KeelWright stops here. Don't change the state. Stop.
-3. Run `STATE start <step>` **on its own** — one command, not chained with `&&` or `;` to anything else, so a refused combined command can't drop it — and **before any of the step's work** — before writing or editing any file — so the step's time is measured. `STATE complete` warns when every output was written before the start.
+3. Run `STATE start <step> --role <role>` (without `--role` when there is no role) **on its own** — one command, not chained with `&&` or `;` to anything else, so a refused combined command can't drop it — and **before any of the step's work** — before writing or editing any file — so the step's time is measured. `STATE complete` warns when every output was written before the start.
 4. Follow the step's instructions. They say what to read, what to produce, and when to ask the user.
 5. Finish with exactly one of:
    - `STATE complete <step> <every file or folder the step produced or updated>`, or
@@ -123,7 +136,7 @@ If the step can't be finished in this run (for example, it is waiting for interv
 
 ## 7. Review gates
 
-When `STATE next` returns a review:
+When `STATE next` returns a review, its `steps` are the user's part of the gate — another owner's steps in the same gate wait for them (gate 2 is shared by the tech lead, the PM and the designer). Review only those steps' files.
 
 1. Run `STATE markers --role <the profile's tag> --json` (without `--role` when there is no role) to find the open `[NEEDS CLARIFICATION …]` markers: `mine` are the user's (their role's and untagged ones), `waiting` belong to another role. Run `PROFILE split <every file under review> --json`: `mine` is the user's working set.
 2. Show the user:
@@ -134,12 +147,12 @@ When `STATE next` returns a review:
    - **Approve gate N** — the documents are ready.
    - **Resolve the open questions with me** — only offer when the user has markers; go through each of theirs, update the file with the answer, then ask again. Never answer another role's question for them.
    - **I'll edit the files first** — stop; the user runs `/kickoff` again when ready.
-4. Before approving, **re-read every file under review from disk** — the user may have edited them. If the edits change a decision that other documents in the same gate depend on (e.g. the stack in the PRD), update those documents to match first.
+4. Before approving, **re-read every file under review from disk** — the user may have edited them. If the edits change a decision that other documents in the same gate depend on (e.g. a data entity the ERD and the features both use), update those documents to match first — only the ones the user owns; tell them which of another owner's documents need a look.
 5. If the user's markers are still open, say so and ask for explicit confirmation (markers waiting on another role don't block the user's approval — list them); approved markers stay as open questions in their documents.
 6. For each step in the gate, if its step file has an **"On approval"** section, do what it says (e.g. set document statuses to approved / accepted).
-7. Run `STATE approve <N>`, then continue the loop (section 5).
+7. Run `STATE approve <N> --role <role>` (without `--role` when there is no role): it approves only the user's steps in the gate. Then continue the loop (section 5).
 
-The step files can add gate-specific content to show in step 2 (e.g. the `prd` step's stack summary); include it.
+The step files can add gate-specific content to show in step 2 (e.g. the `architecture` step's stack summary); include it.
 
 ## 8. Report
 
@@ -153,7 +166,7 @@ Run metrics are recorded automatically by `STATE` (`.keelwright/metrics.json`); 
 ## Rules for every step
 
 - **Templates.** Every document is written from its template in `${CLAUDE_PLUGIN_ROOT}/templates/`. Keep the template's structure, front matter and stable IDs; remove the template's instruction comments and example rows from the final document.
-- **Unknowns are marked, not guessed.** Anything the input and the interview don't settle is written as `[NEEDS CLARIFICATION: …]` and resolved at a review gate. Tag it with the role that can answer it — `[NEEDS CLARIFICATION (pm): launch date?]`: `dev` (technical), `pm` (scope, priorities, dates, budget), `ba` (requirements, rules, data), `am` (the client relationship); untagged when anyone can.
+- **Unknowns are marked, not guessed.** Anything the input and the interview don't settle is written as `[NEEDS CLARIFICATION: …]` and resolved at a review gate. Tag it with the role that can answer it — `[NEEDS CLARIFICATION (pm): launch date?]`: `lead` (technical decisions: stack, architecture, data model, hosting), `dev` (how something is built in the code), `design` (look, brand, screens), `pm` (scope, priorities, dates, budget), `ba` (requirements, rules, data), `am` (the client relationship); untagged when anyone can.
 - **The user's files win.** Before writing a file that already exists, read it; keep the user's edits and change only what the step needs to change.
 - **Accepted ADRs are never edited.** A changed decision gets a new ADR that supersedes the old one.
 - **Versions come from the registries, never from memory** (spec 4.6).

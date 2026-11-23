@@ -1,16 +1,43 @@
 # Step: `architecture`
 
-Describe how the system is built: the architecture overview with routes, the C4 model, the data model, the threat model, the AI system design and eval plan, the public API surface, and any further decisions. Only the documents in the chosen document set.
+Choose the stack and describe how the system is built — the tech lead's step (spec 5.7): the stack with versions resolved live, the architecture overview with routes, the C4 model, the data model, the threat model, the AI system design and eval plan, the public API surface, and any further decisions. Only the documents in the chosen document set.
 
-**Reads:** `docs/prd.md`, all ADRs in `docs/decisions/`, `.keelwright/interview.md`, the state (`STATE status --json`: document set and `stack`), the stack rules for the project type (`<plugin root>/reference/<type>-stack.md`), `<plugin root>/reference/catalog.md`, `<plugin root>/reference/security.md` (when `threat-model` is in the set), and the templates `architecture-overview.md`, `c4-workspace.dsl`, `erd.md`, `schema.sql`, `threat-model.md`, `ai-system-design.md`, `ai-eval-plan.md`, `api-surface.md`, `adr.md`. On a re-run: the existing outputs.
-**Produces** (only those in the document set): `docs/architecture/overview.md`, `docs/architecture/c4/workspace.dsl`, `docs/architecture/erd.md` + `docs/architecture/schema.sql`, `docs/security/threat-model.md`, `docs/ai/system-design.md`, `docs/evals/plan.md` + `evals/data/`, `docs/api-surface.md`, new ADRs from 0003 on (or the next free number).
-**Gate:** Gate 2, shared with `features` and `design`.
+**Reads:** `docs/prd.md`, all ADRs in `docs/decisions/`, `.keelwright/interview.md`, the state (`STATE status --json`: document set and `stack`), the stack rules for the project type (`<plugin root>/reference/<type>-stack.md`: `web`, `mobile`, `game`, `ai`, `library`), `<plugin root>/reference/toolchains.md`, `<plugin root>/reference/catalog.md`, `<plugin root>/reference/security.md` (when `threat-model` is in the set), and the templates `architecture-overview.md`, `c4-workspace.dsl`, `erd.md`, `schema.sql`, `threat-model.md`, `ai-system-design.md`, `ai-eval-plan.md`, `api-surface.md`, `adr.md`. On a re-run: the existing outputs.
+**Produces:** the stack in the state; `docs/decisions/0002-<stack decision>.md` (the frontend for web, the app framework, engine, model provider or language for the other types) and one ADR per other deviation from the defaults; and, only those in the document set, `docs/architecture/overview.md`, `docs/architecture/c4/workspace.dsl`, `docs/architecture/erd.md` + `docs/architecture/schema.sql`, `docs/security/threat-model.md`, `docs/ai/system-design.md`, `docs/evals/plan.md` + `evals/data/`, `docs/api-surface.md`, further ADRs (the next free number).
+**Gate:** Gate 2, shared with `features` and `design` — each approved by its own owner.
 
-The approved PRD and accepted ADRs are the source of truth. This step adds detail; it doesn't change decisions. If it finds that an accepted decision doesn't work, it writes a new ADR that supersedes it and says so at the gate.
+**Who runs it:** a tech lead or a developer. The command refuses it for other roles and hands off.
 
-If none of `architecture-overview`, `c4`, `erd`, `threat-model`, `ai-system-design`, `ai-eval-plan` and `api-surface` is in the document set and no new decision is needed, run `STATE skip architecture --reason "<why>"` and stop.
+The approved PRD and accepted ADRs are the source of truth. This step adds the technical decisions; it doesn't change requirements. If a requirement can't be met as written, say so at the gate as a `[NEEDS CLARIFICATION (pm): …]` in the overview — never edit the approved PRD. If an accepted decision doesn't work, write a new ADR that supersedes it and say so at the gate.
 
-## 1. Work out the structure
+This step always runs: even with none of the architecture documents in the set, the stack is chosen here.
+
+## 0. Technical questions
+
+The interview leaves technical questions to the tech lead: the `(lead)` and `(dev)` questions in `.keelwright/interview.md`'s open questions and the PRD's open questions (hosting, an existing system to integrate with, the team's skills). Ask the ones that change a decision below in one round (AskUserQuestion, at most 4), with a recommended option first. Record the answers in `.keelwright/interview.md` under a new round headed "Technical questions (architecture)". The PRD's markers stay as they are — it's approved; the answer goes into the ADR that uses it.
+
+## 1. Stack
+
+Follow the stack rules for the project type — `reference/<type>-stack.md`:
+
+1. **The main decision** — web: the frontend (selection rules); mobile: the app framework; game: the engine; ai: the language and the model provider; library: the language and distribution. Go through the candidates in order and stop at the first match. Note the rule number and why it matched, and why the earlier rules didn't. For every type except web, also **compare 2–3 candidates** against the requirements (platforms, performance, team skills, cost, hosting or distribution, ecosystem maturity) and recommend one with the reasoning — this goes into ADR-0002 and the gate summary.
+2. **Right-size every layer** of the type's defaults: keep / remove / swap / add, each with a reason that cites requirement IDs. A small dynamic feature (a contact form, a newsletter) is handled inside the chosen framework or by a service — compare at least two options and recommend one.
+3. **Conventions:** say which of Clean Architecture, Atomic Design and Humble Object apply and at what scale (the type's rules say which usually do).
+4. **Toolchain:** from the main decision (`reference/toolchains.md`): `node`, `python`, `dart`, `rust`, `godot` or `editor`.
+5. **Resolve versions** for everything the scaffold will install directly, with the specs the type's rules list:
+   `node "<plugin root>/scripts/versions.mjs" <runtime> <packages…> github:gitleaks/gitleaks`
+   (runtimes: `node`, `python`, `flutter`, `rust`, `godot`, `unity`; packages: `npm:`, `pypi:`, `crates:`, `pub:`; tools released on GitHub: `github:<owner>/<repo>`). Handle the compatibility report as `reference/web-stack.md` describes ("Versions": conflict → hold back with an ADR; missing → add it or note it; unknown → check by hand); it covers npm peers, `engines.node`, `requires-python`, a crate's `rust-version` and a Dart package's SDK constraint. Re-run until there are no conflicts. Never write a version that didn't come from the script — except for software with no machine-readable release feed (Unreal Engine, Xcode, Android Studio): look it up on the official release notes and write the URL next to the version.
+6. Record the stack: `STATE set stack '<json>'` with `resolvedAt`, `toolchain`, `primary` (`{ "choice", "rule", "compared": [<alternatives>] }`), `layers` (`{ layer: { "decision": "keep|remove|swap|add", "choice", "reason" } }`) and `versions` (`{ name: version }`, keyed by package name). For web, `primary.choice` is the frontend framework.
+
+If an open question blocks a stack decision (e.g. whether a form must store submissions), choose the option that keeps the most doors open at the lowest cost, write the question as `[NEEDS CLARIFICATION (pm): …]` in the ADR, and say there what changes if the answer goes the other way.
+
+**`docs/decisions/0002-<stack-decision>.md`** from `templates/adr.md`, e.g. `0002-use-astro-for-the-website.md`, `0002-use-expo-for-the-app.md`, `0002-use-godot-4.md`, `0002-use-claude-for-answers.md`:
+- Status `proposed`. Drivers cite requirement IDs. Considered options: the chosen option and the 1–2 strongest alternatives from the rules, compared on the criteria above. The outcome names the rule that matched.
+- Confirmation: how the decision is checked later (e.g. "build output is static HTML for every public route"; "the eval plan's EV- thresholds pass with this model").
+
+**One ADR per other deviation from the defaults**, numbered on from 0003, same template, status `proposed` — e.g. no custom backend, no database, how the contact form is handled, a held-back package version. Keep each to the decision; don't repeat the PRD.
+
+## 2. Work out the structure
 
 From the PRD, the ADRs and `stack` in the state:
 
@@ -24,9 +51,9 @@ From the PRD, the ADRs and `stack` in the state:
 - **Model and data flow** (AI) — what goes into each model call (inputs, retrieved context, tools), what comes out, where it is validated, and what data reaches the provider.
 - **Public surface** (library / CLI / API) — the exported functions, types, commands or endpoints the P1 stories need, and their stability.
 
-New decisions the PRD step didn't make (e.g. how content collections are structured, how the form is protected against spam if not already decided) get an ADR **only** if they are hard to reverse or span components; small choices go into the overview.
+Further decisions (e.g. how content collections are structured, how the form is protected against spam if not already decided) get an ADR **only** if they are hard to reverse or span components; small choices go into the overview.
 
-## 2. Write the documents
+## 3. Write the documents
 
 Follow the template rules in `reference/catalog.md`. Files that later steps create (prompt files, source folders) are written as paths in backticks, not as links — a link to a file that doesn't exist yet fails the check.
 
@@ -64,21 +91,25 @@ Follow the template rules in `reference/catalog.md`. Files that later steps crea
 
 **New ADRs** from `templates/adr.md`, status `proposed`, numbered after the highest existing ADR — including the **offline / sync strategy** for every mobile app.
 
-## 3. Check
+## 4. Check
 
 Run, fix every issue, and run again until it passes (count each failed run with `STATE metric architecture doccheck-failures +1`):
 
-`node "<plugin root>/scripts/doccheck.mjs" overview:docs/architecture/overview.md c4:docs/architecture/c4/workspace.dsl erd:docs/architecture/erd.md threat-model:docs/security/threat-model.md ai-system-design:docs/ai/system-design.md ai-eval-plan:docs/evals/plan.md api-surface:docs/api-surface.md adr:<each new ADR> refs:docs`
+`node "<plugin root>/scripts/doccheck.mjs" overview:docs/architecture/overview.md c4:docs/architecture/c4/workspace.dsl erd:docs/architecture/erd.md threat-model:docs/security/threat-model.md ai-system-design:docs/ai/system-design.md ai-eval-plan:docs/evals/plan.md api-surface:docs/api-surface.md adr:<each ADR this step wrote> refs:docs`
 
 (Leave out the targets for documents not in the set.) `refs:docs` checks that every ID referenced anywhere in `docs/` is defined and every local link resolves — for example that each route's story exists.
 
-## 4. Finish
+## 5. Finish
 
-`STATE complete architecture <each file this step wrote>` — list files, not folders (other steps also write to `docs/`).
+Check by hand that every version in the overview and the ADRs matches the script output.
+
+`STATE complete architecture <each file this step wrote>` — list files, not folders (other steps also write to `docs/`); ADR-0002 and the other ADRs individually.
 
 ## Gate summary
 
 Show, besides the generic gate content:
+- the stack in one line per layer (keep / remove / swap / add), the rule that matched for the main decision and the alternatives it was compared with, and the toolchain;
+- the answers to the technical questions (section 0);
 - the containers and external systems in one line each;
 - the routes table (web); for AI: the prompts and tools (with the ones that need confirmation) and the `EV-` thresholds including cost and latency; for libraries: the public items and their stability;
 - the threat model's risks in one line each (`SEC-` ID, where, mitigation), and the framework edition;

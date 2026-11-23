@@ -2,7 +2,7 @@
 
 <!--
 Runtime copy of spec 4.4–4.6 for libraries, command-line tools and standalone APIs, read by the
-`prd` step. Keep it in sync with keelwright-spec.md.
+`architecture` step (the stack is the tech lead's choice). Keep it in sync with keelwright-spec.md.
 -->
 
 The users of a library are developers, and **their ecosystem decides the language**. A CLI's users decide how it is installed. An HTTP API's consumers decide its contract, not its implementation language.

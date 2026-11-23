@@ -1,7 +1,7 @@
 # Web stack rules
 
 <!--
-Runtime copy of spec sections 4.1–4.3, 4.6 and 4.7, read by the `prd` step.
+Runtime copy of spec sections 4.1–4.3, 4.6 and 4.7, read by the `architecture` step (the stack is the tech lead's choice).
 Keep it in sync with keelwright-spec.md: a change to one is a change to both.
 These rules are researched content: the `research` step re-checks them when the web stack pack is refreshed.
 -->
@@ -71,7 +71,7 @@ Guard rules:
   - `conflict` → hold the newer package back to the newest compatible version (`npm:<pkg>@<range>`), and record the held-back package and the reason in an ADR.
   - `missing` → if the project installs that peer directly, add it to the set and re-run; if it comes in through another package (e.g. `vite` through Astro), note that and move on.
   - `unknown` → check the range by hand.
-- **Recorded:** exact versions and the lookup date go in the PRD's technical constraints and `STATE set stack`. The scaffold step pins them.
+- **Recorded:** exact versions and the lookup date go in the architecture overview's Stack table and `STATE set stack`. The scaffold step pins them.
 
 ## Stack packs
 
@@ -97,4 +97,4 @@ The `research` step uses one pack per technology. Ids and packages (primary pack
 - Each other deviation from the defaults gets its own ADR: e.g. "No custom backend", "No database", "Use a form service for the contact form", a held-back version, a host other than Vercel.
 - A held-back version is named `NNNN-hold-<package>-at-<version>.md` and quotes the peer range that forced it; it needs no requirement IDs. Every other ADR cites the requirement IDs (`US-`, `FR-`, `NFR-`, `SC-`) that drive it.
 - Layers kept as default need no ADR.
-- ADRs written during `prd` are `proposed`; they become `accepted` when gate 1 is approved.
+- ADRs written during `architecture` are `proposed`; they become `accepted` when the tech lead approves their part of gate 2.
