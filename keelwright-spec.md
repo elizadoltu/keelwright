@@ -4,7 +4,7 @@
 |---|---|
 | **Name** | KeelWright (package / plugin id: `keelwright`) |
 | **Type** | Claude Code plugin (later: visual app) |
-| **Status** | Phases 1–3 built (version 0.4.0) / Phase 4 (visual app) not started |
+| **Status** | Phases 1–3 built (version 0.5.0) / Phase 4 (visual app) not started |
 | **Commands** | `/start` (routing), `/kickoff` (greenfield), `/adopt` (brownfield, with audit mode), `/doctor` (health and security), `/profile` — invoked as `/keelwright:<command>`, since plugin commands are namespaced |
 | **Last updated** | 2026-11-23 |
 
