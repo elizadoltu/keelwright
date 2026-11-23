@@ -1,6 +1,6 @@
 {
   "name": "keelwright",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Bootstraps projects from an idea or specs, adopts existing codebases, and keeps them healthy: interview, PRD and architecture documents, stack research, scaffold, a project-specific Claude setup, a doctor with a security audit, and role-based profiles, with review gates.",
   "author": {
     "name": "Eliza Doltu"
