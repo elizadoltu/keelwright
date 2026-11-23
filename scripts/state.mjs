@@ -34,7 +34,8 @@ const HELP = `Usage: node state.mjs <command> [args] [--root <dir>] [--json]
   approve <gate> [--role <role>]       Approve a review gate (kickoff: 1–3, adopt: 1–2); --role: only this person's steps in it
   changes                              Approved files edited since approval
   accept-changes [--keep-downstream]   Take the edits as the new baseline
-  markers [--role <tag>]               Open [NEEDS CLARIFICATION] markers in files under review; --role: yours first
+  markers [--role <tag>] [--all]      Open [NEEDS CLARIFICATION] markers in files under review; --role: yours first; --all: in every document
+  scope                                Stories and features changed since they were approved (possible change requests)
   metric <step> <name> <n|+n>          Set (or add to) a step-specific counter in metrics.json
   rate <file> <rating>                 Rate a document: as-is | small-edits | rewritten | deleted
   report [--write]                     Run report from metrics.json (--write: also .keelwright/report.md)
@@ -253,10 +254,15 @@ function run(argv) {
       return out(`Accepted edits in: ${r.accepted.join(', ') || 'nothing'}; marked stale: ${r.stale.join(', ') || 'nothing'}`, r);
     }
 
+    case 'scope': {
+      const c = S.scopeChanges(S.load(root), root);
+      return out(c.length ? c.map((x) => x.text).join('\n') : 'No change to the agreed scope.', c);
+    }
+
     case 'markers': {
       // --role <tag>: this person's questions (their role's and untagged ones) first, then the
       // ones waiting on another role (spec 5.7).
-      const m = S.markers(S.load(root), root);
+      const m = S.markers(S.load(root), root, { all: Boolean(flags.all) });
       const tag = roleOf(flags.role)?.tag ?? null;
       if (!tag) return out(m.length ? m.map((x) => `${x.file}:${x.line}  ${x.text}`).join('\n') : 'No open markers.', m);
       const mine = m.filter((x) => !x.role || x.role === tag);

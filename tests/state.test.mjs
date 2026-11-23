@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -7,6 +7,7 @@ import { after, beforeEach, describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { MODES, downstreamOf, stepsInGate, stepsOf } from '../scripts/lib/pipeline.mjs';
 import * as S from '../scripts/lib/state.mjs';
+import * as Scope from '../scripts/lib/scope.mjs';
 
 const NOW = '2026-11-16T10:00:00.000Z';
 const CLI = fileURLToPath(new URL('../scripts/state.mjs', import.meta.url));
@@ -24,11 +25,13 @@ function write(root, file, content = 'x') {
   writeFileSync(abs, content);
 }
 
-// Runs a step from start to complete with one output file.
-function runStep(state, root, step, file = `docs/${step}.md`, content = step) {
+// Runs a step from start to complete with one output file. After the interview, the client brief
+// is skipped as for a project that isn't for a client — unless the test runs it itself.
+function runStep(state, root, step, file = `docs/${step}.md`, content = step, { brief = false } = {}) {
   S.start(state, step, { now: NOW });
   write(root, file, content);
   S.complete(state, step, [file], { root, now: NOW });
+  if (step === 'interview' && !brief) S.skip(state, 'brief', 'not a client project', { now: NOW });
 }
 
 after(() => roots.forEach((r) => rmSync(r, { recursive: true, force: true })));
@@ -143,7 +146,7 @@ describe('state transitions', () => {
 
     runStep(state, root, 'prd');
     assert.equal(state.steps.prd.status, 'awaiting_review');
-    assert.deepEqual(S.next(state), { action: 'review', gate: 1, steps: ['prd'] });
+    assert.deepEqual(S.next(state), { action: 'review', gate: 1, steps: ['brief', 'prd'] });
   });
 
   test('gate 2 is reviewed only after all three of its steps ran', () => {
@@ -200,7 +203,7 @@ describe('state transitions', () => {
     assert.equal(state.steps.prd.status, 'stale');
     write(root, 'docs/interview.md', 'new notes');
     S.complete(state, 'interview', ['docs/interview.md'], { root, now: NOW });
-    assert.equal(S.next(state).step, 'prd');
+    assert.equal(S.next(state).step, 'brief', 'a skipped step is reconsidered after its input changed');
   });
 
   test('skipping needs a reason', () => {
@@ -281,6 +284,80 @@ describe('step owners and hand-offs (spec 5.7)', () => {
     cli('init', '--input', 'x');
     assert.match(cli('next', '--role', 'designer'), /hand off: interview → project-manager \/ business-analyst \/ account-manager \/ developer \/ tech-lead/);
     assert.match(cli('next', '--role', 'pm'), /run step "interview"/);
+  });
+});
+
+describe('the account manager: client brief, questions, scope (spec 5.7)', () => {
+  let root;
+  let state;
+  beforeEach(() => {
+    root = project();
+    state = S.create({ version: '0.5.0', now: NOW });
+  });
+  const PRD = (stories) => `# PRD\n\n## User stories\n\n${stories.map((x) => `### ${x}\n\nA story.\n`).join('\n')}`;
+
+  test('the account manager runs the interview and the brief, then hands off to the PM', () => {
+    const AM = 'account-manager';
+    runStep(state, root, 'interview', undefined, undefined, { brief: true });
+    assert.deepEqual(S.nextFor(state, AM), { action: 'run', step: 'brief', optional: false });
+    runStep(state, root, 'brief', 'docs/client/brief.md');
+    assert.deepEqual(S.nextFor(state, AM), { action: 'review', gate: 1, steps: ['brief'] });
+    assert.deepEqual(S.approve(state, 1, { root, now: NOW, role: AM }), ['brief']);
+    const h = S.nextFor(state, AM);
+    assert.equal(h.action, 'handoff');
+    assert.deepEqual(h.waiting.map((w) => w.step), ['prd']);
+    assert.ok(!h.waiting[0].roles.includes(AM), 'the PRD is the PM’s');
+    assert.throws(() => S.start(state, 'prd', { now: NOW, role: AM }), /belongs to project-manager, business-analyst/);
+  });
+
+  test('approving the PRD records the agreed scope; edits after it are listed as changes', () => {
+    runStep(state, root, 'interview');
+    runStep(state, root, 'prd', 'docs/prd.md', PRD(['US-1 [P1] Book a desk', 'US-2 [P2] See who is in', 'US-3 [P3] Export bookings']));
+    assert.deepEqual(S.scopeChanges(state, root), [], 'nothing agreed yet, nothing changed');
+    S.approve(state, 1, { root, now: NOW });
+    assert.deepEqual(Object.keys(state.scope.stories), ['US-1', 'US-2', 'US-3']);
+    write(root, 'docs/prd.md', PRD(['US-1 [P1] Book a desk', 'US-2 [P1] See who is in', 'US-3 [P3] Export bookings (dropped)', 'US-4 [P2] Book for a guest']));
+    assert.deepEqual(S.scopeChanges(state, root).map((c) => c.text), [
+      'Story US-2 moved from P2 to P1: See who is in',
+      'Story US-3 dropped: Export bookings',
+      'Story US-4 added: Book for a guest (P2)',
+    ]);
+    S.acceptChanges(state, root, { keepDownstream: true });
+    assert.deepEqual(S.scopeChanges(state, root), [], 'accepting the edits makes them the agreed scope');
+  });
+
+  test('features moving between slices are scope changes too', () => {
+    const table = (rows) => `| ID | Feature | Activity | Stories | Slice | Depends on | Status |\n|---|---|---|---|---|---|---|\n${rows.join('\n')}\n`;
+    assert.deepEqual(Scope.diff(
+      { stories: {}, features: Scope.parseFeatures(table(['| F-01 | Booking | A-1 | US-1 | Now | — | planned |', '| F-02 | Reports | A-2 | US-3 | Later | F-01 | planned |'])) },
+      { stories: {}, features: Scope.parseFeatures(table(['| F-01 | Booking | A-1 | US-1 | Now | — | planned |', '| F-02 | Reports | A-2 | US-3 | Next | F-01 | planned |'])) },
+    ).map(Scope.describe), ['Feature F-02 moved from Later to Next: Reports']);
+  });
+
+  test('questions for the client are found in every document, approved or not', () => {
+    runStep(state, root, 'interview');
+    runStep(state, root, 'prd', 'docs/prd.md', '# PRD\n- [NEEDS CLARIFICATION (am): can members cancel themselves?]\n');
+    S.approve(state, 1, { root, now: NOW });
+    assert.equal(S.markers(state, root).length, 0, 'nothing is under review');
+    assert.deepEqual(S.markers(state, root, { all: true }).map((m) => m.role), ['am']);
+  });
+
+  test('a state from before the brief step gets it: skipped when the pipeline is past it', () => {
+    const old = S.create({ version: '0.4.0', now: NOW });
+    delete old.steps.brief;
+    old.steps.interview = { status: 'done' };
+    old.steps.prd = { status: 'approved' };
+    assert.equal(S.upgrade(structuredClone(old)).steps.brief.status, 'skipped');
+    const fresh = S.create({ version: '0.4.0', now: NOW });
+    delete fresh.steps.brief;
+    assert.equal(S.upgrade(fresh).steps.brief.status, 'pending');
+  });
+
+  test('the client brief is checked like the other documents', () => {
+    const plugin = fileURLToPath(new URL('..', import.meta.url));
+    const r = spawnSync('node', [join(plugin, 'scripts/doccheck.mjs'), `client-brief:${join(plugin, 'templates/client-brief.md')}`], { encoding: 'utf8' });
+    assert.equal(r.status, 1, 'the bare template fails');
+    assert.match(r.stdout, /\/ 700\)/, 'with the client brief’s word limit');
   });
 });
 
@@ -396,6 +473,8 @@ describe('CLI', () => {
     write(root, '.keelwright/interview.md', 'notes');
     cli(root, 'complete', 'interview', '.keelwright/interview.md');
     cli(root, 'set', 'project-type', 'web');
+    cli(root, 'start', 'brief');
+    cli(root, 'skip', 'brief', '--reason', 'not a client project');
     cli(root, 'start', 'prd');
     write(root, 'docs/prd.md', '[NEEDS CLARIFICATION: x]');
     cli(root, 'complete', 'prd', 'docs/prd.md');

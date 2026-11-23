@@ -217,17 +217,18 @@ These rules are themselves researched content: they are re-checked when the web 
 Each stage has a step name (in backticks), used to re-run it on its own (5.1.2).
 
 1. `interview` — take the project description and specs as input, identify the **project type** (4.4), and **interview** to close gaps: users, platforms, scale, constraints, non-goals, integrations, content sources, dynamic features, languages, SEO / performance priorities.
-2. `prd` — propose the **document set** from the catalog (6.0) and write the **PRD** and ADR-0001. No technical choices: the PRD states requirements and constraints, never a framework or a version. → **Gate 1** (the user confirms the PRD and the document set)
-3. Produce the remaining documents selected from the catalog (6.0), in three steps that share one gate, each with its own owner (5.7):
+2. `brief` — for a project delivered for a client: the **client brief** — stakeholders and who signs off, the commercial frame, the agreed scope and exclusions, how the client wants to work (the account manager's, 5.7). Skipped for internal and own products. → **Gate 1**, shared with `prd`
+3. `prd` — propose the **document set** from the catalog (6.0) and write the **PRD** and ADR-0001. No technical choices: the PRD states requirements and constraints, never a framework or a version. → **Gate 1** (the user confirms the PRD and the document set)
+4. Produce the remaining documents selected from the catalog (6.0), in three steps that share one gate, each with its own owner (5.7):
    - `architecture` — the **stack recommendation** (4.5) with versions resolved live (4.6) and the stack ADR, the other ADRs, architecture overview, C4, ERD + `schema.sql`, threat model, AI system design, AI eval plan, public API surface
    - `features` — feature breakdown, backlog
    - `design` — visual identity + tokens, screen flow, GDD, asset pipeline, store release checklist
 
    → **Gate 2**
-4. `research` — research conventions and best practices for the chosen stack and produce or refresh its stack packs (5.4). → **Gate 3**
-5. `scaffold` — create the repository (5.5).
-6. `generate` — the shared generator step (5.3).
-7. `publish` — optional: Jira and Confluence output, only when asked for.
+5. `research` — research conventions and best practices for the chosen stack and produce or refresh its stack packs (5.4). → **Gate 3**
+6. `scaffold` — create the repository (5.5).
+7. `generate` — the shared generator step (5.3).
+8. `publish` — optional: Jira and Confluence output, only when asked for.
 
 ### 5.1.1 Editable documents and review gates
 
@@ -245,12 +246,13 @@ All documents are plain Markdown / DSL files in the repository, so the user can 
 **Step order**
 
 ```
-interview → prd → { architecture, features, design } → research → scaffold → generate → publish
+interview → { brief, prd } → { architecture, features, design } → research → scaffold → generate → publish
 ```
 
 | Step | Produces | Gate after it |
 |---|---|---|
 | `interview` | Project type, interview notes (`.keelwright/interview.md`) | — |
+| `brief` | Client brief (`docs/client/brief.md`) — only for a project delivered for a client | Gate 1 (shared with `prd`) |
 | `prd` | PRD, document set, ADR-0001 — no technical choices | Gate 1 |
 | `architecture` | Stack recommendation, resolved versions, stack ADR, other ADRs, architecture overview, C4, ERD + `schema.sql`, threat model, AI system design, AI eval plan, public API surface | Gate 2 (shared with `features` and `design`; each owner approves their own step) |
 | `features` | Feature breakdown, backlog | Gate 2 |
@@ -478,12 +480,18 @@ Different roles work with different documents. A personal profile (`~/.keelwrigh
   | Developer | every step (a solo developer runs the whole kickoff) |
   | Tech lead | every step; owns the technical decisions: the stack (in `architecture`), architecture, C4, ERD, threat model, `research`, `scaffold`, `generate` |
   | Designer | `design`: visual identity + tokens, screen flow, GDD, asset pipeline. On a team without a designer, the tech lead or a developer runs it |
-  | Project manager | `interview` (product questions only), `prd` (no stack), `features`, `publish` |
-  | Business analyst | as the project manager |
-  | Account manager | `interview`, `prd`, `features` (to be refined, 10) |
+  | Project manager | `interview` (product questions only), `prd` (no stack), `features`, `publish`; `brief` when there is no account manager |
+  | Business analyst | `interview`, `prd`, `features`, `publish` |
+  | Account manager | `interview` (the client's context), `brief` |
   | no role | every step, as before profiles |
 
   `/adopt`'s create-mode steps are technical: a developer or tech lead runs them (a PM or BA only `publish`). A gate shared by several owners (gate 2: the tech lead's `architecture`, the PM's `features`, the designer's `design`) is approved part by part, each owner approving their own step.
+
+- **The account manager** owns the client relationship, not delivery: research on agency roles (2026-11-23) agrees that the account manager is the client's single contact and owns the commercial side — what was agreed in sales, the statement of work, change requests with their cost and timeline impact, expectations and updates — while the project manager owns scope, schedule and delivery ([Productive](https://productive.io/blog/project-manager-vs-account-manager/), [Monterail](https://www.monterail.com/blog/account-managers-software-development), [Bitrix24 on the sales-to-delivery handoff](https://www.bitrix24.com/articles/promise-to-delivery-handoff-scope-trust.php), [Connexify on change requests](https://www.connexify.io/blog/how-to-write-an-onboarding-sow-that-prevents-rework)). So KeelWright gives them three things:
+  - **The client brief** (`brief` step, `docs/client/brief.md`, only for a project delivered for a client): stakeholders and who signs off, the contract type, deadline and change-request process, the agreed scope, exclusions and scoping assumptions, how the client wants updates. The PRD builds on it and never contradicts it.
+  - **Questions for the client.** `(am)` means *only the client can answer*: `/kickoff questions` gathers every `(am)` question in every document (`STATE markers --all`) into one plain-language message to send, and puts the client's answers back into the documents.
+  - **The scope change log** (`docs/client/changes.md`). Approving the PRD or the feature breakdown records the agreed scope (`state.scope`: stories with priority, features with slice). A later edit that adds, drops or moves one (`STATE scope`) becomes a `CH-` row before the edit is accepted; the account manager decides each: a **change request** for the client, or **in scope**.
+  Account health, renewals and growth stay in the CRM, outside KeelWright.
 
 - **The working set** — the documents the person owns: shown in full at gates, rated in the report, listed first by the doctor. The rest are summarised in a line each and stay open to them.
 
@@ -493,7 +501,7 @@ Different roles work with different documents. A personal profile (`~/.keelwrigh
   | Designer | visual identity and tokens, screen flow |
   | Project manager | PRD (goals, scope, release plan), feature breakdown and backlog, release checklist, Jira |
   | Business analyst | PRD requirements and acceptance criteria, user stories, feature breakdown and backlog, test scenarios |
-  | Account manager | open — to be defined (10) |
+  | Account manager | the client brief and the scope change log (`docs/client/`) |
 
 - **The questions they're asked.** Every open question carries the role that can answer it: `[NEEDS CLARIFICATION (lead): …]`. **A project manager, business analyst or account manager is never asked a technical question**: the interview asks them the product side and records the technical side as a `(lead)` question, which the tech lead answers at the start of `architecture`. A gate asks the person only the questions for their role; the others stay open for the right person and are listed as waiting on them.
 - **How results are shown** — a developer or tech lead sees diffs, versions and files; a designer the look, the screens and the tokens; a PM sees scope, risks and what is blocked; a BA sees requirements, criteria and data gaps.
@@ -528,6 +536,7 @@ Each document has a **key** — the name of its template — used in the PRD's `
 
 | Key | Document | Included when… | Path | Template |
 |---|---|---|---|---|
+| `client-brief` | Client brief (+ scope change log) | the project is delivered for a client | `docs/client/brief.md`, `docs/client/changes.md` | `templates/client-brief.md`, `templates/client-changes.md` |
 | `architecture-overview` | Architecture overview | more than one container or service, or a backend exists — including a managed backend such as Supabase | `docs/architecture/overview.md` | `templates/architecture-overview.md` |
 | `c4` | C4 diagrams | same as architecture overview | `docs/architecture/c4/workspace.dsl` (Structurizr DSL) | `templates/c4-workspace.dsl` |
 | `erd` | ERD + SQL DDL | the project stores data | `docs/architecture/erd.md` (Mermaid `erDiagram`) + `docs/architecture/schema.sql` | `templates/erd.md`, `templates/schema.sql` |
@@ -826,7 +835,6 @@ Examples from building the steps:
 
 ## 10. Open questions
 
-- **Account manager profile** — what they need from KeelWright (being researched with account managers).
 - **Static analysis** — Semgrep as an optional tool (7.7), or also offered as a gap for projects without one; its community rules' licence allows local use, to be confirmed for anything hosted (Phase 4).
 - **Security findings at gates** — whether an open critical finding should block `/kickoff publish` or only be shown.
 

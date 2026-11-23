@@ -5,12 +5,18 @@
 // Who runs each step (spec 5.7). `owners` are profile role ids; a developer or tech lead can run
 // every step, and so can someone without a role (as before profiles). The others run only their
 // own steps: when the next step belongs to another role, the pipeline hands off to them.
-const PRODUCT = ['project-manager', 'business-analyst', 'account-manager'];
+// The account manager owns the client relationship (spec 5.7): they bring the client's context to
+// the interview and write the client brief; the PM and BA own the PRD and the backlog.
+const PRODUCT = ['project-manager', 'business-analyst'];
+const CLIENT = ['account-manager', 'project-manager'];
 const TECHNICAL = [];
 const DESIGN = ['designer'];
 
 export const STEPS = [
-  { name: 'interview', deps: [], gate: null, optional: false, owners: PRODUCT },
+  { name: 'interview', deps: [], gate: null, optional: false, owners: [...PRODUCT, 'account-manager'] },
+  // The client brief: only for a project delivered to a client, skipped otherwise. It shares gate 1
+  // with the PRD, each approved by its owner; the PRD reads it when it exists.
+  { name: 'brief', deps: ['interview'], gate: 1, optional: false, owners: CLIENT },
   { name: 'prd', deps: ['interview'], gate: 1, optional: false, owners: PRODUCT },
   // The stack is chosen here, not in `prd`: it is the tech lead's decision.
   { name: 'architecture', deps: ['prd'], gate: 2, optional: false, owners: TECHNICAL },
@@ -85,6 +91,7 @@ export const TOOLCHAINS = ['node', 'python', 'dart', 'rust', 'godot', 'editor'];
 export const ALWAYS_DOCUMENTS = ['prd', 'adr', 'backlog', 'development-workflow'];
 
 export const CONDITIONAL_DOCUMENTS = [
+  'client-brief',
   'architecture-overview',
   'c4',
   'erd',

@@ -4,6 +4,7 @@
 
 const LIMITS = {
   prd: 1800,
+  'client-brief': 700,
   adr: 700,
   overview: 1300,
   features: 1200,

@@ -5,6 +5,7 @@ import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { markerTag } from './profile.mjs';
+import * as Scope from './scope.mjs';
 import {
   DOCUMENT_KEYS,
   MODES,
@@ -50,7 +51,19 @@ export function exists(root) {
 
 export function load(root) {
   if (!exists(root)) fail(`no KeelWright state in ${root} — run /kickoff or /adopt to start`);
-  return JSON.parse(readFileSync(statePath(root), 'utf8'));
+  return upgrade(JSON.parse(readFileSync(statePath(root), 'utf8')));
+}
+
+// A state written before a step was added to its pipeline (e.g. `brief`, 0.5.0) gets the step:
+// pending while the pipeline hasn't passed it, skipped when a later step already ran.
+export function upgrade(state) {
+  const steps = stepsFor(state);
+  steps.forEach((step, i) => {
+    if (state.steps[step.name]) return;
+    const passed = steps.slice(i + 1).some((s) => state.steps[s.name] && state.steps[s.name].status !== 'pending');
+    state.steps[step.name] = passed ? { status: 'skipped', reason: 'added to KeelWright after this step was passed' } : { status: 'pending' };
+  });
+  return state;
 }
 
 export function save(root, state) {
@@ -208,6 +221,7 @@ export function approve(state, gate, { root, now, role = null }) {
     state.steps[n] = { status: 'approved', at: state.steps[n].at, approvedAt: now, outputs: hashAll(root, files) };
     approved.push(n);
   }
+  if (approved.some((n) => SCOPE_STEPS.includes(n))) recordScope(state, root, now);
   state.currentStep = next(state).step ?? state.currentStep;
   return approved;
 }
@@ -239,16 +253,31 @@ export function acceptChanges(state, root, { keepDownstream = false } = {}) {
     state.steps[n] = { ...state.steps[n], outputs: hashAll(root, files) };
   }
   if (!keepDownstream) markStale(state, affected);
+  if (changedSteps.some((n) => SCOPE_STEPS.includes(n))) recordScope(state, root, new Date().toISOString());
   state.currentStep = next(state).step ?? state.currentStep;
   return { accepted: changedSteps, stale: keepDownstream ? [] : affected };
 }
 
-// Open [NEEDS CLARIFICATION: …] markers in the outputs of steps waiting for review.
-export function markers(state, root) {
+// The agreed scope (spec 5.7): the stories and features as last approved or accepted. Edits since
+// then that add, drop or re-prioritise one are possible change requests for the account manager.
+const SCOPE_STEPS = ['prd', 'features'];
+
+function recordScope(state, root, now) {
+  state.scope = { at: now, ...Scope.current(root) };
+}
+
+export function scopeChanges(state, root) {
+  if (!state.scope) return [];
+  return Scope.diff(state.scope, Scope.current(root)).map((c) => ({ ...c, text: Scope.describe(c) }));
+}
+
+// Open [NEEDS CLARIFICATION: …] markers in the outputs of steps waiting for review — or, with
+// `all`, of every step that produced something (the questions still open for the client).
+export function markers(state, root, { all = false } = {}) {
   const found = [];
   for (const step of stepsFor(state)) {
     const entry = state.steps[step.name];
-    if (entry.status !== 'awaiting_review') continue;
+    if (all ? !entry.outputs : entry.status !== 'awaiting_review') continue;
     for (const file of Object.keys(entry.outputs ?? {})) {
       for (const f of listFiles(root, file)) {
         const lines = readFileSync(join(root, f), 'utf8').split('\n');

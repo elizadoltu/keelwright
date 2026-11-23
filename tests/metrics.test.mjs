@@ -70,6 +70,8 @@ describe('recorded through the state CLI', () => {
     cli(root, 'start', 'interview');
     write(root, '.keelwright/interview.md', 'notes');
     cli(root, 'complete', 'interview', '.keelwright/interview.md');
+    cli(root, 'start', 'brief');
+    cli(root, 'skip', 'brief', '--reason', 'not a client project');
     cli(root, 'metric', 'interview', 'questions', '5');
 
     cli(root, 'start', 'prd');
@@ -120,6 +122,8 @@ describe('recorded through the state CLI', () => {
     cli(root, 'start', 'interview');
     write(root, '.keelwright/interview.md', 'x');
     cli(root, 'complete', 'interview', '.keelwright/interview.md');
+    cli(root, 'start', 'brief');
+    cli(root, 'skip', 'brief', '--reason', 'not a client project');
     cli(root, 'start', 'prd');
     write(root, 'docs/prd.md', '---\nstatus: draft\n---\n\n# PRD\n');
     cli(root, 'complete', 'prd', 'docs/prd.md');

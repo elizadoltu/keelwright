@@ -19,9 +19,9 @@ You are setting the user's KeelWright profile (spec 5.7). It is **personal**: it
 | **Developer** | every step | architecture, ADRs, C4, ERD, threat model, API surface, development workflow, stack packs, tooling gaps, the Claude setup | `(dev)`, `(lead)` | diffs, versions, files |
 | **Tech lead** | every step; owns the stack, architecture, diagrams, ERD, scaffold and Claude setup | as the developer | `(lead)`, `(dev)` | decisions, diffs, versions, files |
 | **Designer** | `design` (visual identity, tokens, screen flow) | the design documents and tokens | `(design)` | the look, the screens, the tokens |
-| **Project manager** | interview (product questions only), PRD (no stack), features, publish | PRD, feature breakdown, backlog, release checklist, Jira | `(pm)` | scope, risks, what is blocked |
+| **Project manager** | interview (product questions only), PRD (no stack), features, publish; the client brief when there is no account manager | PRD, feature breakdown, backlog, release checklist, Jira | `(pm)` | scope, risks, what is blocked |
 | **Business analyst** | interview, PRD, features, publish | PRD requirements and criteria, feature breakdown, backlog, test scenarios | `(ba)` | requirements, criteria, data gaps |
-| **Account manager** | interview, PRD, features | to be defined — everything summarised | `(am)` | a short status per area |
+| **Account manager** | interview (the client's context), the client brief | the client brief and the scope change log (`docs/client/`) | `(am)`: only the client can answer — they ask the client (`/kickoff questions`) | what the client agreed, what the client still has to answer, what changed in scope |
 
 A project manager, business analyst or account manager is never asked a technical question or shown a stack, a version or a scaffold. With no designer on the team, the tech lead or a developer runs `design`. No role: every step, as before profiles.
 
